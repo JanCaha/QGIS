@@ -805,6 +805,14 @@ class TestQgsExpression: public QObject
       QTest::newRow( "Y coordinate to degree minute second without formatting" ) << "to_dms(6.3545681,'y',2,'')" << false << QVariant( "6°21′16.45″" );
       QTest::newRow( "Y coordinate to degree minute second" ) << "to_dms(6.3545681,'y',2)" << false << QVariant( "6°21′16.45″" );
 
+      // DSM to degrees
+      QTest::newRow( "from_dms NULL" ) << "from_dms(NULL)" << false << QVariant();
+      QTest::newRow( "from_dms string" ) << "from_dms('string')" << true << QVariant();
+      QTest::newRow( "from_dms dms" ) << "round(from_dms(6, 21, 16.445), 7)" << false << QVariant( 6.3545681 );
+      QTest::newRow( "from_dms dm" ) << "from_dms(6, 21)" << false << QVariant( 6.35 );
+      QTest::newRow( "from_dms d" ) << "from_dms(6)" << false << QVariant( 6.0 );
+      QTest::newRow( "from_dms d decimal" ) << "from_dms(6.5)" << false << QVariant( 6.5 );
+
       // geometry functions
       QTest::newRow( "geom_to_wkb" ) << "geom_to_wkt(geom_from_wkb(geom_to_wkb(make_point(4,5))))" << false << QVariant( "Point (4 5)" );
       QTest::newRow( "geom_to_wkb not geom" ) << "geom_to_wkt(geom_from_wkb(geom_to_wkb('a')))" << true << QVariant();

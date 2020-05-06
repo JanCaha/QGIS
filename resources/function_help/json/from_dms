@@ -1,0 +1,15 @@
+{
+  "name": "from_dms",
+  "type": "function",
+  "description": "Convert a value specified in degrees, minutes and seconds to decimal degrees.",
+  "arguments": [
+    {"arg":"degrees","description":"A number specifying degrees."},
+    {"arg":"minutes","optional": true,"description":"A number specifying minutes."},
+    {"arg":"seconds","optional": true, "description":"A number specifying seconds."},
+  ],
+    "examples": [
+    { "expression":"round(from_dms(6, 21, 16.445), 7)", "returns":"6.3545681"},
+    { "expression":"from_dms(6, 21)", "returns":"6.35"},
+    { "expression":"from_dms(6.5)", "returns":"6.5"},
+  ]
+}
