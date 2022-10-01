@@ -80,6 +80,7 @@ class QgsPrintLayout;
 class QgsProviderRegistry;
 class QgsProviderSublayerDetails;
 class QgsPythonUtils;
+class QgsRStatsRunner;
 class QgsRasterLayer;
 class QgsRectangle;
 class QgsRuntimeProfiler;
@@ -192,6 +193,10 @@ class QgsLegendFilterButton;
 
 #ifdef HAVE_GEOREFERENCER
 class QgsGeoreferencerMainWindow;
+#endif
+
+#ifdef HAVE_R
+class QgsRStatsConsole;
 #endif
 
 /**
@@ -2517,6 +2522,8 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 
     QgsPythonUtils *mPythonUtils = nullptr;
 
+    QgsRStatsRunner *mRStatsRunner = nullptr;
+
     static QgisApp *sInstance;
 
     QgsUndoWidget *mUndoWidget = nullptr;
@@ -2524,6 +2531,10 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 
     QgsBrowserDockWidget *mBrowserWidget = nullptr;
     QgsBrowserDockWidget *mBrowserWidget2 = nullptr;
+
+#ifdef HAVE_R
+    QgsRStatsConsole *mRConsole = nullptr;
+#endif
 
     QgsTemporalControllerDockWidget *mTemporalControllerWidget = nullptr;
 

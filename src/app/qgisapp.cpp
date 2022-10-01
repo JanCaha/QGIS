@@ -526,6 +526,11 @@ extern "C"
 #include "qgspythonutils.h"
 #endif
 
+#ifdef HAVE_R
+#include "rstats/qgsrstatsrunner.h"
+#include "rstats/qgsrstatsconsole.h"
+#endif
+
 #ifndef Q_OS_WIN
 #include <dlfcn.h>
 #else
@@ -1588,6 +1593,11 @@ QgisApp::QgisApp( QSplashScreen *splash, bool restorePlugins, bool skipBadLayers
     mActionShowPythonDialog = nullptr;
   }
 
+#ifdef HAVE_R
+  mRStatsRunner = new QgsRStatsRunner();
+  mRConsole = new QgsRStatsConsole( nullptr, mRStatsRunner );
+#endif
+
   // Update recent project list (as possible custom project storages are now registered by plugins)
   mSplash->showMessage( tr( "Updating recent project paths" ), Qt::AlignHCenter | Qt::AlignBottom );
   qApp->processEvents();
@@ -1945,6 +1955,13 @@ QgisApp::~QgisApp()
     delete mGeoreferencer;
     mGeoreferencer = nullptr;
   }
+#endif
+
+#ifdef HAVE_R
+  delete mRConsole;
+  mRConsole = nullptr;
+  delete mRStatsRunner;
+  mRStatsRunner = nullptr;
 #endif
 
   mNetworkLoggerWidgetFactory.reset();
