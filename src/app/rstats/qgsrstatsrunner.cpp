@@ -10,6 +10,12 @@
 #include <QString>
 #include <QFile>
 #include <QDir>
+#include "qgsmaplayer.h"
+#include "qgsvectorlayer.h"
+#include "qgsfeature.h"
+#include "qgsfeatureiterator.h"
+#include "qgsfeaturerequest.h"
+#include "qgsfield.h"
 
 class QgsApplicationRWrapper
 {
@@ -54,6 +60,42 @@ Rcpp::CharacterVector Names( Rcpp::XPtr<QgsApplicationRWrapper> )
   return ret;
 }
 
+Rcpp::NumericVector activeLayerNumericField(const std::string fieldName)
+{
+    Rcpp::NumericVector result;
+
+    QgsMapLayer *layer = QgisApp::instance()->activeLayer();
+    QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer );
+
+    if ( !vlayer || (vlayer->dataProvider()->featureCount() < 1))
+      return result;
+
+    int fieldIndex = vlayer->fields().lookupField(QString::fromStdString(fieldName));
+
+    if (fieldIndex < 0)
+        return result;
+
+    QgsField field = vlayer->fields().field(fieldIndex);
+
+    if (!(field.type() == QVariant::Double || field.type() == QVariant::Int))
+        return result;
+
+    result = Rcpp::NumericVector(vlayer->dataProvider()->featureCount(), 0);
+
+    QgsFeature feature;
+
+    int i = 0;
+    QgsFeatureIterator it = vlayer->dataProvider()->getFeatures( QgsFeatureRequest() );
+
+    while ( it.nextFeature( feature ) )
+    {
+        result[i] = feature.attribute(fieldIndex).toDouble();
+        i++;
+    }
+
+    return result;
+}
+
 //
 // QgsRStatsSession
 //
@@ -76,6 +118,7 @@ QgsRStatsSession::QgsRStatsSession()
   mRSession->assign( wr, "QGIS" );
   mRSession->assign( Rcpp::InternalFunction( & Dollar ), "$.QGIS" );
   mRSession->assign( Rcpp::InternalFunction( & Names ), "names.QGIS" );
+  mRSession->assign( Rcpp::InternalFunction( & activeLayerNumericField ), "activeLayerNumericField" );
 
 //( *mRSession )["val"] = 5;
 //mRSession->parseEvalQ( "val2<-7" );
