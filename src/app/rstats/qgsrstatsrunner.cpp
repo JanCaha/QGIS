@@ -486,12 +486,15 @@ QgsRStatsSession::QgsRStatsSession()
   mRSession = std::make_unique< RInside >( 0, nullptr, true, false, true );
   mRSession->set_callbacks( this );
 
-  const QString userPath = QgsApplication::qgisSettingsDirPath() + QStringLiteral( "r_libs" );
-  if ( !QFile::exists( userPath ) )
+  QString defaultLibLocation = QgsApplication::qgisSettingsDirPath() + QStringLiteral( "r_libs" );
+  QString rLibLocation = QgsSettings().value( QStringLiteral( "Processing/Configuration/R_LIBS_USER "), defaultLibLocation ).toString();
+
+  if ( !QFile::exists( rLibLocation ) )
   {
-    QDir().mkpath( userPath );
+    QDir().mkpath( rLibLocation );
   }
-  execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
+
+  execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( rLibLocation ) );
 
   Rcpp::XPtr<QgsApplicationRWrapper> wr( new QgsApplicationRWrapper() );
   wr.attr( "class" ) = ".QGISPrivate";
