@@ -18,6 +18,7 @@
 #include "qgsproviderregistry.h"
 #include "qgsvectorlayerfeatureiterator.h"
 #include "qgsrasterlayer.h"
+#include "qgsmemoryproviderutils.h"
 
 class MapLayerWrapper
 {
