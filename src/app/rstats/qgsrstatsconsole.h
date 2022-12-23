@@ -60,6 +60,7 @@ class QgsRStatsConsole: public QWidget
     QgsInteractiveRWidget *mInputEdit = nullptr;
     QgsCodeEditorR *mOutput = nullptr;
     QgsDockableWidgetHelper *mDockableWidgetHelper = nullptr;
+    QAction *mReadRScript = nullptr;
 
 };
 

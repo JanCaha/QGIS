@@ -20,6 +20,7 @@
 #include "qgsdockablewidgethelper.h"
 #include "qgscodeeditorr.h"
 #include "qgscodeeditor.h"
+#include "qgsapplication.h"
 
 #include <QVBoxLayout>
 #include <QLineEdit>
@@ -27,6 +28,7 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QSplitter>
+#include <QFileDialog>
 
 QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
   : QWidget( parent )
@@ -40,6 +42,26 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
   QToolButton *toggleButton = mDockableWidgetHelper->createDockUndockToolButton();
   toggleButton->setToolTip( tr( "Dock R Stats Console" ) );
   toolBar->addWidget( toggleButton );
+
+  mReadRScript = new QAction( QgsApplication::getThemeIcon( QStringLiteral( "/mActionFileOpen.svg" ) ), tr( "Run Script" ), this );
+  toolBar->addAction( mReadRScript );
+
+  connect( mReadRScript, &QAction::triggered, this, [ = ]()
+  {
+    QString fileName = QFileDialog::getOpenFileName( this,
+                       tr( "Open Script" ), "/home", tr( "R Files (*.R *.r)" ) );
+    QFile inputFile( fileName );
+    if ( inputFile.open( QIODevice::ReadOnly ) )
+    {
+      QTextStream in( &inputFile );
+      while ( !in.atEnd() )
+      {
+        QString line = in.readLine();
+        mRunner->execCommand( line );
+      }
+      inputFile.close();
+    }
+  } );
 
   QVBoxLayout *vl = new QVBoxLayout();
   vl->setContentsMargins( 0, 0, 0, 0 );
