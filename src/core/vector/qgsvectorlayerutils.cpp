@@ -331,7 +331,7 @@ QVariant QgsVectorLayerUtils::createUniqueValueFromCache( const QgsVectorLayer *
         {
           // no base seed - fetch first value from layer
           QgsFeatureRequest req;
-          base = existingValues.isEmpty() ? QString() : existingValues.values().first().toString();
+          base = existingValues.isEmpty() ? QString() : existingValues.constBegin()->toString();
         }
 
         // try variants like base_1, base_2, etc until a new value found
@@ -365,6 +365,20 @@ QVariant QgsVectorLayerUtils::createUniqueValueFromCache( const QgsVectorLayer *
 
   return QVariant();
 
+}
+
+bool QgsVectorLayerUtils::attributeHasConstraints( const QgsVectorLayer *layer, int attributeIndex )
+{
+  if ( !layer )
+    return false;
+
+  if ( attributeIndex < 0 || attributeIndex >= layer->fields().count() )
+    return false;
+
+  const QgsFieldConstraints constraints = layer->fields().at( attributeIndex ).constraints();
+  return ( constraints.constraints() & QgsFieldConstraints::ConstraintNotNull ||
+           constraints.constraints() & QgsFieldConstraints::ConstraintUnique ||
+           constraints.constraints() & QgsFieldConstraints::ConstraintExpression );
 }
 
 bool QgsVectorLayerUtils::validateAttribute( const QgsVectorLayer *layer, const QgsFeature &feature, int attributeIndex, QStringList &errors,
@@ -732,7 +746,7 @@ void QgsVectorLayerUtils::matchAttributesToFields( QgsFeature &feature, const Qg
 
 QgsFeatureList QgsVectorLayerUtils::makeFeatureCompatible( const QgsFeature &feature, const QgsVectorLayer *layer, QgsFeatureSink::SinkFlags sinkFlags )
 {
-  QgsWkbTypes::Type inputWkbType( layer->wkbType( ) );
+  Qgis::WkbType inputWkbType( layer->wkbType( ) );
   QgsFeatureList resultFeatures;
   QgsFeature newF( feature );
   // Fix attributes
@@ -750,13 +764,13 @@ QgsFeatureList QgsVectorLayerUtils::makeFeatureCompatible( const QgsFeature &fea
   }
 
   // Does geometry need transformations?
-  QgsWkbTypes::GeometryType newFGeomType( QgsWkbTypes::geometryType( newF.geometry().wkbType() ) );
+  Qgis::GeometryType newFGeomType( QgsWkbTypes::geometryType( newF.geometry().wkbType() ) );
   bool newFHasGeom = newFGeomType !=
-                     QgsWkbTypes::GeometryType::UnknownGeometry &&
-                     newFGeomType != QgsWkbTypes::GeometryType::NullGeometry;
+                     Qgis::GeometryType::Unknown &&
+                     newFGeomType != Qgis::GeometryType::Null;
   bool layerHasGeom = inputWkbType !=
-                      QgsWkbTypes::Type::NoGeometry &&
-                      inputWkbType != QgsWkbTypes::Type::Unknown;
+                      Qgis::WkbType::NoGeometry &&
+                      inputWkbType != Qgis::WkbType::Unknown;
   // Drop geometry if layer is geometry-less
   if ( ( newFHasGeom && !layerHasGeom ) || !newFHasGeom )
   {
@@ -963,7 +977,7 @@ QHash<QString, QgsMaskedLayers> QgsVectorLayerUtils::labelMasks( const QgsVector
             for ( const auto &r : maskSettings.maskedSymbolLayers() )
             {
               QgsMaskedLayer &maskedLayer = maskedLayers[currentRule][r.layerId()];
-              maskedLayer.symbolLayerIds.insert( r.symbolLayerId() );
+              maskedLayer.symbolLayerIds.insert( r.symbolLayerIdV2() );
               maskedLayer.hasEffects = hasEffects;
             }
           }
@@ -1018,7 +1032,7 @@ QgsMaskedLayers QgsVectorLayerUtils::symbolLayerMasks( const QgsVectorLayer *lay
           {
             QgsMaskedLayer &maskedLayer = maskedLayers[mask.layerId()];
             maskedLayer.hasEffects |= slHasEffects;
-            maskedLayer.symbolLayerIds.insert( mask.symbolLayerId() );
+            maskedLayer.symbolLayerIds.insert( mask.symbolLayerIdV2() );
           }
         }
 

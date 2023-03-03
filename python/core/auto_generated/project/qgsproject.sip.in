@@ -678,7 +678,7 @@ Convenience function to set topological editing
 Convenience function to query topological editing status
 %End
 
-    QgsUnitTypes::DistanceUnit distanceUnits() const;
+    Qgis::DistanceUnit distanceUnits() const;
 %Docstring
 Convenience function to query default distance measurement units for project.
 
@@ -689,7 +689,7 @@ Convenience function to query default distance measurement units for project.
 .. versionadded:: 2.14
 %End
 
-    void setDistanceUnits( QgsUnitTypes::DistanceUnit unit );
+    void setDistanceUnits( Qgis::DistanceUnit unit );
 %Docstring
 Sets the default distance measurement units for the project.
 
@@ -700,7 +700,7 @@ Sets the default distance measurement units for the project.
 .. versionadded:: 3.0
 %End
 
-    QgsUnitTypes::AreaUnit areaUnits() const;
+    Qgis::AreaUnit areaUnits() const;
 %Docstring
 Convenience function to query default area measurement units for project.
 
@@ -709,7 +709,7 @@ Convenience function to query default area measurement units for project.
 .. versionadded:: 2.14
 %End
 
-    void setAreaUnits( QgsUnitTypes::AreaUnit unit );
+    void setAreaUnits( Qgis::AreaUnit unit );
 %Docstring
 Sets the default area measurement units for the project.
 
@@ -821,10 +821,19 @@ Returns the project's elevation properties, which contains the project's elevati
 
     QgsProjectDisplaySettings *displaySettings();
 %Docstring
-Returns the project's display settings, which settings and properties relating
+Returns the project's display settings, which contains settings and properties relating
 to how a QgsProject should display values such as map coordinates and bearings.
 
 .. versionadded:: 3.12
+%End
+
+
+    QgsProjectGpsSettings *gpsSettings();
+%Docstring
+Returns the project's GPS settings, which contains settings and properties relating
+to how a QgsProject should interact with a GPS device.
+
+.. versionadded:: 3.30
 %End
 
     QgsLayerTree *layerTreeRoot() const;
@@ -1596,6 +1605,20 @@ should be canceled.
 .. versionadded:: 3.10
 %End
 
+    QgsElevationShadingRenderer elevationShadingRenderer() const;
+%Docstring
+Returns the elevation shading renderer used for map shading
+
+.. versionadded:: 3.30
+%End
+
+    void setElevationShadingRenderer( const QgsElevationShadingRenderer &elevationShadingRenderer );
+%Docstring
+Sets the elevation shading renderer used for global map shading
+
+.. versionadded:: 3.30
+%End
+
     SIP_PYOBJECT __repr__();
 %MethodCode
     QString str = QStringLiteral( "<QgsProject: '%1'%2>" ).arg( sipCpp->fileName(),
@@ -2024,6 +2047,13 @@ Emitted when the list of custom project map scales changes.
 
 .. deprecated::
    Use :py:func:`~QgsProject.viewSettings` instead
+%End
+
+    void elevationShadingRendererChanged();
+%Docstring
+Emitted when the map shading renderer changes
+
+.. versionadded:: 3.30
 %End
 
   public slots:

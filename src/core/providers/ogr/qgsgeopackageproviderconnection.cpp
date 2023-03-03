@@ -17,17 +17,11 @@
 #include <sqlite3.h>
 
 #include "qgsgeopackageproviderconnection.h"
-#include "qgsogrdbconnection.h"
 #include "qgssettings.h"
-#include "qgsogrprovider.h"
 #include "qgsmessagelog.h"
-#include "qgsproviderregistry.h"
-#include "qgsprovidermetadata.h"
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
 #include "qgsfeedback.h"
-#include "qgsogrutils.h"
-#include "qgsfielddomain.h"
 #include "qgscoordinatetransform.h"
 
 #include <QTextCodec>
@@ -259,7 +253,7 @@ QList<QgsGeoPackageProviderConnection::TableProperty> QgsGeoPackageProviderConne
       if ( aspatialTypes.contains( dataType ) )
       {
         property.setFlag( QgsGeoPackageProviderConnection::Aspatial );
-        property.addGeometryColumnType( QgsWkbTypes::Type::NoGeometry, QgsCoordinateReferenceSystem() );
+        property.addGeometryColumnType( Qgis::WkbType::NoGeometry, QgsCoordinateReferenceSystem() );
       }
       else
       {
@@ -354,6 +348,12 @@ void QgsGeoPackageProviderConnection::setDefaultCapabilities()
   {
     Qgis::SqlLayerDefinitionCapability::SubsetStringFilter,
   };
+
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+  mCapabilities |= Capability::AddRelationship;
+  mCapabilities |= Capability::UpdateRelationship;
+  mCapabilities |= Capability::DeleteRelationship;
+#endif
 }
 
 QString QgsGeoPackageProviderConnection::primaryKeyColumnName( const QString &table ) const
@@ -405,6 +405,12 @@ QList<QgsLayerMetadataProviderResult> QgsGeoPackageProviderConnection::searchLay
   {
     try
     {
+      // first check if metadata tables/extension exists
+      if ( executeSql( QStringLiteral( "SELECT name FROM sqlite_master WHERE name='gpkg_metadata' AND type='table'" ), nullptr ).isEmpty() )
+      {
+        return results;
+      }
+
       const QString searchQuery { QStringLiteral( R"SQL(
       SELECT
         ref.table_name, md.metadata, gc.geometry_type_name
@@ -470,21 +476,21 @@ QList<QgsLayerMetadataProviderResult> QgsGeoPackageProviderConnection::searchLay
           const QString geomType { mdRow[2].toString().toUpper() };
           if ( geomType.contains( QStringLiteral( "POINT" ), Qt::CaseSensitivity::CaseInsensitive ) )
           {
-            result.setGeometryType( QgsWkbTypes::GeometryType::PointGeometry );
+            result.setGeometryType( Qgis::GeometryType::Point );
           }
           else if ( geomType.contains( QStringLiteral( "POLYGON" ), Qt::CaseSensitivity::CaseInsensitive ) )
           {
-            result.setGeometryType( QgsWkbTypes::GeometryType::PolygonGeometry );
+            result.setGeometryType( Qgis::GeometryType::Polygon );
           }
           else if ( geomType.contains( QStringLiteral( "LINESTRING" ), Qt::CaseSensitivity::CaseInsensitive ) )
           {
-            result.setGeometryType( QgsWkbTypes::GeometryType::LineGeometry );
+            result.setGeometryType( Qgis::GeometryType::Line );
           }
           else
           {
-            result.setGeometryType( QgsWkbTypes::GeometryType::UnknownGeometry );
+            result.setGeometryType( Qgis::GeometryType::Unknown );
           }
-          result.setLayerType( QgsMapLayerType::VectorLayer );
+          result.setLayerType( Qgis::LayerType::Vector );
 
           results.push_back( result );
         }
@@ -529,7 +535,7 @@ QgsFields QgsGeoPackageProviderConnection::fields( const QString &schema, const 
     }
     // Append name of the geometry column, the data provider does not expose this information so we need an extra query:/
     const QString sql = QStringLiteral( "SELECT g.column_name "
-                                        "FROM gpkg_contents c LEFT JOIN gpkg_geometry_columns g ON (c.table_name = g.table_name) "
+                                        "FROM gpkg_contents c CROSS JOIN gpkg_geometry_columns g ON (c.table_name = g.table_name) "
                                         "WHERE c.table_name = %1" ).arg( QgsSqliteUtils::quotedString( table ) );
     try
     {

@@ -26,17 +26,13 @@
 #include "qgsmaphittest.h"
 #include "qgsmaplayer.h"
 #include "qgsmaplayerlegend.h"
-#include "qgsmaplayerstylemanager.h"
-#include "qgsmeshlayer.h"
-#include "qgspluginlayer.h"
-#include "qgsrasterlayer.h"
-#include "qgsrenderer.h"
-#include "qgssymbollayerutils.h"
 #include "qgsvectorlayer.h"
 #include "qgslayerdefinition.h"
 #include "qgsiconutils.h"
 #include "qgsmimedatautils.h"
 #include "qgssettingsregistrycore.h"
+#include "qgsmaplayerstyle.h"
+#include "qgsrendercontext.h"
 
 #include <QPalette>
 
@@ -180,7 +176,7 @@ QVariant QgsLayerTreeModel::data( const QModelIndex &index, int role ) const
       QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( nodeLayer->layer() );
       if ( vlayer && nodeLayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toInt() && role == Qt::DisplayRole )
       {
-        const bool estimatedCount = QgsDataSourceUri( vlayer->dataProvider()->dataSourceUri() ).useEstimatedMetadata();
+        const bool estimatedCount = vlayer->dataProvider() ? QgsDataSourceUri( vlayer->dataProvider()->dataSourceUri() ).useEstimatedMetadata() : false;
         const qlonglong count = vlayer->featureCount();
 
         // if you modify this line, please update QgsSymbolLegendNode::updateLabel
@@ -323,7 +319,7 @@ QVariant QgsLayerTreeModel::data( const QModelIndex &index, int role ) const
 
         QgsLayerTreeLayer *nodeLayer = QgsLayerTree::toLayer( node );
         const bool showFeatureCount = nodeLayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toBool();
-        const bool estimatedCount = QgsDataSourceUri( layer->dataProvider()->dataSourceUri() ).useEstimatedMetadata();
+        const bool estimatedCount = layer->dataProvider() ? QgsDataSourceUri( layer->dataProvider()->dataSourceUri() ).useEstimatedMetadata() : false;
         if ( showFeatureCount && estimatedCount )
         {
           parts << tr( "<b>Feature count is estimated</b> : the feature count is determined by the database statistics" );
@@ -632,7 +628,7 @@ void QgsLayerTreeModel::setLegendFilter( const QgsMapSettings *settings, bool us
         }
       }
     }
-    bool polygonValid = !polygon.isNull() && polygon.type() == QgsWkbTypes::PolygonGeometry;
+    bool polygonValid = !polygon.isNull() && polygon.type() == Qgis::GeometryType::Polygon;
     if ( useExpressions && !useExtent && !polygonValid ) // only expressions
     {
       mLegendFilterHitTest.reset( new QgsMapHitTest( *mLegendFilterMapSettings, exprs ) );
@@ -900,7 +896,7 @@ void QgsLayerTreeModel::connectToLayer( QgsLayerTreeLayer *nodeLayer )
       if ( mAutoCollapseLegendNodesCount != -1 && rowCount( node2index( nodeLayer ) )  >= mAutoCollapseLegendNodesCount )
         nodeLayer->setExpanded( false );
 
-      if ( nodeLayer->layer()->type() == QgsMapLayerType::VectorLayer && QgsSettingsRegistryCore::settingsLayerTreeShowFeatureCountForNewLayers.value() )
+      if ( nodeLayer->layer()->type() == Qgis::LayerType::Vector && QgsSettingsRegistryCore::settingsLayerTreeShowFeatureCountForNewLayers->value() )
       {
         nodeLayer->setCustomProperty( QStringLiteral( "showFeatureCount" ), true );
       }

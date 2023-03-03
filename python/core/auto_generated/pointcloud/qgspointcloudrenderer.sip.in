@@ -157,7 +157,6 @@ Returns the feedback object used to cancel rendering
 %End
 
 
-
   private:
     QgsPointCloudRenderContext( const QgsPointCloudRenderContext &rh );
 };
@@ -319,7 +318,7 @@ The point size units are retrieved by calling :py:func:`~QgsPointCloudRenderer.p
 .. seealso:: :py:func:`pointSizeMapUnitScale`
 %End
 
-    void setPointSizeUnit( const QgsUnitTypes::RenderUnit units );
+    void setPointSizeUnit( const Qgis::RenderUnit units );
 %Docstring
 Sets the ``units`` used for the point size.
 
@@ -330,7 +329,7 @@ Sets the ``units`` used for the point size.
 .. seealso:: :py:func:`setPointSizeMapUnitScale`
 %End
 
-    QgsUnitTypes::RenderUnit pointSizeUnit() const;
+    Qgis::RenderUnit pointSizeUnit() const;
 %Docstring
 Returns the units used for the point size.
 
@@ -421,7 +420,7 @@ Units are set via :py:func:`~QgsPointCloudRenderer.setMaximumScreenErrorUnit`.
 .. seealso:: :py:func:`setMaximumScreenErrorUnit`
 %End
 
-    QgsUnitTypes::RenderUnit maximumScreenErrorUnit() const;
+    Qgis::RenderUnit maximumScreenErrorUnit() const;
 %Docstring
 Returns the unit for the maximum screen error allowed when rendering the point cloud.
 
@@ -430,7 +429,7 @@ Returns the unit for the maximum screen error allowed when rendering the point c
 .. seealso:: :py:func:`setMaximumScreenErrorUnit`
 %End
 
-    void setMaximumScreenErrorUnit( QgsUnitTypes::RenderUnit unit );
+    void setMaximumScreenErrorUnit( Qgis::RenderUnit unit );
 %Docstring
 Sets the ``unit`` for the maximum screen error allowed when rendering the point cloud.
 
@@ -447,94 +446,6 @@ Creates a set of legend nodes representing the renderer.
     virtual QStringList legendRuleKeys() const;
 %Docstring
 Returns a list of all rule keys for legend nodes created by the renderer.
-%End
-
-    bool eyeDomeLightingEnabled() const;
-%Docstring
-Returns whether eye dome lighting effect will be used
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    void setEyeDomeLightingEnabled( bool enabled );
-%Docstring
-Sets whether eye dome lighting effect will be used
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    double eyeDomeLightingStrength() const;
-%Docstring
-Returns the eye dome lighting strength value
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    void setEyeDomeLightingStrength( double strength );
-%Docstring
-Sets the eye dome lighting strength value
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    double eyeDomeLightingDistance() const;
-%Docstring
-Returns the eye dome lighting distance
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    void setEyeDomeLightingDistance( double distance );
-%Docstring
-Sets the eye dome lighting distance
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    QgsUnitTypes::RenderUnit eyeDomeLightingDistanceUnit() const;
-%Docstring
-Returns unit for the eye dome lighting distance
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
-%End
-
-    void setEyeDomeLightingDistanceUnit( QgsUnitTypes::RenderUnit unit );
-%Docstring
-Sets unit for the eye dome lighting distance
-
-.. note::
-
-   This is not a part of stable API - this function may be removed in a future release
-
-.. versionadded:: 3.28
 %End
 
   protected:

@@ -24,19 +24,11 @@
 #include "qgsvectorlayer.h"
 #include "qgsexpressioncontextutils.h"
 #include "qgsfeedback.h"
-#include "qgsexpression.h"
-#include "qgsexpressionutils.h"
 #include "qgsoffscreen3dengine.h"
-
 #include "qgs3dmapscene.h"
 #include "qgsabstract3dengine.h"
 #include "qgsterraingenerator.h"
 #include "qgscameracontroller.h"
-
-#include "qgsline3dsymbol.h"
-#include "qgspoint3dsymbol.h"
-#include "qgspolygon3dsymbol.h"
-
 #include "qgspointcloudrenderer.h"
 #include "qgspointcloud3dsymbol.h"
 #include "qgspointcloudlayer3drenderer.h"
@@ -60,6 +52,7 @@ QImage Qgs3DUtils::captureSceneImage( QgsAbstract3DEngine &engine, Qgs3DMapScene
   {
     if ( scene->sceneState() == Qgs3DMapScene::Ready )
     {
+      engine.renderSettings()->setRenderPolicy( Qt3DRender::QRenderSettings::RenderPolicy::OnDemand );
       engine.requestCaptureImage();
     }
   };
@@ -105,7 +98,8 @@ QImage Qgs3DUtils::captureSceneDepthBuffer( QgsAbstract3DEngine &engine, Qgs3DMa
   {
     if ( scene->sceneState() == Qgs3DMapScene::Ready )
     {
-      engine.requestCaptureImage();
+      engine.renderSettings()->setRenderPolicy( Qt3DRender::QRenderSettings::RenderPolicy::OnDemand );
+      engine.requestDepthBufferCapture();
     }
   };
 
@@ -115,7 +109,7 @@ QImage Qgs3DUtils::captureSceneDepthBuffer( QgsAbstract3DEngine &engine, Qgs3DMa
     evLoop.quit();
   };
 
-  QMetaObject::Connection conn1 = QObject::connect( &engine, &QgsAbstract3DEngine::imageCaptured, saveImageFcn );
+  QMetaObject::Connection conn1 = QObject::connect( &engine, &QgsAbstract3DEngine::depthBufferCaptured, saveImageFcn );
   QMetaObject::Connection conn2;
 
   if ( scene->sceneState() == Qgs3DMapScene::Ready )
@@ -148,13 +142,6 @@ bool Qgs3DUtils::exportAnimation( const Qgs3DAnimationSettings &animationSetting
                                   QgsFeedback *feedback
                                 )
 {
-  QgsOffscreen3DEngine engine;
-  engine.setSize( outputSize );
-  Qgs3DMapScene *scene = new Qgs3DMapScene( mapSettings, &engine );
-  engine.setRootEntity( scene );
-  // We need to change render policy to RenderPolicy::Always, since otherwise render capture node won't work
-  engine.renderSettings()->setRenderPolicy( Qt3DRender::QRenderSettings::RenderPolicy::Always );
-
   if ( animationSettings.keyFrames().size() < 2 )
   {
     error = QObject::tr( "Unable to export 3D animation. Add at least 2 keyframes" );
@@ -190,6 +177,22 @@ bool Qgs3DUtils::exportAnimation( const Qgs3DAnimationSettings &animationSetting
     error = QObject::tr( "Filename template must contain all # placeholders in one continuous group." );
     return false;
   }
+
+  if ( !QDir().exists( outputDirectory ) )
+  {
+    if ( !QDir().mkpath( outputDirectory ) )
+    {
+      error = QObject::tr( "Output directory could not be created." );
+      return false;
+    }
+  }
+
+  QgsOffscreen3DEngine engine;
+  engine.setSize( outputSize );
+  Qgs3DMapScene *scene = new Qgs3DMapScene( mapSettings, &engine );
+  engine.setRootEntity( scene );
+  // We need to change render policy to RenderPolicy::Always, since otherwise render capture node won't work
+  engine.renderSettings()->setRenderPolicy( Qt3DRender::QRenderSettings::RenderPolicy::Always );
 
   while ( time <= duration )
   {

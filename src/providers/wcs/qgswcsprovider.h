@@ -181,7 +181,7 @@ class QgsWcsProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
     int xSize() const override;
     int ySize() const override;
     QString htmlMetadata() override;
-    QgsRasterIdentifyResult identify( const QgsPointXY &point, QgsRaster::IdentifyFormat format, const QgsRectangle &boundingBox = QgsRectangle(), int width = 0, int height = 0, int dpi = 96 ) override;
+    QgsRasterIdentifyResult identify( const QgsPointXY &point, Qgis::RasterIdentifyFormat format, const QgsRectangle &boundingBox = QgsRectangle(), int width = 0, int height = 0, int dpi = 96 ) override;
     QString lastErrorTitle() override;
     QString lastError() override;
     QString lastErrorFormat() override;
@@ -192,7 +192,7 @@ class QgsWcsProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
 
     static QString providerKey();
 
-    int colorInterpretation( int bandNo ) const override;
+    Qgis::RasterColorInterpretation colorInterpretation( int bandNo ) const override;
 
     static QMap<QString, QString> supportedMimes();
 
@@ -455,7 +455,7 @@ class QgsWcsProviderMetadata final: public QgsProviderMetadata
     QList<QgsDataItemProvider *> dataItemProviders() const override;
     QVariantMap decodeUri( const QString &uri ) const override;
     QString encodeUri( const QVariantMap &parts ) const override;
-    QList< QgsMapLayerType > supportedLayerTypes() const override;
+    QList< Qgis::LayerType > supportedLayerTypes() const override;
 };
 
 #endif

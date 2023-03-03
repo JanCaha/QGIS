@@ -72,6 +72,8 @@ class TestQgsLabelingEngine : public QgsTest
     void testMergingLinesWithForks();
     void testMergingLinesWithMinimumSize();
     void testCurvedLabelsHtmlFormatting();
+    void testCurvedPerimeterLabelsHtmlFormatting();
+    void testCurvedLabelsHtmlSuperSubscript();
     void testPointLabelHtmlFormatting();
     void testCurvedLabelsWithTinySegments();
     void testCurvedLabelCorrectLinePlacement();
@@ -181,20 +183,20 @@ void TestQgsLabelingEngine::testEngineSettings()
   QgsLabelingEngineSettings settings;
 
   // default for new projects should be placement engine v2
-  QCOMPARE( settings.placementVersion(), QgsLabelingEngineSettings::PlacementEngineVersion2 );
+  QCOMPARE( settings.placementVersion(), Qgis::LabelPlacementEngineVersion::Version2 );
 
   settings.setDefaultTextRenderFormat( Qgis::TextRenderFormat::AlwaysText );
   QCOMPARE( settings.defaultTextRenderFormat(), Qgis::TextRenderFormat::AlwaysText );
   settings.setDefaultTextRenderFormat( Qgis::TextRenderFormat::AlwaysOutlines );
   QCOMPARE( settings.defaultTextRenderFormat(), Qgis::TextRenderFormat::AlwaysOutlines );
 
-  settings.setPlacementVersion( QgsLabelingEngineSettings::PlacementEngineVersion1 );
-  QCOMPARE( settings.placementVersion(), QgsLabelingEngineSettings::PlacementEngineVersion1 );
+  settings.setPlacementVersion( Qgis::LabelPlacementEngineVersion::Version1 );
+  QCOMPARE( settings.placementVersion(), Qgis::LabelPlacementEngineVersion::Version1 );
 
-  settings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, true );
-  QVERIFY( settings.testFlag( QgsLabelingEngineSettings::DrawUnplacedLabels ) );
-  settings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, false );
-  QVERIFY( !settings.testFlag( QgsLabelingEngineSettings::DrawUnplacedLabels ) );
+  settings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, true );
+  QVERIFY( settings.testFlag( Qgis::LabelingFlag::DrawUnplacedLabels ) );
+  settings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, false );
+  QVERIFY( !settings.testFlag( Qgis::LabelingFlag::DrawUnplacedLabels ) );
 
   settings.setUnplacedLabelColor( QColor( 0, 255, 0 ) );
   QCOMPARE( settings.unplacedLabelColor().name(), QStringLiteral( "#00ff00" ) );
@@ -202,23 +204,23 @@ void TestQgsLabelingEngine::testEngineSettings()
   // reading from project
   QgsProject p;
   settings.setDefaultTextRenderFormat( Qgis::TextRenderFormat::AlwaysText );
-  settings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, true );
+  settings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, true );
   settings.setUnplacedLabelColor( QColor( 0, 255, 0 ) );
-  settings.setPlacementVersion( QgsLabelingEngineSettings::PlacementEngineVersion1 );
+  settings.setPlacementVersion( Qgis::LabelPlacementEngineVersion::Version1 );
   settings.writeSettingsToProject( &p );
   QgsLabelingEngineSettings settings2;
   settings2.readSettingsFromProject( &p );
   QCOMPARE( settings2.defaultTextRenderFormat(), Qgis::TextRenderFormat::AlwaysText );
-  QVERIFY( settings2.testFlag( QgsLabelingEngineSettings::DrawUnplacedLabels ) );
+  QVERIFY( settings2.testFlag( Qgis::LabelingFlag::DrawUnplacedLabels ) );
   QCOMPARE( settings2.unplacedLabelColor().name(), QStringLiteral( "#00ff00" ) );
 
   settings.setDefaultTextRenderFormat( Qgis::TextRenderFormat::AlwaysOutlines );
-  settings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, false );
+  settings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, false );
   settings.writeSettingsToProject( &p );
   settings2.readSettingsFromProject( &p );
   QCOMPARE( settings2.defaultTextRenderFormat(), Qgis::TextRenderFormat::AlwaysOutlines );
-  QVERIFY( !settings2.testFlag( QgsLabelingEngineSettings::DrawUnplacedLabels ) );
-  QCOMPARE( settings2.placementVersion(), QgsLabelingEngineSettings::PlacementEngineVersion1 );
+  QVERIFY( !settings2.testFlag( Qgis::LabelingFlag::DrawUnplacedLabels ) );
+  QCOMPARE( settings2.placementVersion(), Qgis::LabelPlacementEngineVersion::Version1 );
 
   // test that older setting is still respected as a fallback
   QgsProject p2;
@@ -234,7 +236,7 @@ void TestQgsLabelingEngine::testEngineSettings()
   // when opening an older project, labeling engine version should be 1
   p2.removeEntry( QStringLiteral( "PAL" ), QStringLiteral( "/PlacementEngineVersion" ) );
   settings3.readSettingsFromProject( &p2 );
-  QCOMPARE( settings3.placementVersion(), QgsLabelingEngineSettings::PlacementEngineVersion1 );
+  QCOMPARE( settings3.placementVersion(), Qgis::LabelPlacementEngineVersion::Version1 );
 }
 
 void TestQgsLabelingEngine::testScaledFont()
@@ -242,7 +244,7 @@ void TestQgsLabelingEngine::testScaledFont()
   QgsTextFormat format;
   format.setFont( QgsFontUtils::getStandardTestFont( QStringLiteral( "Bold" ) ).family() );
   format.setSize( 9.9 );
-  format.setSizeUnit( QgsUnitTypes::RenderUnit::RenderPixels );
+  format.setSizeUnit( Qgis::RenderUnit::Pixels );
 
   bool isNullSize = true;
 
@@ -280,7 +282,7 @@ void TestQgsLabelingEngine::setDefaultLabelParams( QgsPalLayerSettings &settings
 QgsLabelingEngineSettings TestQgsLabelingEngine::createLabelEngineSettings()
 {
   QgsLabelingEngineSettings settings;
-  settings.setPlacementVersion( QgsLabelingEngineSettings::PlacementEngineVersion2 );
+  settings.setPlacementVersion( Qgis::LabelPlacementEngineVersion::Version2 );
   return settings;
 }
 
@@ -997,8 +999,8 @@ void TestQgsLabelingEngine::testRotateHidePartial()
   mapSettings.setRotation( 45 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1068,8 +1070,8 @@ void TestQgsLabelingEngine::testParallelLabelSmallFeature()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1137,8 +1139,8 @@ void TestQgsLabelingEngine::testAllowDegradedPlacements()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1232,8 +1234,8 @@ void TestQgsLabelingEngine::testOverlapHandling()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1395,8 +1397,8 @@ void TestQgsLabelingEngine::testAllowOverlapsIgnoresObstacles()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1479,9 +1481,9 @@ void TestQgsLabelingEngine::testAdjacentParts()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1534,9 +1536,9 @@ void TestQgsLabelingEngine::testTouchingParts()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1601,9 +1603,9 @@ void TestQgsLabelingEngine::testMergingLinesWithForks()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1668,9 +1670,9 @@ void TestQgsLabelingEngine::testMergingLinesWithMinimumSize()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1681,7 +1683,7 @@ void TestQgsLabelingEngine::testMergingLinesWithMinimumSize()
   QVERIFY( imageCheck( QStringLiteral( "label_merged_minimum_size" ), img, 20 ) );
 }
 
-void TestQgsLabelingEngine::testCurvedLabelsHtmlFormatting()
+void TestQgsLabelingEngine::testPointLabelHtmlFormatting()
 {
   // test point label rendering with HTML formatting
   QgsPalLayerSettings settings;
@@ -1722,8 +1724,8 @@ void TestQgsLabelingEngine::testCurvedLabelsHtmlFormatting()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1734,7 +1736,63 @@ void TestQgsLabelingEngine::testCurvedLabelsHtmlFormatting()
   QVERIFY( imageCheck( QStringLiteral( "label_point_html_rendering" ), img, 20 ) );
 }
 
-void TestQgsLabelingEngine::testPointLabelHtmlFormatting()
+void TestQgsLabelingEngine::testCurvedLabelsHtmlSuperSubscript()
+{
+  // test line label rendering with HTML formatting
+  QgsPalLayerSettings settings;
+  setDefaultLabelParams( settings );
+
+  QgsTextFormat format = settings.format();
+  format.setSize( 50 );
+  format.setColor( QColor( 0, 0, 0 ) );
+  format.setAllowHtmlFormatting( true );
+  settings.setFormat( format );
+
+  settings.fieldName = QStringLiteral( "'<sub>sub</sub>n<sup>sup</sup>'" );
+  settings.isExpression = true;
+  settings.placement = Qgis::LabelPlacement::Curved;
+  settings.labelPerPart = false;
+  settings.lineSettings().setLineAnchorPercent( 0.5 );
+  settings.lineSettings().setAnchorType( QgsLabelLineSettings::AnchorType::Strict );
+  settings.lineSettings().setPlacementFlags( QgsLabeling::LinePlacementFlag::AboveLine | QgsLabeling::LinePlacementFlag::MapOrientation );
+  settings.lineSettings().setAnchorTextPoint( QgsLabelLineSettings::AnchorTextPoint::CenterOfText );
+
+  std::unique_ptr< QgsVectorLayer> vl2( new QgsVectorLayer( QStringLiteral( "LineString?crs=epsg:3946&field=id:integer" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) ) );
+  vl2->setRenderer( new QgsNullSymbolRenderer() );
+
+  QgsFeature f;
+  f.setAttributes( QgsAttributes() << 1 );
+  f.setGeometry( QgsGeometry::fromWkt( QStringLiteral( "LineString (190000 5000010, 190100 5000000, 190200 5000000)" ) ) );
+  QVERIFY( vl2->dataProvider()->addFeature( f ) );
+
+  vl2->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );  // TODO: this should not be necessary!
+  vl2->setLabelsEnabled( true );
+
+  // make a fake render context
+  const QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
+  mapSettings.setDestinationCrs( vl2->crs() );
+
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( f.geometry().boundingBox() );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << vl2.get() );
+  mapSettings.setOutputDpi( 96 );
+
+  QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
+  mapSettings.setLabelingEngineSettings( engineSettings );
+
+  QgsMapRendererSequentialJob job( mapSettings );
+  job.start();
+  job.waitForFinished();
+
+  QImage img = job.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "label_curved_html_supersubscript" ), img, 20 ) );
+}
+
+void TestQgsLabelingEngine::testCurvedLabelsHtmlFormatting()
 {
   // test line label rendering with HTML formatting
   QgsPalLayerSettings settings;
@@ -1778,8 +1836,8 @@ void TestQgsLabelingEngine::testPointLabelHtmlFormatting()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1788,6 +1846,61 @@ void TestQgsLabelingEngine::testPointLabelHtmlFormatting()
 
   QImage img = job.renderedImage();
   QVERIFY( imageCheck( QStringLiteral( "label_curved_html_rendering" ), img, 20 ) );
+}
+
+void TestQgsLabelingEngine::testCurvedPerimeterLabelsHtmlFormatting()
+{
+  // test line label rendering with HTML formatting
+  QgsPalLayerSettings settings;
+  setDefaultLabelParams( settings );
+
+  QgsTextFormat format = settings.format();
+  format.setSize( 20 );
+  format.setColor( QColor( 0, 0, 0 ) );
+  format.setAllowHtmlFormatting( true );
+  settings.setFormat( format );
+
+  settings.fieldName = QStringLiteral( "'<i>test</i> <b style=\"color: red;font-size: 30pt\">HTML</b>'" );
+  settings.isExpression = true;
+  settings.placement = Qgis::LabelPlacement::PerimeterCurved;
+  settings.labelPerPart = false;
+  settings.maxCurvedCharAngleIn = 45;
+  settings.maxCurvedCharAngleOut = 45;
+  settings.lineSettings().setPlacementFlags( QgsLabeling::LinePlacementFlag::BelowLine );
+
+  std::unique_ptr< QgsVectorLayer> vl2( new QgsVectorLayer( QStringLiteral( "Polygon?crs=epsg:3946&field=id:integer" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) ) );
+  vl2->setRenderer( new QgsNullSymbolRenderer() );
+
+  QgsFeature f;
+  f.setAttributes( QgsAttributes() << 1 );
+  f.setGeometry( QgsGeometry::fromWkt( QStringLiteral( "Polygon ((189999.00790438248077407 5000025.93351394217461348, 190045.43212749005760998 5000092.01976095419377089, 190116.98004780878545716 5000103.4892748985439539, 190168.8659442231291905 5000086.0119203170761466, 190197.8128127490344923 5000022.11034262739121914, 190202.18215139443054795 4999983.33246214967221022, 190136.64207171316957101 4999950.56242230907082558, 190084.75617529882583767 4999935.81590438075363636, 190017.57759362552314997 4999968.03977689053863287, 190001.19257370519335382 4999987.15563346445560455, 189999.00790438248077407 5000025.93351394217461348))" ) ) );
+  QVERIFY( vl2->dataProvider()->addFeature( f ) );
+
+  vl2->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );  // TODO: this should not be necessary!
+  vl2->setLabelsEnabled( true );
+
+  // make a fake render context
+  const QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
+  mapSettings.setDestinationCrs( vl2->crs() );
+
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( f.geometry().boundingBox().buffered( f.geometry().boundingBox().width() * 0.1 ) );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << vl2.get() );
+  mapSettings.setOutputDpi( 96 );
+
+  QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
+  mapSettings.setLabelingEngineSettings( engineSettings );
+
+  QgsMapRendererSequentialJob job( mapSettings );
+  job.start();
+  job.waitForFinished();
+
+  QImage img = job.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "label_perimeter_curved_html_rendering" ), img, 20 ) );
 }
 
 void TestQgsLabelingEngine::testCurvedLabelsWithTinySegments()
@@ -1833,9 +1946,9 @@ void TestQgsLabelingEngine::testCurvedLabelsWithTinySegments()
   mapSettings.setFlag( Qgis::MapSettingsFlag::UseRenderingOptimization, false );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1889,9 +2002,9 @@ void TestQgsLabelingEngine::testCurvedLabelCorrectLinePlacement()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -1953,9 +2066,9 @@ void TestQgsLabelingEngine::testCurvedLabelNegativeDistance()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2006,9 +2119,9 @@ void TestQgsLabelingEngine::testCurvedLabelOnSmallLineNearCenter()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2058,9 +2171,9 @@ void TestQgsLabelingEngine::testCurvedLabelLineOrientationAbove()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2123,9 +2236,9 @@ void TestQgsLabelingEngine::testCurvedLabelLineOrientationBelow()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2192,9 +2305,9 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownAbove()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2260,9 +2373,9 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownBelow()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2329,7 +2442,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownAbovePositiveOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2397,7 +2510,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownAboveNegativeOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2464,7 +2577,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownLeftPositiveOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2532,7 +2645,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownLeftNegativeOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2599,7 +2712,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownRightPositiveOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2667,7 +2780,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownRightNegativeOffset()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2733,7 +2846,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintAbove()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2799,7 +2912,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintBelow()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2866,7 +2979,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintAbovePositiveOffse
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -2934,7 +3047,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintAboveNegativeOffse
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3001,7 +3114,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintLeftPositiveOffset
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3069,7 +3182,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintLeftNegativeOffset
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3136,7 +3249,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintRightPositiveOffse
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3204,7 +3317,7 @@ void TestQgsLabelingEngine::testCurvedLabelAllowUpsideDownHintRightNegativeOffse
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3268,10 +3381,10 @@ void TestQgsLabelingEngine::testRepeatDistanceWithSmallLine()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3322,9 +3435,9 @@ void TestQgsLabelingEngine::testParallelPlacementPreferAbove()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3383,8 +3496,8 @@ void TestQgsLabelingEngine::testLabelBoundary()
   mapSettings.setLabelBoundaryGeometry( QgsGeometry::fromWkt( QStringLiteral( "Polygon((3 1, 12 1, 12 9, 3 9, 3 1),(8 4, 10 4, 10 7, 8 7, 8 4))" ) ) );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3455,9 +3568,9 @@ void TestQgsLabelingEngine::testLabelBlockingRegion()
   mapSettings.setLabelBlockingRegions( regions );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3534,9 +3647,9 @@ void TestQgsLabelingEngine::testLabelRotationWithReprojection()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3574,7 +3687,7 @@ void TestQgsLabelingEngine::testLabelRotationUnit()
   setDefaultLabelParams( settings );
 
   settings.dataDefinedProperties().setProperty( QgsPalLayerSettings::LabelRotation, QgsProperty::fromExpression( QString::number( 3.14 / 2.0 ) ) );
-  settings.setRotationUnit( QgsUnitTypes::AngleRadians );
+  settings.setRotationUnit( Qgis::AngleUnit::Radians );
 
   vl->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );  // TODO: this should not be necessary!
   vl->setLabelsEnabled( true );
@@ -3660,8 +3773,8 @@ void TestQgsLabelingEngine::drawUnplaced()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, true );
   engineSettings.setUnplacedLabelColor( QColor( 255, 0, 255 ) );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
@@ -3723,9 +3836,9 @@ void TestQgsLabelingEngine::labelingResults()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -3794,7 +3907,7 @@ void TestQgsLabelingEngine::labelingResults()
   settings.priority = 1;
   vl3->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );
   vl3->setLabelsEnabled( true );
-  engineSettings.setFlag( QgsLabelingEngineSettings::CollectUnplacedLabels, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::CollectUnplacedLabels, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob jobB( mapSettings );
@@ -3928,9 +4041,9 @@ void TestQgsLabelingEngine::labelingResultsCurved()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4057,9 +4170,9 @@ void TestQgsLabelingEngine::labelingResultsWithCallouts()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4488,9 +4601,9 @@ void TestQgsLabelingEngine::curvedOverrun()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4564,9 +4677,9 @@ void TestQgsLabelingEngine::parallelOverrun()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4643,9 +4756,9 @@ void TestQgsLabelingEngine::testDataDefinedLabelAllParts()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4901,7 +5014,7 @@ void TestQgsLabelingEngine::testMapUnitLetterSpacing()
 
   QgsTextFormat format = settings.format();
   format.setSize( 50 );
-  format.setSizeUnit( QgsUnitTypes::RenderMapUnits );
+  format.setSizeUnit( Qgis::RenderUnit::MapUnits );
   format.setColor( QColor( 0, 0, 0 ) );
   settings.setFormat( format );
 
@@ -4936,8 +5049,8 @@ void TestQgsLabelingEngine::testMapUnitLetterSpacing()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -4955,7 +5068,7 @@ void TestQgsLabelingEngine::testMapUnitWordSpacing()
 
   QgsTextFormat format = settings.format();
   format.setSize( 50 );
-  format.setSizeUnit( QgsUnitTypes::RenderMapUnits );
+  format.setSizeUnit( Qgis::RenderUnit::MapUnits );
   format.setColor( QColor( 0, 0, 0 ) );
   settings.setFormat( format );
 
@@ -4990,8 +5103,8 @@ void TestQgsLabelingEngine::testMapUnitWordSpacing()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5009,10 +5122,10 @@ void TestQgsLabelingEngine::testLineHeightAbsolute()
 
   QgsTextFormat format = settings.format();
   format.setSize( 26 );
-  format.setSizeUnit( QgsUnitTypes::RenderPoints );
+  format.setSizeUnit( Qgis::RenderUnit::Points );
   format.setColor( QColor( 0, 0, 0 ) );
   format.setLineHeight( 20 );
-  format.setLineHeightUnit( QgsUnitTypes::RenderPoints );
+  format.setLineHeightUnit( Qgis::RenderUnit::Points );
   settings.setFormat( format );
 
   settings.fieldName = QStringLiteral( "'X\nX\nX'" );
@@ -5043,8 +5156,8 @@ void TestQgsLabelingEngine::testLineHeightAbsolute()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5079,7 +5192,7 @@ void TestQgsLabelingEngine::testClipping()
 
   QgsTextFormat format = settings.format();
   format.setSize( 12 );
-  format.setSizeUnit( QgsUnitTypes::RenderPoints );
+  format.setSizeUnit( Qgis::RenderUnit::Points );
   format.setColor( QColor( 0, 0, 0 ) );
   settings.setFormat( format );
 
@@ -5118,8 +5231,8 @@ void TestQgsLabelingEngine::testClipping()
   mapSettings.addClippingRegion( region2 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  //engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  //engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5180,9 +5293,9 @@ void TestQgsLabelingEngine::testLineAnchorParallel()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5244,9 +5357,9 @@ void TestQgsLabelingEngine::testLineAnchorParallelConstraints()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5442,9 +5555,9 @@ void TestQgsLabelingEngine::testLineAnchorDataDefinedType()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5509,9 +5622,9 @@ void TestQgsLabelingEngine::testLineAnchorCurved()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5594,9 +5707,9 @@ void TestQgsLabelingEngine::testLineAnchorCurvedConstraints()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5795,9 +5908,9 @@ void TestQgsLabelingEngine::testLineAnchorCurvedOverrun()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5865,9 +5978,9 @@ void TestQgsLabelingEngine::testLineAnchorCurvedStrictAllUpsideDown()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5920,9 +6033,9 @@ void TestQgsLabelingEngine::testLineAnchorHorizontal()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -5993,9 +6106,9 @@ void TestQgsLabelingEngine::testLineAnchorHorizontalConstraints()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -6076,9 +6189,9 @@ void TestQgsLabelingEngine::testLineAnchorClipping()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::UsePartialCandidates, false );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UsePartialCandidates, false );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -6137,10 +6250,10 @@ void TestQgsLabelingEngine::testShowAllLabelsWhenALabelHasNoCandidates()
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawLabelRectOnly, true );
-  engineSettings.setFlag( QgsLabelingEngineSettings::UseAllLabels, true );
-  engineSettings.setFlag( QgsLabelingEngineSettings::DrawUnplacedLabels, true );
-  // engineSettings.setFlag( QgsLabelingEngineSettings::DrawCandidates, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawLabelRectOnly, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::UseAllLabels, true );
+  engineSettings.setFlag( Qgis::LabelingFlag::DrawUnplacedLabels, true );
+  // engineSettings.setFlag( Qgis::LabelingFlag::DrawCandidates, true );
   mapSettings.setLabelingEngineSettings( engineSettings );
 
   QgsMapRendererSequentialJob job( mapSettings );
@@ -6156,7 +6269,7 @@ void TestQgsLabelingEngine::testSymbologyScalingFactor()
   // test rendering labels with a layer with a reference scale set (with callout)
   std::unique_ptr< QgsVectorLayer > vl = std::make_unique< QgsVectorLayer >( QStringLiteral( TEST_DATA_DIR ) + "/points.shp", QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
   QVERIFY( vl->isValid() );
-  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry ) );
+  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ) );
   marker->setColor( QColor( 255, 0, 0 ) );
   marker->setSize( 3 );
   static_cast< QgsSimpleMarkerSymbolLayer * >( marker->symbolLayer( 0 ) )->setStrokeStyle( Qt::NoPen );
@@ -6221,7 +6334,7 @@ void TestQgsLabelingEngine::testSymbologyScalingFactor2()
   // test rendering labels with a layer with a reference scale set (with label background)
   std::unique_ptr< QgsVectorLayer > vl = std::make_unique< QgsVectorLayer >( QStringLiteral( TEST_DATA_DIR ) + "/points.shp", QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
   QVERIFY( vl->isValid() );
-  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry ) );
+  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ) );
   marker->setColor( QColor( 255, 0, 0 ) );
   marker->setSize( 3 );
   static_cast< QgsSimpleMarkerSymbolLayer * >( marker->symbolLayer( 0 ) )->setStrokeStyle( Qt::NoPen );

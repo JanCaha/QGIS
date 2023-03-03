@@ -23,6 +23,7 @@
 #include "qgstextrendererutils.h"
 #include "qgspainteffectregistry.h"
 #include "qgsapplication.h"
+#include "qgsunittypes.h"
 
 QgsTextBackgroundSettings::QgsTextBackgroundSettings()
 {
@@ -142,6 +143,10 @@ QgsMarkerSymbol *QgsTextBackgroundSettings::markerSymbol() const
 
 void QgsTextBackgroundSettings::setMarkerSymbol( QgsMarkerSymbol *symbol )
 {
+  if ( symbol )
+    // Remove symbol layer unique id to have correct settings equality
+    QgsSymbolLayerUtils::clearSymbolLayerIds( symbol );
+
   d->markerSymbol.reset( symbol );
 }
 
@@ -152,6 +157,10 @@ QgsFillSymbol *QgsTextBackgroundSettings::fillSymbol() const
 
 void QgsTextBackgroundSettings::setFillSymbol( QgsFillSymbol *symbol )
 {
+  if ( symbol )
+    // Remove symbol layer unique id to have correct settings equality
+    QgsSymbolLayerUtils::clearSymbolLayerIds( symbol );
+
   d->fillSymbol.reset( symbol );
 }
 
@@ -175,12 +184,12 @@ void QgsTextBackgroundSettings::setSize( QSizeF size )
   d->size = size;
 }
 
-QgsUnitTypes::RenderUnit QgsTextBackgroundSettings::sizeUnit() const
+Qgis::RenderUnit QgsTextBackgroundSettings::sizeUnit() const
 {
   return d->sizeUnits;
 }
 
-void QgsTextBackgroundSettings::setSizeUnit( QgsUnitTypes::RenderUnit unit )
+void QgsTextBackgroundSettings::setSizeUnit( Qgis::RenderUnit unit )
 {
   d->sizeUnits = unit;
 }
@@ -225,12 +234,12 @@ void QgsTextBackgroundSettings::setOffset( QPointF offset )
   d->offset = offset;
 }
 
-QgsUnitTypes::RenderUnit QgsTextBackgroundSettings::offsetUnit() const
+Qgis::RenderUnit QgsTextBackgroundSettings::offsetUnit() const
 {
   return d->offsetUnits;
 }
 
-void QgsTextBackgroundSettings::setOffsetUnit( QgsUnitTypes::RenderUnit units )
+void QgsTextBackgroundSettings::setOffsetUnit( Qgis::RenderUnit units )
 {
   d->offsetUnits = units;
 }
@@ -255,12 +264,12 @@ void QgsTextBackgroundSettings::setRadii( QSizeF radii )
   d->radii = radii;
 }
 
-QgsUnitTypes::RenderUnit QgsTextBackgroundSettings::radiiUnit() const
+Qgis::RenderUnit QgsTextBackgroundSettings::radiiUnit() const
 {
   return d->radiiUnits;
 }
 
-void QgsTextBackgroundSettings::setRadiiUnit( QgsUnitTypes::RenderUnit units )
+void QgsTextBackgroundSettings::setRadiiUnit( Qgis::RenderUnit units )
 {
   d->radiiUnits = units;
 }
@@ -339,12 +348,12 @@ void QgsTextBackgroundSettings::setStrokeWidth( double width )
   }
 }
 
-QgsUnitTypes::RenderUnit QgsTextBackgroundSettings::strokeWidthUnit() const
+Qgis::RenderUnit QgsTextBackgroundSettings::strokeWidthUnit() const
 {
   return d->strokeWidthUnits;
 }
 
-void QgsTextBackgroundSettings::setStrokeWidthUnit( QgsUnitTypes::RenderUnit units )
+void QgsTextBackgroundSettings::setStrokeWidthUnit( Qgis::RenderUnit units )
 {
   d->strokeWidthUnits = units;
   if ( d->fillSymbol && d->fillSymbol->symbolLayers().at( 0 )->layerType() == QLatin1String( "SimpleFill" ) )
@@ -506,7 +515,7 @@ void QgsTextBackgroundSettings::readFromLayer( QgsVectorLayer *layer )
     d->opacity = ( layer->customProperty( QStringLiteral( "labeling/shapeOpacity" ) ).toDouble() );
   }
   d->blendMode = QgsPainting::getCompositionMode(
-                   static_cast< QgsPainting::BlendMode >( layer->customProperty( QStringLiteral( "labeling/shapeBlendMode" ), QVariant( QgsPainting::BlendNormal ) ).toUInt() ) );
+                   static_cast< Qgis::BlendMode >( layer->customProperty( QStringLiteral( "labeling/shapeBlendMode" ), QVariant( static_cast< int>( Qgis::BlendMode::Normal ) ) ).toUInt() ) );
 
   if ( layer->customProperty( QStringLiteral( "labeling/shapeEffect" ) ).isValid() )
   {
@@ -635,7 +644,7 @@ void QgsTextBackgroundSettings::readXml( const QDomElement &elem, const QgsReadW
   }
 
   d->blendMode = QgsPainting::getCompositionMode(
-                   static_cast< QgsPainting::BlendMode >( backgroundElem.attribute( QStringLiteral( "shapeBlendMode" ), QString::number( QgsPainting::BlendNormal ) ).toUInt() ) );
+                   static_cast< Qgis::BlendMode >( backgroundElem.attribute( QStringLiteral( "shapeBlendMode" ), QString::number( static_cast< int >( Qgis::BlendMode::Normal ) ) ).toUInt() ) );
 
   const QDomElement effectElem = backgroundElem.firstChildElement( QStringLiteral( "effect" ) );
   if ( !effectElem.isNull() )
@@ -706,7 +715,7 @@ QDomElement QgsTextBackgroundSettings::writeXml( QDomDocument &doc, const QgsRea
   backgroundElem.setAttribute( QStringLiteral( "shapeBorderWidthMapUnitScale" ), QgsSymbolLayerUtils::encodeMapUnitScale( d->strokeWidthMapUnitScale ) );
   backgroundElem.setAttribute( QStringLiteral( "shapeJoinStyle" ), static_cast< unsigned int >( d->joinStyle ) );
   backgroundElem.setAttribute( QStringLiteral( "shapeOpacity" ), d->opacity );
-  backgroundElem.setAttribute( QStringLiteral( "shapeBlendMode" ), QgsPainting::getBlendModeEnum( d->blendMode ) );
+  backgroundElem.setAttribute( QStringLiteral( "shapeBlendMode" ), static_cast< int >( QgsPainting::getBlendModeEnum( d->blendMode ) ) );
   if ( d->paintEffect && !QgsPaintEffectRegistry::isDefaultStack( d->paintEffect.get() ) )
     d->paintEffect->saveProperties( doc, backgroundElem );
 
@@ -783,7 +792,7 @@ void QgsTextBackgroundSettings::updateDataDefinedProperties( QgsRenderContext &c
     if ( !units.isEmpty() )
     {
       bool ok;
-      const QgsUnitTypes::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
+      const Qgis::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
       if ( ok )
         d->sizeUnits = res;
     }
@@ -850,7 +859,7 @@ void QgsTextBackgroundSettings::updateDataDefinedProperties( QgsRenderContext &c
     if ( !units.isEmpty() )
     {
       bool ok;
-      const QgsUnitTypes::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
+      const Qgis::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
       if ( ok )
         d->offsetUnits = res;
     }
@@ -874,7 +883,7 @@ void QgsTextBackgroundSettings::updateDataDefinedProperties( QgsRenderContext &c
     if ( !units.isEmpty() )
     {
       bool ok;
-      const QgsUnitTypes::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
+      const Qgis::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
       if ( ok )
         d->radiiUnits = res;
     }
@@ -915,7 +924,7 @@ void QgsTextBackgroundSettings::updateDataDefinedProperties( QgsRenderContext &c
     if ( !units.isEmpty() )
     {
       bool ok;
-      const QgsUnitTypes::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
+      const Qgis::RenderUnit res = QgsUnitTypes::decodeRenderUnit( units, &ok );
       if ( ok )
         d->strokeWidthUnits = res;
     }

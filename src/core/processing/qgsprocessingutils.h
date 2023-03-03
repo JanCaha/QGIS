@@ -288,7 +288,7 @@ class CORE_EXPORT QgsProcessingUtils
     static QgsFeatureSink *createFeatureSink( QString &destination,
         QgsProcessingContext &context,
         const QgsFields &fields,
-        QgsWkbTypes::Type geometryType,
+        Qgis::WkbType geometryType,
         const QgsCoordinateReferenceSystem &crs,
         const QVariantMap &createOptions = QVariantMap(),
         const QStringList &datasourceOptions = QStringList(),
@@ -316,7 +316,7 @@ class CORE_EXPORT QgsProcessingUtils
      * SIP bindings. c++ code should call the other createFeatureSink() version.
      * \note available in Python bindings as createFeatureSink()
      */
-    static void createFeatureSinkPython( QgsFeatureSink **sink SIP_OUT SIP_TRANSFERBACK, QString &destination SIP_INOUT, QgsProcessingContext &context, const QgsFields &fields, QgsWkbTypes::Type geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &createOptions = QVariantMap() ) SIP_THROW( QgsProcessingException ) SIP_PYNAME( createFeatureSink );
+    static void createFeatureSinkPython( QgsFeatureSink **sink SIP_OUT SIP_TRANSFERBACK, QString &destination SIP_INOUT, QgsProcessingContext &context, const QgsFields &fields, Qgis::WkbType geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &createOptions = QVariantMap() ) SIP_THROW( QgsProcessingException ) SIP_PYNAME( createFeatureSink );
 
 
     /**
@@ -502,6 +502,15 @@ class CORE_EXPORT QgsProcessingUtils
      */
     static QVariantMap removePointerValuesFromMap( const QVariantMap &map );
 
+    /**
+     * Pre-processes a set of \a parameter values for the qgis_process command.
+     *
+     * In particular, this function upgrades encoded data defined values to QgsProperty objects.
+     *
+     * \since QGIS 3.30
+     */
+    static QVariantMap preprocessQgisProcessParameters( const QVariantMap &parameters, bool &ok, QString &error );
+
   private:
     static bool canUseLayer( const QgsRasterLayer *layer );
     static bool canUseLayer( const QgsMeshLayer *layer );
@@ -612,7 +621,7 @@ class CORE_EXPORT QgsProcessingFeatureSource : public QgsFeatureSource
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request = QgsFeatureRequest() ) const override;
     QgsCoordinateReferenceSystem sourceCrs() const override;
     QgsFields fields() const override;
-    QgsWkbTypes::Type wkbType() const override;
+    Qgis::WkbType wkbType() const override;
     long long featureCount() const override;
     QString sourceName() const override;
     QSet<QVariant> uniqueValues( int fieldIndex, int limit = -1 ) const override;

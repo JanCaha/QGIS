@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QGIS Unit tests for Auxiliary Storage.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -10,32 +9,34 @@ __author__ = 'Paul Blottiere'
 __date__ = '06/09/2017'
 __copyright__ = 'Copyright 2017, The QGIS Project'
 
-import qgis  # NOQA
-
 import os
 
+import qgis  # NOQA
 from qgis.PyQt.QtCore import QTemporaryFile, QVariant
-from qgis.core import (QgsAuxiliaryStorage,
-                       QgsAuxiliaryLayer,
-                       QgsVectorLayer,
-                       QgsFeature,
-                       QgsGeometry,
-                       QgsPropertyDefinition,
-                       QgsProperty,
-                       QgsProject,
-                       QgsProjectArchive,
-                       QgsFeatureRequest,
-                       QgsPalLayerSettings,
-                       QgsSymbolLayer,
-                       QgsVectorLayerSimpleLabeling,
-                       QgsField,
-                       QgsCallout,
-                       QgsSimpleLineCallout,
-                       NULL,
-                       QgsDiagramLayerSettings,
-                       QgsSingleCategoryDiagramRenderer)
+from qgis.core import (
+    NULL,
+    QgsAuxiliaryLayer,
+    QgsAuxiliaryStorage,
+    QgsCallout,
+    QgsDiagramLayerSettings,
+    QgsFeature,
+    QgsFeatureRequest,
+    QgsField,
+    QgsGeometry,
+    QgsPalLayerSettings,
+    QgsProject,
+    QgsProjectArchive,
+    QgsProperty,
+    QgsPropertyDefinition,
+    QgsSimpleLineCallout,
+    QgsSingleCategoryDiagramRenderer,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+    QgsVectorLayerSimpleLabeling,
+)
 from qgis.testing import start_app, unittest
-from utilities import unitTestDataPath, writeShape
+
+from utilities import writeShape
 
 start_app()
 
@@ -300,7 +301,7 @@ class TestQgsAuxiliaryStorage(unittest.TestCase):
                 break
         self.assertTrue(tested)
 
-        # Add a hidden property
+        # Add a PAL hidden property
         p = QgsPalLayerSettings.propertyDefinitions()[QgsPalLayerSettings.PositionX]
         self.assertTrue(al.addAuxiliaryField(p))
 
@@ -320,7 +321,7 @@ class TestQgsAuxiliaryStorage(unittest.TestCase):
                 break
         self.assertTrue(tested)
 
-        # Add a color property
+        # Add a PAL color property
         p = QgsSymbolLayer.propertyDefinitions()[QgsSymbolLayer.PropertyFillColor]
         self.assertTrue(al.addAuxiliaryField(p))
 
@@ -331,6 +332,33 @@ class TestQgsAuxiliaryStorage(unittest.TestCase):
         index = vl.fields().indexOf(afName)
         setup = vl.editorWidgetSetup(index)
         self.assertEqual(setup.type(), 'Color')
+
+        # Add a symbol hidden property
+        p = QgsSymbolLayer.propertyDefinitions()[QgsSymbolLayer.PropertyAngle]
+        self.assertTrue(al.addAuxiliaryField(p))
+
+        index = al.indexOfPropertyDefinition(p)
+        self.assertTrue(al.isHiddenProperty(index))
+
+        afName = QgsAuxiliaryLayer.nameFromProperty(p, True)
+        index = vl.fields().indexOf(afName)
+        setup = vl.editorWidgetSetup(index)
+        self.assertEqual(setup.type(), 'Hidden')
+
+        tested = False
+        for c in vl.attributeTableConfig().columns():
+            if c.name == afName:
+                self.assertTrue(c.hidden)
+                tested = True
+                break
+        self.assertTrue(tested)
+
+        # Add a not hidden symbol property
+        p = QgsSymbolLayer.propertyDefinitions()[QgsSymbolLayer.PropertyWidth]
+        self.assertTrue(al.addAuxiliaryField(p))
+
+        index = al.indexOfPropertyDefinition(p)
+        self.assertFalse(al.isHiddenProperty(index))
 
     def testClear(self):
         s = QgsAuxiliaryStorage()
@@ -819,10 +847,10 @@ class TestQgsAuxiliaryStorage(unittest.TestCase):
 
         qgd = p1.auxiliaryStorage().currentFileName()
 
-        layer = QgsVectorLayer(f"{qgd}|layername={vl0.id()}", 'test', u'ogr')
+        layer = QgsVectorLayer(f"{qgd}|layername={vl0.id()}", 'test', 'ogr')
         self.assertTrue(layer.isValid())
 
-        layer = QgsVectorLayer(f"{qgd}|layername={vl1.id()}", 'test', u'ogr')
+        layer = QgsVectorLayer(f"{qgd}|layername={vl1.id()}", 'test', 'ogr')
         self.assertTrue(layer.isValid())
 
         # remove layer from project
@@ -841,11 +869,11 @@ class TestQgsAuxiliaryStorage(unittest.TestCase):
         qgd = p2.auxiliaryStorage().currentFileName()
 
         uri = f"{qgd}|layername={vl0.id()}"
-        layer = QgsVectorLayer(uri, 'test', u'ogr')
+        layer = QgsVectorLayer(uri, 'test', 'ogr')
         self.assertFalse(layer.isValid())
 
         uri = f"{qgd}|layername={vl1.id()}"
-        layer = QgsVectorLayer(uri, 'test', u'ogr')
+        layer = QgsVectorLayer(uri, 'test', 'ogr')
         self.assertTrue(layer.isValid())
 
 

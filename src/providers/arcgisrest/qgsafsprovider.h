@@ -20,12 +20,13 @@
 
 #include <memory>
 #include "qgsvectordataprovider.h"
-#include "qgsdatasourceuri.h"
 #include "qgsafsshareddata.h"
 #include "qgscoordinatereferencesystem.h"
 #include "geometry/qgswkbtypes.h"
 #include "qgsfields.h"
 #include "qgslayermetadata.h"
+#include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
 
 #include "qgsprovidermetadata.h"
 #include "qgshttpheaders.h"
@@ -39,8 +40,8 @@ class QgsAfsProvider : public QgsVectorDataProvider
 
   public:
 
-    static const QString AFS_PROVIDER_KEY;
-    static const QString AFS_PROVIDER_DESCRIPTION;
+    static const inline QString AFS_PROVIDER_KEY = QStringLiteral( "arcgisfeatureserver" );
+    static const inline QString AFS_PROVIDER_DESCRIPTION = QStringLiteral( "ArcGIS Feature Service data provider" );
 
     QgsAfsProvider( const QString &uri, const QgsDataProvider::ProviderOptions &providerOptions, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() );
 
@@ -48,7 +49,7 @@ class QgsAfsProvider : public QgsVectorDataProvider
     QgsAbstractFeatureSource *featureSource() const override;
     QString storageType() const override { return QStringLiteral( "ArcGIS Feature Service" ); }
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request = QgsFeatureRequest() ) const override;
-    QgsWkbTypes::Type wkbType() const override;
+    Qgis::WkbType wkbType() const override;
     long long featureCount() const override;
     QgsFields fields() const override;
     QgsLayerMetadata layerMetadata() const override;
@@ -121,7 +122,7 @@ class QgsAfsProviderMetadata: public QgsProviderMetadata
     QVariantMap decodeUri( const QString &uri ) const override;
     QString encodeUri( const QVariantMap &parts ) const override;
     QgsAfsProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() ) override;
-    QList< QgsMapLayerType > supportedLayerTypes() const override;
+    QList< Qgis::LayerType > supportedLayerTypes() const override;
 };
 
 #endif // QGSAFSPROVIDER_H

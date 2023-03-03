@@ -1015,7 +1015,32 @@ QMultiMap<Qgis::SqlKeywordCategory, QStringList> QgsAbstractDatabaseProviderConn
   };
 }
 
+QSet<QString> QgsAbstractDatabaseProviderConnection::illegalFieldNames() const
+{
+  return mIllegalFieldNames;
+}
+
 QList<Qgis::FieldDomainType> QgsAbstractDatabaseProviderConnection::supportedFieldDomainTypes() const
+{
+  return {};
+}
+
+QList<Qgis::RelationshipCardinality> QgsAbstractDatabaseProviderConnection::supportedRelationshipCardinalities() const
+{
+  return {};
+}
+
+QList<Qgis::RelationshipStrength> QgsAbstractDatabaseProviderConnection::supportedRelationshipStrengths() const
+{
+  return {};
+}
+
+Qgis::RelationshipCapabilities QgsAbstractDatabaseProviderConnection::supportedRelationshipCapabilities() const
+{
+  return Qgis::RelationshipCapabilities();
+}
+
+QStringList QgsAbstractDatabaseProviderConnection::relatedTableTypes() const
 {
   return {};
 }
@@ -1028,7 +1053,7 @@ QgsProviderSqlQueryBuilder *QgsAbstractDatabaseProviderConnection::queryBuilder(
 void QgsAbstractDatabaseProviderConnection::createVectorTable( const QString &schema,
     const QString &name,
     const QgsFields &fields,
-    QgsWkbTypes::Type wkbType,
+    Qgis::WkbType wkbType,
     const QgsCoordinateReferenceSystem &srs,
     bool overwrite,
     const QMap<QString, QVariant> *
@@ -1276,7 +1301,7 @@ void QgsAbstractDatabaseProviderConnection::TableProperty::setTableName( const Q
   mTableName = name;
 }
 
-void QgsAbstractDatabaseProviderConnection::TableProperty::addGeometryColumnType( const QgsWkbTypes::Type &type, const QgsCoordinateReferenceSystem &crs )
+void QgsAbstractDatabaseProviderConnection::TableProperty::addGeometryColumnType( Qgis::WkbType type, const QgsCoordinateReferenceSystem &crs )
 {
   // Do not add the type if it's already present
   const QgsAbstractDatabaseProviderConnection::TableProperty::GeometryColumnType toAdd { type, crs };
@@ -1338,6 +1363,21 @@ QList< QgsWeakRelation > QgsAbstractDatabaseProviderConnection::relationships( c
 {
   checkCapability( Capability::RetrieveRelationships );
   return {};
+}
+
+void QgsAbstractDatabaseProviderConnection::addRelationship( const QgsWeakRelation & ) const
+{
+  checkCapability( Capability::AddRelationship );
+}
+
+void QgsAbstractDatabaseProviderConnection::updateRelationship( const QgsWeakRelation & ) const
+{
+  checkCapability( Capability::UpdateRelationship );
+}
+
+void QgsAbstractDatabaseProviderConnection::deleteRelationship( const QgsWeakRelation & ) const
+{
+  checkCapability( Capability::DeleteRelationship );
 }
 
 QString QgsAbstractDatabaseProviderConnection::TableProperty::defaultName() const

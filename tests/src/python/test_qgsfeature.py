@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QGIS Unit tests for QgsFeature.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -10,19 +9,22 @@ __author__ = 'Germán Carrillo'
 __date__ = '06/10/2012'
 __copyright__ = 'Copyright 2012, The QGIS Project'
 
-import qgis  # NOQA
-
 import os
-from qgis.core import (QgsFeature,
-                       QgsPoint,
-                       QgsGeometry,
-                       QgsPointXY,
-                       QgsVectorLayer,
-                       NULL,
-                       QgsFields,
-                       QgsField,
-                       QgsUnsetAttributeValue)
+
+import qgis  # NOQA
+from qgis.core import (
+    NULL,
+    QgsFeature,
+    QgsField,
+    QgsFields,
+    QgsGeometry,
+    QgsPoint,
+    QgsPointXY,
+    QgsUnsetAttributeValue,
+    QgsVectorLayer,
+)
 from qgis.testing import start_app, unittest
+
 from utilities import unitTestDataPath
 
 start_app()
@@ -37,7 +39,7 @@ class TestQgsFeature(unittest.TestCase):
         feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(123, 456)))
         myId = feat.id()
         myExpectedId = 0
-        myMessage = '\nExpected: %s\nGot: %s' % (myExpectedId, myId)
+        myMessage = f'\nExpected: {myExpectedId}\nGot: {myId}'
         assert myId == myExpectedId, myMessage
 
     def test_FeatureDefaultConstructor(self):
@@ -134,7 +136,7 @@ class TestQgsFeature(unittest.TestCase):
         fit.nextFeature(feat)
         fit.close()
         myValidValue = feat.isValid()
-        myMessage = '\nExpected: %s\nGot: %s' % ("True", myValidValue)
+        myMessage = f"\nExpected: True\nGot: {myValidValue}"
         assert myValidValue, myMessage
 
     def test_Validity(self):
@@ -170,10 +172,7 @@ class TestQgsFeature(unittest.TestCase):
 
         # Only for printing purposes
         myExpectedAttributes = ["Highway", 1]
-        myMessage = '\nExpected: %s\nGot: %s' % (
-            myExpectedAttributes,
-            myAttributes
-        )
+        myMessage = f'\nExpected: {myExpectedAttributes}\nGot: {myAttributes}'
 
         assert myAttributes == myExpectedAttributes, myMessage
 
@@ -202,7 +201,7 @@ class TestQgsFeature(unittest.TestCase):
         feat.deleteAttribute(1)
         myAttrs = [feat[0], feat[1]]
         myExpectedAttrs = ["text1", "text3"]
-        myMessage = '\nExpected: %s\nGot: %s' % (str(myExpectedAttrs), str(myAttrs))
+        myMessage = f'\nExpected: {str(myExpectedAttrs)}\nGot: {str(myAttrs)}'
         assert myAttrs == myExpectedAttrs, myMessage
 
     def test_DeleteAttributeByName(self):
@@ -226,7 +225,7 @@ class TestQgsFeature(unittest.TestCase):
         feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(123, 456)))
         myGeometry = feat.geometry()
         myExpectedGeometry = "!None"
-        myMessage = '\nExpected: %s\nGot: %s' % (myExpectedGeometry, myGeometry)
+        myMessage = f'\nExpected: {myExpectedGeometry}\nGot: {myGeometry}'
         assert myGeometry is not None, myMessage
 
         # set from QgsAbstractGeometry

@@ -20,11 +20,11 @@
 
 #include "qgsvectordataprovider.h"
 #include "qgsrectangle.h"
-#include "qgsoracletablemodel.h"
 #include "qgsdatasourceuri.h"
 #include "qgsfields.h"
 #include "qgsproviderregistry.h"
 #include "qgsprovidermetadata.h"
+#include "qgsoracleconn.h"
 #ifdef HAVE_GUI
 #include "qgsproviderguimetadata.h"
 #endif
@@ -70,7 +70,7 @@ class QgsOracleProvider final: public QgsVectorDataProvider
     static Qgis::VectorExportResult createEmptyLayer(
       const QString &uri,
       const QgsFields &fields,
-      QgsWkbTypes::Type wkbType,
+      Qgis::WkbType wkbType,
       const QgsCoordinateReferenceSystem &srs,
       bool overwrite,
       QMap<int, int> &oldToNewAttrIdxMap,
@@ -104,7 +104,7 @@ class QgsOracleProvider final: public QgsVectorDataProvider
     QgsAbstractFeatureSource *featureSource() const override;
     QString storageType() const override;
     QgsCoordinateReferenceSystem crs() const override;
-    QgsWkbTypes::Type wkbType() const override;
+    Qgis::WkbType wkbType() const override;
 
     /**
      * Returns the number of layers for the current data source
@@ -311,8 +311,8 @@ class QgsOracleProvider final: public QgsVectorDataProvider
     int mSrid;                         //!< Srid of column
     QgsVectorDataProvider::Capabilities mEnabledCapabilities;          //!< Capabilities of layer
 
-    QgsWkbTypes::Type mDetectedGeomType;   //!< Geometry type detected in the database
-    QgsWkbTypes::Type mRequestedGeomType;  //!< Geometry type requested in the uri
+    Qgis::WkbType mDetectedGeomType;   //!< Geometry type detected in the database
+    Qgis::WkbType mRequestedGeomType;  //!< Geometry type requested in the uri
 
     bool getGeometryDetails();
 
@@ -443,13 +443,14 @@ class QgsOracleProviderMetadata final: public QgsProviderMetadata
     QString getStyleById( const QString &uri, const QString &styleId, QString &errCause ) override;
     int listStyles( const QString &uri, QStringList &ids, QStringList &names, QStringList &descriptions, QString &errCause ) override;
     QString loadStyle( const QString &uri, QString &errCause ) override;
+    QString loadStoredStyle( const QString &uri, QString &styleName, QString &errCause ) override;
     bool styleExists( const QString &uri, const QString &styleId, QString &errorCause ) override;
     bool saveStyle( const QString &uri, const QString &qmlStyle, const QString &sldStyle, const QString &styleName,
                     const QString &styleDescription, const QString &uiFileContent, bool useAsDefault, QString &errCause ) override;
     void cleanupProvider() override;
     void initProvider() override;
     Qgis::VectorExportResult createEmptyLayer( const QString &uri,
-        const QgsFields &fields, QgsWkbTypes::Type wkbType,
+        const QgsFields &fields, Qgis::WkbType wkbType,
         const QgsCoordinateReferenceSystem &srs, bool overwrite,
         QMap<int, int> &oldToNewAttrIdxMap, QString &errorMessage,
         const QMap<QString, QVariant> *options ) override;
@@ -466,7 +467,7 @@ class QgsOracleProviderMetadata final: public QgsProviderMetadata
 
     QVariantMap decodeUri( const QString &uri ) const override;
     QString encodeUri( const QVariantMap &parts ) const override;
-    QList< QgsMapLayerType > supportedLayerTypes() const override;
+    QList< Qgis::LayerType > supportedLayerTypes() const override;
 
   private:
 

@@ -20,7 +20,6 @@ email                : marco.hugentobler at sourcepole dot com
 #include "qgsgeometrycollection.h"
 #include "qgslinestring.h"
 #include "qgswkbptr.h"
-#include "qgslogger.h"
 
 #include <memory>
 #include <QStringList>
@@ -1046,7 +1045,7 @@ void QgsGeometryUtils::segmentizeArc( const QgsPoint &p1, const QgsPoint &p2, co
   stringPoints.insert( 0, circlePoint1 );
   if ( circlePoint2 != circlePoint3 && circlePoint1 != circlePoint2 ) //draw straight line segment if two points have the same position
   {
-    QgsWkbTypes::Type pointWkbType = QgsWkbTypes::Point;
+    Qgis::WkbType pointWkbType = Qgis::WkbType::Point;
     if ( hasZ )
       pointWkbType = QgsWkbTypes::addZ( pointWkbType );
     if ( hasM )
@@ -1194,20 +1193,20 @@ QgsPointSequence QgsGeometryUtils::pointsFromWKT( const QString &wktCoordinateLi
     if ( ( isMeasure || foundM ) && coordinates.length() > idx )
       m = coordinates[idx++].toDouble();
 
-    QgsWkbTypes::Type t = QgsWkbTypes::Point;
+    Qgis::WkbType t = Qgis::WkbType::Point;
     if ( is3D || foundZ )
     {
       if ( isMeasure || foundM )
-        t = QgsWkbTypes::PointZM;
+        t = Qgis::WkbType::PointZM;
       else
-        t = QgsWkbTypes::PointZ;
+        t = Qgis::WkbType::PointZ;
     }
     else
     {
       if ( isMeasure || foundM )
-        t = QgsWkbTypes::PointM;
+        t = Qgis::WkbType::PointM;
       else
-        t = QgsWkbTypes::Point;
+        t = Qgis::WkbType::Point;
     }
 
     points.append( QgsPoint( t, x, y, z, m ) );
@@ -1216,7 +1215,7 @@ QgsPointSequence QgsGeometryUtils::pointsFromWKT( const QString &wktCoordinateLi
   return points;
 }
 
-void QgsGeometryUtils::pointsToWKB( QgsWkbPtr &wkb, const QgsPointSequence &points, bool is3D, bool isMeasure )
+void QgsGeometryUtils::pointsToWKB( QgsWkbPtr &wkb, const QgsPointSequence &points, bool is3D, bool isMeasure, QgsAbstractGeometry::WkbFlags flags )
 {
   wkb << static_cast<quint32>( points.size() );
   for ( const QgsPoint &point : points )
@@ -1224,11 +1223,21 @@ void QgsGeometryUtils::pointsToWKB( QgsWkbPtr &wkb, const QgsPointSequence &poin
     wkb << point.x() << point.y();
     if ( is3D )
     {
-      wkb << point.z();
+      double z = point.z();
+      if ( flags & QgsAbstractGeometry::FlagExportNanAsDoubleMin
+           && std::isnan( z ) )
+        z = -std::numeric_limits<double>::max();
+
+      wkb << z;
     }
     if ( isMeasure )
     {
-      wkb << point.m();
+      double m = point.m();
+      if ( flags & QgsAbstractGeometry::FlagExportNanAsDoubleMin
+           && std::isnan( m ) )
+        m = -std::numeric_limits<double>::max();
+
+      wkb << m;
     }
   }
 }
@@ -1348,7 +1357,7 @@ double QgsGeometryUtils::normalizedAngle( double angle )
   return clippedAngle;
 }
 
-QPair<QgsWkbTypes::Type, QString> QgsGeometryUtils::wktReadBlock( const QString &wkt )
+QPair<Qgis::WkbType, QString> QgsGeometryUtils::wktReadBlock( const QString &wkt )
 {
   QString wktParsed = wkt;
   QString contents;
@@ -1376,7 +1385,7 @@ QPair<QgsWkbTypes::Type, QString> QgsGeometryUtils::wktReadBlock( const QString 
     const QRegularExpressionMatch match = cooRegEx.match( wktParsed );
     contents = match.hasMatch() ? match.captured( 1 ) : QString();
   }
-  const QgsWkbTypes::Type wkbType = QgsWkbTypes::parseType( wktParsed );
+  const Qgis::WkbType wkbType = QgsWkbTypes::parseType( wktParsed );
   return qMakePair( wkbType, contents );
 }
 
@@ -1499,7 +1508,7 @@ int QgsGeometryUtils::closestSideOfRectangle( double right, double bottom, doubl
 
 QgsPoint QgsGeometryUtils::midpoint( const QgsPoint &pt1, const QgsPoint &pt2 )
 {
-  QgsWkbTypes::Type pType( QgsWkbTypes::Point );
+  Qgis::WkbType pType( Qgis::WkbType::Point );
 
 
   const double x = ( pt1.x() + pt2.x() ) / 2.0;

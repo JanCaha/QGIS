@@ -506,10 +506,54 @@ QString QgsPostgresFeatureIterator::whereClauseRect()
   bool castToGeometry = mSource->mSpatialColType == SctGeography ||
                         mSource->mSpatialColType == SctPcPatch;
 
-  QString whereClause = QStringLiteral( "%1%2 && %3" )
-                        .arg( QgsPostgresConn::quotedIdentifier( mSource->mBoundingBoxColumn ),
-                              castToGeometry ? "::geometry" : "",
-                              qBox );
+  QString whereClause;
+  if ( mSource->mSpatialColType == SctTopoGeometry &&
+       mSource->mTopoLayerInfo.layerLevel == 0 )
+  {
+    whereClause = QStringLiteral( R"SQL(
+      id(%1) in (
+        WITH elems AS (
+
+          SELECT n.node_id id, 1 typ
+          FROM %3.node n
+          WHERE %5 in (1,4) AND n.geom && %2
+
+            UNION ALL
+
+          SELECT edge_id, 2
+          FROM %3.edge
+          WHERE %5 in (2,4) AND geom && %2
+
+            UNION ALL
+
+          SELECT face_id, 3
+          FROM %3.face
+          WHERE %5 in (3,4) AND mbr && %2
+
+        )
+        select r.topogeo_id
+        FROM %3.relation r, elems e
+        WHERE r.layer_id = %4
+          AND r.element_type = e.typ
+          AND r.element_id = e.id
+      )
+    )SQL" )
+                  // Should we bother with mBoundingBoxColumn ?
+                  .arg(
+                    QgsPostgresConn::quotedIdentifier( mSource->mGeometryColumn ),
+                    qBox,
+                    QgsPostgresConn::quotedIdentifier( mSource->mTopoLayerInfo.topologyName )
+                  )
+                  .arg( mSource->mTopoLayerInfo.layerId )
+                  .arg( mSource->mTopoLayerInfo.featureType );
+  }
+  else
+  {
+    whereClause = QStringLiteral( "%1%2 && %3" )
+                  .arg( QgsPostgresConn::quotedIdentifier( mSource->mBoundingBoxColumn ),
+                        castToGeometry ? "::geometry" : "",
+                        qBox );
+  }
 
   // For geography type, using a && filter with the geography column cast as
   // geometry prevents the use of a spatial index. So for "small" filtering
@@ -606,7 +650,7 @@ QString QgsPostgresFeatureIterator::whereClauseRect()
                          mSource->mRequestedSrid );
   }
 
-  if ( mSource->mRequestedGeomType != QgsWkbTypes::Unknown && mSource->mRequestedGeomType != mSource->mDetectedGeomType )
+  if ( mSource->mRequestedGeomType != Qgis::WkbType::Unknown && mSource->mRequestedGeomType != mSource->mDetectedGeomType )
   {
     whereClause += QStringLiteral( " AND %1" ).arg( QgsPostgresConn::postgisTypeFilter( mSource->mGeometryColumn, mSource->mRequestedGeomType, castToGeometry ) );
   }
@@ -643,12 +687,12 @@ bool QgsPostgresFeatureIterator::declareCursor( const QString &whereClause, long
          mSource->mSpatialColType == SctPcPatch )
       geom += QLatin1String( "::geometry" );
 
-    QgsWkbTypes::Type usedGeomType = mSource->mRequestedGeomType != QgsWkbTypes::Unknown
-                                     ? mSource->mRequestedGeomType : mSource->mDetectedGeomType;
+    Qgis::WkbType usedGeomType = mSource->mRequestedGeomType != Qgis::WkbType::Unknown
+                                 ? mSource->mRequestedGeomType : mSource->mDetectedGeomType;
 
     if ( !mRequest.simplifyMethod().forceLocalOptimization() &&
          mRequest.simplifyMethod().methodType() != QgsSimplifyMethod::NoSimplification &&
-         QgsWkbTypes::flatType( QgsWkbTypes::singleType( usedGeomType ) ) != QgsWkbTypes::Point )
+         QgsWkbTypes::flatType( QgsWkbTypes::singleType( usedGeomType ) ) != Qgis::WkbType::Point )
     {
       // PostGIS simplification method to use
       QString simplifyPostgisMethod;
@@ -807,12 +851,12 @@ bool QgsPostgresFeatureIterator::getFeature( QgsPostgresResult &queryResult, int
 
       unsigned int wkbType;
       memcpy( &wkbType, featureGeom + 1, sizeof( wkbType ) );
-      QgsWkbTypes::Type newType = QgsPostgresConn::wkbTypeFromOgcWkbType( wkbType );
+      Qgis::WkbType newType = QgsPostgresConn::wkbTypeFromOgcWkbType( wkbType );
 
       if ( static_cast< unsigned int >( newType ) != wkbType )
       {
         // overwrite type
-        unsigned int n = newType;
+        unsigned int n = static_cast< quint32>( newType );
         memcpy( featureGeom + 1, &n, sizeof( n ) );
       }
 
@@ -826,7 +870,7 @@ bool QgsPostgresFeatureIterator::getFeature( QgsPostgresResult &queryResult, int
         unsigned char *wkb = featureGeom + 9;
         for ( unsigned int i = 0; i < numGeoms; ++i )
         {
-          const unsigned int localType = QgsWkbTypes::singleType( newType ); // polygon(Z|M)
+          const unsigned int localType = static_cast< quint32>( QgsWkbTypes::singleType( newType ) ); // polygon(Z|M)
           memcpy( wkb + 1, &localType, sizeof( localType ) );
 
           // skip endian and type info
@@ -1034,6 +1078,7 @@ QgsPostgresFeatureSource::QgsPostgresFeatureSource( const QgsPostgresProvider *p
   , mQuery( p->mQuery )
   , mCrs( p->crs() )
   , mShared( p->mShared )
+  , mTopoLayerInfo( p->mTopoLayerInfo )
 {
   if ( mSqlWhereClause.startsWith( QLatin1String( " WHERE " ) ) )
     mSqlWhereClause = mSqlWhereClause.mid( 7 );

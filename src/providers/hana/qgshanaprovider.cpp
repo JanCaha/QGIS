@@ -34,7 +34,6 @@
 #include "qgshanautils.h"
 #include "qgshanadataitems.h"
 #include "qgslogger.h"
-#include "qgsmessagelog.h"
 #include "qgsrectangle.h"
 
 #include <QtGlobal>
@@ -466,9 +465,9 @@ void QgsHanaProvider::updateExtents()
   mLayerExtent.setMinimal();
 }
 
-QgsWkbTypes::Type QgsHanaProvider::wkbType() const
+Qgis::WkbType QgsHanaProvider::wkbType() const
 {
-  return mRequestedGeometryType != QgsWkbTypes::Unknown ? mRequestedGeometryType : mDetectedGeometryType;
+  return mRequestedGeometryType != Qgis::WkbType::Unknown ? mRequestedGeometryType : mDetectedGeometryType;
 }
 
 QgsLayerMetadata QgsHanaProvider::layerMetadata() const
@@ -1428,7 +1427,7 @@ void QgsHanaProvider::readGeometryType( QgsHanaConnection &conn )
 {
   if ( mGeometryColumn.isNull() || mGeometryColumn.isEmpty() )
   {
-    mDetectedGeometryType = QgsWkbTypes::NoGeometry;
+    mDetectedGeometryType = Qgis::WkbType::NoGeometry;
     return;
   }
 
@@ -1473,21 +1472,13 @@ void QgsHanaProvider::readSrsInformation( QgsHanaConnection &conn )
       return;
   }
 
-  QgsRectangle ext;
   bool isRoundEarth = false;
-  QString sql = QStringLiteral( "SELECT MIN_X, MIN_Y, MAX_X, MAX_Y, ROUND_EARTH FROM SYS.ST_SPATIAL_REFERENCE_SYSTEMS "
+  QString sql = QStringLiteral( "SELECT ROUND_EARTH FROM SYS.ST_SPATIAL_REFERENCE_SYSTEMS "
                                 "WHERE SRS_ID = ?" );
   QgsHanaResultSetRef rs = conn.executeQuery( sql, { mSrid } );
   if ( rs->next() )
-  {
-    ext.setXMinimum( rs->getDouble( 1 ) );
-    ext.setYMinimum( rs->getDouble( 2 ) );
-    ext.setXMaximum( rs->getDouble( 3 ) );
-    ext.setYMaximum( rs->getDouble( 4 ) );
-    isRoundEarth = ( rs->getString( 5 ) == QLatin1String( "TRUE" ) );
-  }
+    isRoundEarth = ( rs->getString( 1 ) == QLatin1String( "TRUE" ) );
   rs->close();
-  mSrsExtent = ext;
 
   if ( isRoundEarth )
   {
@@ -1596,16 +1587,15 @@ QgsCoordinateReferenceSystem QgsHanaProvider::crs() const
   return srs;
 }
 
-Qgis::VectorExportResult QgsHanaProvider::createEmptyLayer(
-  const QString &uri,
-  const QgsFields &fields,
-  QgsWkbTypes::Type wkbType,
-  const QgsCoordinateReferenceSystem &srs,
-  bool overwrite,
-  QMap<int, int> *oldToNewAttrIdxMap,
-  QString *errorMessage,
-  const QMap<QString, QVariant> *
-)
+Qgis::VectorExportResult QgsHanaProvider::createEmptyLayer( const QString &uri,
+    const QgsFields &fields,
+    Qgis::WkbType wkbType,
+    const QgsCoordinateReferenceSystem &srs,
+    bool overwrite,
+    QMap<int, int> *oldToNewAttrIdxMap,
+    QString *errorMessage,
+    const QMap<QString, QVariant> *
+                                                          )
 {
   QgsDataSourceUri dsUri( uri );
   QgsHanaConnectionRef conn( dsUri );
@@ -1626,7 +1616,7 @@ Qgis::VectorExportResult QgsHanaProvider::createEmptyLayer(
     return Qgis::VectorExportResult::ErrorCreatingLayer;
   }
 
-  if ( wkbType != QgsWkbTypes::Unknown && wkbType != QgsWkbTypes::NoGeometry &&
+  if ( wkbType != Qgis::WkbType::Unknown && wkbType != Qgis::WkbType::NoGeometry &&
        !QgsHanaUtils::isGeometryTypeSupported( wkbType ) )
   {
     if ( errorMessage )
@@ -1645,7 +1635,7 @@ Qgis::VectorExportResult QgsHanaProvider::createEmptyLayer(
     fieldsInUpperCase = count > fields.size() / 2;
   }
 
-  if ( wkbType != QgsWkbTypes::NoGeometry && geometryColumn.isEmpty() )
+  if ( wkbType != Qgis::WkbType::NoGeometry && geometryColumn.isEmpty() )
     geometryColumn = fieldsInUpperCase ? QStringLiteral( "GEOM" ) : QStringLiteral( "geom" );
 
   QString keyColumn = !dsUri.keyColumn().isEmpty() ? dsUri.keyColumn() : ( fieldsInUpperCase ? QStringLiteral( "ID" ) : QStringLiteral( "id" ) );
@@ -1824,15 +1814,14 @@ QList< QgsDataItemProvider *> QgsHanaProviderMetadata::dataItemProviders() const
   return providers;
 }
 
-Qgis::VectorExportResult QgsHanaProviderMetadata::createEmptyLayer(
-  const QString &uri,
-  const QgsFields &fields,
-  QgsWkbTypes::Type wkbType,
-  const QgsCoordinateReferenceSystem &srs,
-  bool overwrite,
-  QMap<int, int> &oldToNewAttrIdxMap,
-  QString &errorMessage,
-  const QMap<QString, QVariant> *options )
+Qgis::VectorExportResult QgsHanaProviderMetadata::createEmptyLayer( const QString &uri,
+    const QgsFields &fields,
+    Qgis::WkbType wkbType,
+    const QgsCoordinateReferenceSystem &srs,
+    bool overwrite,
+    QMap<int, int> &oldToNewAttrIdxMap,
+    QString &errorMessage,
+    const QMap<QString, QVariant> *options )
 {
   return QgsHanaProvider::createEmptyLayer(
            uri, fields, wkbType, srs, overwrite,
@@ -1870,6 +1859,17 @@ QVariantMap QgsHanaProviderMetadata::decodeUri( const QString &uri ) const
   const QgsDataSourceUri dsUri { uri };
   QVariantMap uriParts;
 
+  auto setUriPart = [&dsUri, &uriParts]( const QString & key )
+  {
+    if ( !dsUri.hasParam( key ) )
+      return;
+    QString value = dsUri.param( key );
+    if ( !value.isEmpty() )
+      uriParts[ key ]  = value;
+  };
+
+  setUriPart( QStringLiteral( "connectionType" ) );
+  setUriPart( QStringLiteral( "dsn" ) );
   if ( ! dsUri.driver().isEmpty() )
     uriParts[ QStringLiteral( "driver" ) ] = dsUri.driver();
   if ( ! dsUri.database().isEmpty() )
@@ -1884,11 +1884,8 @@ QVariantMap QgsHanaProviderMetadata::decodeUri( const QString &uri ) const
     uriParts[ QStringLiteral( "password" ) ] = dsUri.password();
   if ( ! dsUri.authConfigId().isEmpty() )
     uriParts[ QStringLiteral( "authcfg" ) ] = dsUri.authConfigId();
-  if ( dsUri.wkbType() != QgsWkbTypes::Type::Unknown )
-    uriParts[ QStringLiteral( "type" ) ] = dsUri.wkbType();
-
-  uriParts[ QStringLiteral( "selectatid" ) ] = dsUri.selectAtIdDisabled();
-
+  if ( dsUri.wkbType() != Qgis::WkbType::Unknown )
+    uriParts[ QStringLiteral( "type" ) ] = static_cast< quint32>( dsUri.wkbType() );
   if ( ! dsUri.schema().isEmpty() )
     uriParts[ QStringLiteral( "schema" ) ] = dsUri.schema();
   if ( ! dsUri.table().isEmpty() )
@@ -1897,43 +1894,23 @@ QVariantMap QgsHanaProviderMetadata::decodeUri( const QString &uri ) const
     uriParts[ QStringLiteral( "key" ) ] = dsUri.keyColumn();
   if ( ! dsUri.srid().isEmpty() )
     uriParts[ QStringLiteral( "srid" ) ] = dsUri.srid();
+  uriParts[ QStringLiteral( "selectatid" ) ] = dsUri.selectAtIdDisabled();
 
-  if ( dsUri.hasParam( QStringLiteral( "sslEnabled" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslEnabled" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslEnabled" ) ]  = value;
-  }
-  if ( dsUri.hasParam( QStringLiteral( "sslCryptoProvider" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslCryptoProvider" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslCryptoProvider" ) ]  = value;
-  }
-  if ( dsUri.hasParam( QStringLiteral( "sslValidateCertificate" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslValidateCertificate" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslValidateCertificate" ) ]  = value;
-  }
-  if ( dsUri.hasParam( QStringLiteral( "sslHostNameInCertificate" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslHostNameInCertificate" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslHostNameInCertificate" ) ]  = value;
-  }
-  if ( dsUri.hasParam( QStringLiteral( "sslKeyStore" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslKeyStore" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslKeyStore" ) ]  = value;
-  }
-  if ( dsUri.hasParam( QStringLiteral( "sslTrustStore" ) ) )
-  {
-    QString value = dsUri.param( QStringLiteral( "sslTrustStore" ) );
-    if ( ! value.isEmpty() )
-      uriParts[ QStringLiteral( "sslTrustStore" ) ]  = value;
-  }
+  // SSL parameters
+  setUriPart( QStringLiteral( "sslEnabled" ) );
+  setUriPart( QStringLiteral( "sslCryptoProvider" ) );
+  setUriPart( QStringLiteral( "sslValidateCertificate" ) );
+  setUriPart( QStringLiteral( "sslHostNameInCertificate" ) );
+  setUriPart( QStringLiteral( "sslKeyStore" ) );
+  setUriPart( QStringLiteral( "sslTrustStore" ) );
+
+  // Proxy parameters
+  setUriPart( QStringLiteral( "proxyEnabled" ) );
+  setUriPart( QStringLiteral( "proxyHttp" ) );
+  setUriPart( QStringLiteral( "proxyHost" ) );
+  setUriPart( QStringLiteral( "proxyPort" ) );
+  setUriPart( QStringLiteral( "proxyUsername" ) );
+  setUriPart( QStringLiteral( "proxyPassword" ) );
 
   if ( ! dsUri.sql().isEmpty() )
     uriParts[ QStringLiteral( "sql" ) ] = dsUri.sql();
@@ -1946,46 +1923,54 @@ QVariantMap QgsHanaProviderMetadata::decodeUri( const QString &uri ) const
 QString QgsHanaProviderMetadata::encodeUri( const QVariantMap &parts ) const
 {
   QgsDataSourceUri dsUri;
+
+  auto setUriParam = [&parts, &dsUri]( const QString & key )
+  {
+    if ( parts.contains( key ) )
+      dsUri.setParam( key, parts.value( key ).toString() );
+  };
+
+  setUriParam( QStringLiteral( "connectionType" ) );
+  setUriParam( QStringLiteral( "dsn" ) );
   if ( parts.contains( QStringLiteral( "driver" ) ) )
     dsUri.setDriver( parts.value( QStringLiteral( "driver" ) ).toString() );
   if ( parts.contains( QStringLiteral( "dbname" ) ) )
     dsUri.setDatabase( parts.value( QStringLiteral( "dbname" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "host" ) ) )
-    dsUri.setParam( QStringLiteral( "host" ), parts.value( QStringLiteral( "host" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "port" ) ) )
-    dsUri.setParam( QStringLiteral( "port" ), parts.value( QStringLiteral( "port" ) ).toString() );
+  setUriParam( QStringLiteral( "host" ) );
+  setUriParam( QStringLiteral( "port" ) );
   if ( parts.contains( QStringLiteral( "username" ) ) )
     dsUri.setUsername( parts.value( QStringLiteral( "username" ) ).toString() );
   if ( parts.contains( QStringLiteral( "password" ) ) )
     dsUri.setPassword( parts.value( QStringLiteral( "password" ) ).toString() );
   if ( parts.contains( QStringLiteral( "authcfg" ) ) )
     dsUri.setAuthConfigId( parts.value( QStringLiteral( "authcfg" ) ).toString() );
-
   if ( parts.contains( QStringLiteral( "type" ) ) )
-    dsUri.setParam( QStringLiteral( "type" ), QgsWkbTypes::displayString( static_cast<QgsWkbTypes::Type>( parts.value( QStringLiteral( "type" ) ).toInt() ) ) );
-  if ( parts.contains( QStringLiteral( "selectatid" ) ) )
-    dsUri.setParam( QStringLiteral( "selectatid" ), parts.value( QStringLiteral( "selectatid" ) ).toString() );
+    dsUri.setParam( QStringLiteral( "type" ), QgsWkbTypes::displayString( static_cast<Qgis::WkbType>( parts.value( QStringLiteral( "type" ) ).toInt() ) ) );
   if ( parts.contains( QStringLiteral( "schema" ) ) )
     dsUri.setSchema( parts.value( QStringLiteral( "schema" ) ).toString() );
   if ( parts.contains( QStringLiteral( "table" ) ) )
     dsUri.setTable( parts.value( QStringLiteral( "table" ) ).toString() );
   if ( parts.contains( QStringLiteral( "key" ) ) )
-    dsUri.setParam( QStringLiteral( "key" ), parts.value( QStringLiteral( "key" ) ).toString() );
+    dsUri.setKeyColumn( parts.value( QStringLiteral( "key" ) ).toString() );
   if ( parts.contains( QStringLiteral( "srid" ) ) )
     dsUri.setSrid( parts.value( QStringLiteral( "srid" ) ).toString() );
+  setUriParam( QStringLiteral( "selectatid" ) );
 
-  if ( parts.contains( QStringLiteral( "sslEnabled" ) ) )
-    dsUri.setParam( QStringLiteral( "sslEnabled" ), parts.value( QStringLiteral( "sslEnabled" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "sslCryptoProvider" ) ) )
-    dsUri.setParam( QStringLiteral( "sslCryptoProvider" ), parts.value( QStringLiteral( "sslCryptoProvider" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "sslValidateCertificate" ) ) )
-    dsUri.setParam( QStringLiteral( "sslValidateCertificate" ), parts.value( QStringLiteral( "sslValidateCertificate" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "sslHostNameInCertificate" ) ) )
-    dsUri.setParam( QStringLiteral( "sslHostNameInCertificate" ), parts.value( QStringLiteral( "sslHostNameInCertificate" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "sslKeyStore" ) ) )
-    dsUri.setParam( QStringLiteral( "sslKeyStore" ), parts.value( QStringLiteral( "sslKeyStore" ) ).toString() );
-  if ( parts.contains( QStringLiteral( "sslTrustStore" ) ) )
-    dsUri.setParam( QStringLiteral( "sslTrustStore" ), parts.value( QStringLiteral( "sslTrustStore" ) ).toString() );
+  // SSL parameters
+  setUriParam( QStringLiteral( "sslEnabled" ) );
+  setUriParam( QStringLiteral( "sslCryptoProvider" ) );
+  setUriParam( QStringLiteral( "sslValidateCertificate" ) );
+  setUriParam( QStringLiteral( "sslHostNameInCertificate" ) );
+  setUriParam( QStringLiteral( "sslKeyStore" ) );
+  setUriParam( QStringLiteral( "sslTrustStore" ) );
+
+  // Proxy parameters
+  setUriParam( QStringLiteral( "proxyEnabled" ) );
+  setUriParam( QStringLiteral( "proxyHttp" ) );
+  setUriParam( QStringLiteral( "proxyHost" ) );
+  setUriParam( QStringLiteral( "proxyPort" ) );
+  setUriParam( QStringLiteral( "proxyUsername" ) );
+  setUriParam( QStringLiteral( "proxyPassword" ) );
 
   if ( parts.contains( QStringLiteral( "sql" ) ) )
     dsUri.setSql( parts.value( QStringLiteral( "sql" ) ).toString() );
@@ -1999,9 +1984,9 @@ QGISEXTERN QgsProviderMetadata *providerMetadataFactory()
   return new QgsHanaProviderMetadata();
 }
 
-QList<QgsMapLayerType> QgsHanaProviderMetadata::supportedLayerTypes() const
+QList<Qgis::LayerType> QgsHanaProviderMetadata::supportedLayerTypes() const
 {
-  return { QgsMapLayerType::VectorLayer };
+  return { Qgis::LayerType::Vector };
 }
 
 QIcon QgsHanaProviderMetadata::icon() const

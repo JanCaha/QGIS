@@ -23,13 +23,15 @@
 
 #include "qgsapplication.h"
 #include "qgsmessagelog.h"
+#include "qgssettings.h"
 #include "qgslogger.h"
 #include "qgis.h"
-#include "qgssettings.h"
 #include "qgsnetworkdiskcache.h"
 #include "qgsauthmanager.h"
 #include "qgsnetworkreply.h"
 #include "qgsblockingnetworkrequest.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
 
 #include <QUrl>
 #include <QTimer>
@@ -40,6 +42,8 @@
 #include <QAuthenticator>
 #include <QStandardPaths>
 #include <QUuid>
+
+const QgsSettingsEntryInteger *QgsNetworkAccessManager::settingsNetworkTimeout = new QgsSettingsEntryInteger( QStringLiteral( "network-timeout" ), QgsSettingsTree::sTreeNetwork, 60000, QObject::tr( "Network timeout" ) );
 
 #ifndef QT_NO_SSL
 #include <QSslConfiguration>
@@ -769,12 +773,12 @@ void QgsNetworkAccessManager::syncCookies( const QList<QNetworkCookie> &cookies 
 
 int QgsNetworkAccessManager::timeout()
 {
-  return settingsNetworkTimeout.value();
+  return settingsNetworkTimeout->value();
 }
 
 void QgsNetworkAccessManager::setTimeout( const int time )
 {
-  settingsNetworkTimeout.setValue( time );
+  settingsNetworkTimeout->setValue( time );
 }
 
 QgsNetworkReplyContent QgsNetworkAccessManager::blockingGet( QNetworkRequest &request, const QString &authCfg, bool forceRefresh, QgsFeedback *feedback )

@@ -14,7 +14,6 @@
  ***************************************************************************/
 
 #include "qgsrasterelevationpropertieswidget.h"
-#include "qgsstyle.h"
 #include "qgsapplication.h"
 #include "qgsmaplayer.h"
 #include "qgsrasterlayer.h"
@@ -58,6 +57,8 @@ QgsRasterElevationPropertiesWidget::QgsRasterElevationPropertiesWidget( QgsRaste
 
     onChanged();
   } );
+
+  setProperty( "helpPage", QStringLiteral( "working_with_raster/raster_properties.html#elevation-properties" ) );
 }
 
 void QgsRasterElevationPropertiesWidget::syncToLayer( QgsMapLayer *layer )
@@ -140,7 +141,7 @@ bool QgsRasterElevationPropertiesWidgetFactory::supportsStyleDock() const
 
 bool QgsRasterElevationPropertiesWidgetFactory::supportsLayer( QgsMapLayer *layer ) const
 {
-  return layer->type() == QgsMapLayerType::RasterLayer;
+  return layer->type() == Qgis::LayerType::Raster;
 }
 
 QString QgsRasterElevationPropertiesWidgetFactory::layerPropertiesPagePositionHint() const

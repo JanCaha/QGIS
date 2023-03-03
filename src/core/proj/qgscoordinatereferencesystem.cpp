@@ -1459,10 +1459,10 @@ QgsProjOperation QgsCoordinateReferenceSystem::operation() const
   return res;
 }
 
-QgsUnitTypes::DistanceUnit QgsCoordinateReferenceSystem::mapUnits() const
+Qgis::DistanceUnit QgsCoordinateReferenceSystem::mapUnits() const
 {
   if ( !d->mIsValid )
-    return QgsUnitTypes::DistanceUnknownUnit;
+    return Qgis::DistanceUnit::Unknown;
 
   return d->mMapUnits;
 }
@@ -1493,6 +1493,29 @@ QgsRectangle QgsCoordinateReferenceSystem::bounds() const
   rect.setXMaximum( eastLon );
   rect.setYMaximum( northLat );
   return rect;
+}
+
+QString QgsCoordinateReferenceSystem::toOgcUri() const
+{
+  const auto parts { authid().split( ':' ) };
+  if ( parts.length() == 2 )
+  {
+    if ( parts[0] == QLatin1String( "EPSG" ) )
+      return  QStringLiteral( "http://www.opengis.net/def/crs/EPSG/0/%1" ).arg( parts[1] ) ;
+    else if ( parts[0] == QLatin1String( "OGC" ) )
+    {
+      return  QStringLiteral( "http://www.opengis.net/def/crs/OGC/1.3/%1" ).arg( parts[1] ) ;
+    }
+    else
+    {
+      QgsMessageLog::logMessage( QStringLiteral( "Error converting published CRS to URI %1: (not OGC or EPSG)" ).arg( authid() ), QStringLiteral( "CRS" ), Qgis::MessageLevel::Critical );
+    }
+  }
+  else
+  {
+    QgsMessageLog::logMessage( QStringLiteral( "Error converting published CRS to URI: %1" ).arg( authid() ), QStringLiteral( "CRS" ), Qgis::MessageLevel::Critical );
+  }
+  return QString();
 }
 
 void QgsCoordinateReferenceSystem::updateDefinition()
@@ -1618,13 +1641,13 @@ void QgsCoordinateReferenceSystem::setMapUnits()
 {
   if ( !d->mIsValid )
   {
-    d->mMapUnits = QgsUnitTypes::DistanceUnknownUnit;
+    d->mMapUnits = Qgis::DistanceUnit::Unknown;
     return;
   }
 
   if ( !d->hasPj() )
   {
-    d->mMapUnits = QgsUnitTypes::DistanceUnknownUnit;
+    d->mMapUnits = Qgis::DistanceUnit::Unknown;
     return;
   }
 
@@ -1633,7 +1656,7 @@ void QgsCoordinateReferenceSystem::setMapUnits()
   QgsProjUtils::proj_pj_unique_ptr coordinateSystem( proj_crs_get_coordinate_system( context, crs.get() ) );
   if ( !coordinateSystem )
   {
-    d->mMapUnits = QgsUnitTypes::DistanceUnknownUnit;
+    d->mMapUnits = Qgis::DistanceUnit::Unknown;
     return;
   }
 
@@ -1665,35 +1688,35 @@ void QgsCoordinateReferenceSystem::setMapUnits()
          unitName.compare( QLatin1String( "hemisphere degree minute" ), Qt::CaseInsensitive ) == 0 ||
          unitName.compare( QLatin1String( "hemisphere degree minute second" ), Qt::CaseInsensitive ) == 0 ||
          unitName.compare( QLatin1String( "degree (supplier to define representation)" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceDegrees;
+      d->mMapUnits = Qgis::DistanceUnit::Degrees;
     else if ( unitName.compare( QLatin1String( "metre" ), Qt::CaseInsensitive ) == 0
               || unitName.compare( QLatin1String( "m" ), Qt::CaseInsensitive ) == 0
               || unitName.compare( QLatin1String( "meter" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceMeters;
+      d->mMapUnits = Qgis::DistanceUnit::Meters;
     // we don't differentiate between these, suck it imperial users!
     else if ( unitName.compare( QLatin1String( "US survey foot" ), Qt::CaseInsensitive ) == 0 ||
               unitName.compare( QLatin1String( "foot" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceFeet;
+      d->mMapUnits = Qgis::DistanceUnit::Feet;
     else if ( unitName.compare( QLatin1String( "kilometre" ), Qt::CaseInsensitive ) == 0 )  //#spellok
-      d->mMapUnits = QgsUnitTypes::DistanceKilometers;
+      d->mMapUnits = Qgis::DistanceUnit::Kilometers;
     else if ( unitName.compare( QLatin1String( "centimetre" ), Qt::CaseInsensitive ) == 0 )  //#spellok
-      d->mMapUnits = QgsUnitTypes::DistanceCentimeters;
+      d->mMapUnits = Qgis::DistanceUnit::Centimeters;
     else if ( unitName.compare( QLatin1String( "millimetre" ), Qt::CaseInsensitive ) == 0 )  //#spellok
-      d->mMapUnits = QgsUnitTypes::DistanceMillimeters;
+      d->mMapUnits = Qgis::DistanceUnit::Millimeters;
     else if ( unitName.compare( QLatin1String( "Statute mile" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceMiles;
+      d->mMapUnits = Qgis::DistanceUnit::Miles;
     else if ( unitName.compare( QLatin1String( "nautical mile" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceNauticalMiles;
+      d->mMapUnits = Qgis::DistanceUnit::NauticalMiles;
     else if ( unitName.compare( QLatin1String( "yard" ), Qt::CaseInsensitive ) == 0 )
-      d->mMapUnits = QgsUnitTypes::DistanceYards;
+      d->mMapUnits = Qgis::DistanceUnit::Yards;
     // TODO - maybe more values to handle here?
     else
-      d->mMapUnits = QgsUnitTypes::DistanceUnknownUnit;
+      d->mMapUnits = Qgis::DistanceUnit::Unknown;
     return;
   }
   else
   {
-    d->mMapUnits = QgsUnitTypes::DistanceUnknownUnit;
+    d->mMapUnits = Qgis::DistanceUnit::Unknown;
     return;
   }
 }
@@ -2132,15 +2155,15 @@ void QgsCoordinateReferenceSystem::debugPrint()
   QgsDebugMsg( "* Proj4 : " + toProj() );
   QgsDebugMsg( "* WKT   : " + toWkt( WKT_PREFERRED ) );
   QgsDebugMsg( "* Desc. : " + d->mDescription );
-  if ( mapUnits() == QgsUnitTypes::DistanceMeters )
+  if ( mapUnits() == Qgis::DistanceUnit::Meters )
   {
     QgsDebugMsg( QStringLiteral( "* Units : meters" ) );
   }
-  else if ( mapUnits() == QgsUnitTypes::DistanceFeet )
+  else if ( mapUnits() == Qgis::DistanceUnit::Feet )
   {
     QgsDebugMsg( QStringLiteral( "* Units : feet" ) );
   }
-  else if ( mapUnits() == QgsUnitTypes::DistanceDegrees )
+  else if ( mapUnits() == Qgis::DistanceUnit::Degrees )
   {
     QgsDebugMsg( QStringLiteral( "* Units : degrees" ) );
   }
@@ -2838,6 +2861,7 @@ bool QgsCoordinateReferenceSystem::createFromProjObject( PJ *object )
       d->mIsValid = true;
       d->mDescription = QString( proj_get_name( d->threadLocalProjObject() ) );
       setMapUnits();
+      d->mIsGeographic = testIsGeographic( d->threadLocalProjObject() );
     }
   }
 

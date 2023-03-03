@@ -65,9 +65,9 @@ QgsFields QgsNominatimGeocoder::appendedFields() const
   return fields;
 }
 
-QgsWkbTypes::Type QgsNominatimGeocoder::wkbType() const
+Qgis::WkbType QgsNominatimGeocoder::wkbType() const
 {
-  return QgsWkbTypes::Point;
+  return Qgis::WkbType::Point;
 }
 
 QList<QgsGeocoderResult> QgsNominatimGeocoder::geocodeString( const QString &string, const QgsGeocoderContext &context, QgsFeedback *feedback ) const
@@ -150,7 +150,7 @@ QUrl QgsNominatimGeocoder::requestUrl( const QString &address, const QgsRectangl
   QUrlQuery query;
   query.addQueryItem( QStringLiteral( "format" ), QStringLiteral( "json" ) );
   query.addQueryItem( QStringLiteral( "addressdetails" ), QStringLiteral( "1" ) );
-  if ( !bounds.isNull() )
+  if ( !bounds.isNull() && bounds.isFinite() )
   {
     query.addQueryItem( QStringLiteral( "viewbox" ), QStringLiteral( "%1,%2,%3,%4" ).arg( bounds.xMinimum() )
                         .arg( bounds.yMinimum() )

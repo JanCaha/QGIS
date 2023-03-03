@@ -375,7 +375,7 @@ class DummyAlgorithm : public QgsProcessingAlgorithm
       QVERIFY( ok );
 
       // test inclusion of a context setting
-      context.setDistanceUnit( QgsUnitTypes::DistanceMeters );
+      context.setDistanceUnit( Qgis::DistanceUnit::Meters );
       QCOMPARE( asQgisProcessCommand( params, context, ok ), QStringLiteral( "qgis_process run test --distance_units=meters --p1=a --p2=b --p2=c" ) );
       QVERIFY( ok );
 
@@ -395,6 +395,14 @@ class DummyAlgorithm : public QgsProcessingAlgorithm
 
       params.insert( "p2", QStringLiteral( "thisisa'test" ) );
       QCOMPARE( asQgisProcessCommand( params, context, ok ), QStringLiteral( "qgis_process run test --distance_units=meters --p1=a --p2='thisisa'\\''test'" ) );
+      QVERIFY( ok );
+
+      addParameter( new QgsProcessingParameterString( "dd_field", QString(), true ) );
+      addParameter( new QgsProcessingParameterString( "dd_expression", QString(), true ) );
+
+      params.insert( "dd_field", QgsProperty::fromField( QStringLiteral( "my field" ) ) );
+      params.insert( "dd_expression", QgsProperty::fromExpression( QStringLiteral( "\"some field\" * 200" ) ) );
+      QCOMPARE( asQgisProcessCommand( params, context, ok ), QStringLiteral( "qgis_process run test --distance_units=meters --p1=a --p2='thisisa'\\''test' --dd_field='field:my field' --dd_expression='expression:\"some field\" * 200'" ) );
       QVERIFY( ok );
     }
 
@@ -431,7 +439,7 @@ class DummyAlgorithm : public QgsProcessingAlgorithm
       QCOMPARE( res, QStringLiteral( "{\"inputs\":{\"p1\":\"a\",\"p2\":[\"b\",\"c\"]}}" ) );
 
       // test inclusion of a context setting
-      context.setDistanceUnit( QgsUnitTypes::DistanceMeters );
+      context.setDistanceUnit( Qgis::DistanceUnit::Meters );
       res = QString::fromStdString( QgsJsonUtils::jsonFromVariant( asMap( params, context ) ).dump() );
       QCOMPARE( res, QStringLiteral( "{\"distance_units\":\"meters\",\"inputs\":{\"p1\":\"a\",\"p2\":[\"b\",\"c\"]}}" ) );
     }
@@ -799,6 +807,7 @@ class TestQgsProcessing: public QObject
     void sourceTypeToString_data();
     void sourceTypeToString();
     void formatHelp();
+    void preprocessParameters();
 
   private:
 
@@ -1199,34 +1208,36 @@ void TestQgsProcessing::context()
   QCOMPARE( context.flags(), QgsProcessingContext::Flags() );
 
   QCOMPARE( context.ellipsoid(), QString() );
-  QCOMPARE( context.distanceUnit(), QgsUnitTypes::DistanceUnknownUnit );
-  QCOMPARE( context.areaUnit(), QgsUnitTypes::AreaUnknownUnit );
+  QCOMPARE( context.distanceUnit(), Qgis::DistanceUnit::Unknown );
+  QCOMPARE( context.areaUnit(), Qgis::AreaUnit::Unknown );
 
   QgsProject p;
   p.setCrs( QgsCoordinateReferenceSystem( "EPSG:4536" ) );
   p.setEllipsoid( QStringLiteral( "WGS84" ) );
-  p.setDistanceUnits( QgsUnitTypes::DistanceFeet );
-  p.setAreaUnits( QgsUnitTypes::AreaHectares );
+  p.setDistanceUnits( Qgis::DistanceUnit::Feet );
+  p.setAreaUnits( Qgis::AreaUnit::Hectares );
   context.setProject( &p );
   QCOMPARE( context.project(), &p );
   QCOMPARE( context.ellipsoid(), QStringLiteral( "WGS84" ) );
-  QCOMPARE( context.distanceUnit(), QgsUnitTypes::DistanceFeet );
-  QCOMPARE( context.areaUnit(), QgsUnitTypes::AreaHectares );
+  QCOMPARE( context.distanceUnit(), Qgis::DistanceUnit::Feet );
+  QCOMPARE( context.areaUnit(), Qgis::AreaUnit::Hectares );
 
   // if context ellipsoid/units are already set then setting the project shouldn't overwrite them
   p.setEllipsoid( QStringLiteral( "WGS84v2" ) );
-  p.setDistanceUnits( QgsUnitTypes::DistanceMiles );
-  p.setAreaUnits( QgsUnitTypes::AreaAcres );
+  p.setDistanceUnits( Qgis::DistanceUnit::Miles );
+  p.setAreaUnits( Qgis::AreaUnit::Acres );
   context.setProject( &p );
   QCOMPARE( context.ellipsoid(), QStringLiteral( "WGS84" ) );
-  QCOMPARE( context.distanceUnit(), QgsUnitTypes::DistanceFeet );
-  QCOMPARE( context.areaUnit(), QgsUnitTypes::AreaHectares );
+  QCOMPARE( context.distanceUnit(), Qgis::DistanceUnit::Feet );
+  QCOMPARE( context.areaUnit(), Qgis::AreaUnit::Hectares );
 
   context.setLogLevel( QgsProcessingContext::Verbose );
   QCOMPARE( static_cast< int >( context.logLevel() ), static_cast< int >( QgsProcessingContext::Verbose ) );
 
   context.setInvalidGeometryCheck( QgsFeatureRequest::GeometrySkipInvalid );
   QCOMPARE( context.invalidGeometryCheck(), QgsFeatureRequest::GeometrySkipInvalid );
+
+  QCOMPARE( context.expressionContext().loadedLayerStore(), context.temporaryLayerStore() );
 
   QgsVectorLayer *vector = new QgsVectorLayer( "Polygon", "vector", "memory" );
   context.temporaryLayerStore()->addMapLayer( vector );
@@ -1241,6 +1252,15 @@ void TestQgsProcessing::context()
   QCOMPARE( static_cast< int >( context2.logLevel() ), static_cast< int >( QgsProcessingContext::Verbose ) );
   // layers from temporaryLayerStore must not be copied by copyThreadSafeSettings
   QVERIFY( context2.temporaryLayerStore()->mapLayers().isEmpty() );
+  QCOMPARE( context2.expressionContext().loadedLayerStore(), context2.temporaryLayerStore() );
+
+  QgsExpressionContext expContext;
+  QgsExpressionContextScope *scope = new QgsExpressionContextScope();
+  scope->setVariable( QStringLiteral( "var" ), 5 );
+  expContext.appendScope( scope );
+  context2.setExpressionContext( expContext );
+  QCOMPARE( context2.expressionContext().variable( QStringLiteral( "var" ) ).toInt(), 5 );
+  QCOMPARE( context2.expressionContext().loadedLayerStore(), context2.temporaryLayerStore() );
 
   // layers to load on completion
   QgsVectorLayer *v1 = new QgsVectorLayer( "Polygon", "V1", "memory" );
@@ -1361,10 +1381,10 @@ void TestQgsProcessing::contextToProcessArguments()
   QgsProcessingContext context;
 
   QCOMPARE( context.asQgisProcessArguments(), QStringList() );
-  context.setDistanceUnit( QgsUnitTypes::DistanceKilometers );
+  context.setDistanceUnit( Qgis::DistanceUnit::Kilometers );
   QCOMPARE( context.asQgisProcessArguments(), QStringList( {QStringLiteral( "--distance_units=km" )} ) );
 
-  context.setAreaUnit( QgsUnitTypes::AreaHectares );
+  context.setAreaUnit( Qgis::AreaUnit::Hectares );
   QCOMPARE( context.asQgisProcessArguments(), QStringList( {QStringLiteral( "--distance_units=km" ), QStringLiteral( "--area_units=ha" )} ) );
 
   context.setEllipsoid( QStringLiteral( "EPSG:7019" ) );
@@ -1383,6 +1403,14 @@ void TestQgsProcessing::contextToProcessArguments()
     QStringLiteral( "--distance_units=meters" ), QStringLiteral( "--area_units=m2" ), QStringLiteral( "--ellipsoid=NONE" ),
     QStringLiteral( "--project_path=%1" ).arg( TEST_DATA_DIR + QStringLiteral( "/projects/custom_crs.qgs" ) )
   } ) );
+
+  QTemporaryDir tmpDir;
+  p.write( tmpDir.filePath( QStringLiteral( "project name with spaces.qgs" ) ) );
+  QCOMPARE( context2.asQgisProcessArguments( QgsProcessingContext::ProcessArgumentFlag::IncludeProjectPath ), QStringList(
+  {
+    QStringLiteral( "--distance_units=meters" ), QStringLiteral( "--area_units=m2" ), QStringLiteral( "--ellipsoid=NONE" ),
+    QStringLiteral( "--project_path='%1'" ).arg( p.fileName() )
+  } ) );
 }
 
 void TestQgsProcessing::contextToMap()
@@ -1391,12 +1419,12 @@ void TestQgsProcessing::contextToMap()
   QgsProcessingContext context;
 
   QCOMPARE( context.exportToMap(), QVariantMap() );
-  context.setDistanceUnit( QgsUnitTypes::DistanceKilometers );
+  context.setDistanceUnit( Qgis::DistanceUnit::Kilometers );
   QCOMPARE( context.exportToMap(), QVariantMap( {{
       QStringLiteral( "distance_units" ), QStringLiteral( "km" )
     }} ) );
 
-  context.setAreaUnit( QgsUnitTypes::AreaHectares );
+  context.setAreaUnit( Qgis::AreaUnit::Hectares );
   QCOMPARE( context.exportToMap(), QVariantMap(
   {
     {QStringLiteral( "distance_units" ), QStringLiteral( "km" )},
@@ -1446,7 +1474,7 @@ void TestQgsProcessing::mapLayers()
   // test loadMapLayerFromString with raster
   QgsMapLayer *l = QgsProcessingUtils::loadMapLayerFromString( raster, QgsCoordinateTransformContext() );
   QVERIFY( l->isValid() );
-  QCOMPARE( l->type(), QgsMapLayerType::RasterLayer );
+  QCOMPARE( l->type(), Qgis::LayerType::Raster );
   QCOMPARE( l->name(), QStringLiteral( "landsat" ) );
 
   delete l;
@@ -1454,21 +1482,21 @@ void TestQgsProcessing::mapLayers()
   // use encoded provider/uri string
   l = QgsProcessingUtils::loadMapLayerFromString( QStringLiteral( "gdal://%1" ).arg( raster ), QgsCoordinateTransformContext() );
   QVERIFY( l->isValid() );
-  QCOMPARE( l->type(), QgsMapLayerType::RasterLayer );
+  QCOMPARE( l->type(), Qgis::LayerType::Raster );
   QCOMPARE( l->name(), QStringLiteral( "landsat" ) );
   delete l;
 
   //test with vector
   l = QgsProcessingUtils::loadMapLayerFromString( vector, QgsCoordinateTransformContext() );
   QVERIFY( l->isValid() );
-  QCOMPARE( l->type(), QgsMapLayerType::VectorLayer );
+  QCOMPARE( l->type(), Qgis::LayerType::Vector );
   QCOMPARE( l->name(), QStringLiteral( "points" ) );
   delete l;
 
   // use encoded provider/uri string
   l = QgsProcessingUtils::loadMapLayerFromString( QStringLiteral( "ogr://%1" ).arg( vector ), QgsCoordinateTransformContext() );
   QVERIFY( l->isValid() );
-  QCOMPARE( l->type(), QgsMapLayerType::VectorLayer );
+  QCOMPARE( l->type(), Qgis::LayerType::Vector );
   QCOMPARE( l->name(), QStringLiteral( "points" ) );
   delete l;
 
@@ -1478,7 +1506,7 @@ void TestQgsProcessing::mapLayers()
   QVERIFY( !l );
   l = QgsProcessingUtils::loadMapLayerFromString( testDataDir + "multipoint.shp", QgsCoordinateTransformContext() );
   QVERIFY( l->isValid() );
-  QCOMPARE( l->type(), QgsMapLayerType::VectorLayer );
+  QCOMPARE( l->type(), Qgis::LayerType::Vector );
   QCOMPARE( l->name(), QStringLiteral( "multipoint" ) );
   delete l;
 
@@ -1486,15 +1514,15 @@ void TestQgsProcessing::mapLayers()
   const QString osmFilePath = testDataDir + "openstreetmap/testdata.xml";
   std::unique_ptr< QgsVectorLayer > osm( qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::loadMapLayerFromString( osmFilePath, QgsCoordinateTransformContext() ) ) );
   QVERIFY( osm->isValid() );
-  QCOMPARE( osm->geometryType(), QgsWkbTypes::PointGeometry );
+  QCOMPARE( osm->geometryType(), Qgis::GeometryType::Point );
 
   osm.reset( qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::loadMapLayerFromString( osmFilePath + "|layerid=3", QgsCoordinateTransformContext() ) ) );
   QVERIFY( osm->isValid() );
-  QCOMPARE( osm->geometryType(), QgsWkbTypes::PolygonGeometry );
+  QCOMPARE( osm->geometryType(), Qgis::GeometryType::Polygon );
 
   osm.reset( qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::loadMapLayerFromString( osmFilePath + "|layerid=3|subset=\"building\" is not null", QgsCoordinateTransformContext() ) ) );
   QVERIFY( osm->isValid() );
-  QCOMPARE( osm->geometryType(), QgsWkbTypes::PolygonGeometry );
+  QCOMPARE( osm->geometryType(), Qgis::GeometryType::Polygon );
   QCOMPARE( osm->subsetString(), QStringLiteral( "\"building\" is not null" ) );
 }
 
@@ -1614,7 +1642,7 @@ void TestQgsProcessing::mapLayerFromString()
   // allow loading
   QgsMapLayer *loadedLayer = QgsProcessingUtils::mapLayerFromString( newRaster, c, true );
   QVERIFY( loadedLayer->isValid() );
-  QCOMPARE( loadedLayer->type(), QgsMapLayerType::RasterLayer );
+  QCOMPARE( loadedLayer->type(), Qgis::LayerType::Raster );
   // should now be in temporary store
   QCOMPARE( c.temporaryLayerStore()->mapLayer( loadedLayer->id() ), loadedLayer );
 
@@ -2149,7 +2177,7 @@ void TestQgsProcessing::createFeatureSink()
   QgsVectorLayer *layer = nullptr;
 
   // should create a memory layer
-  std::unique_ptr< QgsFeatureSink > sink( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem() ) );
+  std::unique_ptr< QgsFeatureSink > sink( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem() ) );
   QVERIFY( sink.get() );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, false ) );
   QVERIFY( layer );
@@ -2167,7 +2195,7 @@ void TestQgsProcessing::createFeatureSink()
 
   // specific memory layer output
   destination = QStringLiteral( "memory:mylayer" );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem() ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem() ) );
   QVERIFY( sink.get() );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, false ) );
   QVERIFY( layer );
@@ -2184,7 +2212,7 @@ void TestQgsProcessing::createFeatureSink()
 
   // nameless memory layer
   destination = QStringLiteral( "memory:" );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem() ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem() ) );
   QVERIFY( sink.get() );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, false ) );
   QVERIFY( layer );
@@ -2203,7 +2231,7 @@ void TestQgsProcessing::createFeatureSink()
   destination = QStringLiteral( "memory:mylayer" );
   QgsFields fields;
   fields.append( QgsField( QStringLiteral( "my_field" ), QVariant::String, QString(), 100 ) );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::PointZM, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::RegeneratePrimaryKey ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::PointZM, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::RegeneratePrimaryKey ) );
   QVERIFY( sink.get() );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, false ) );
   QVERIFY( layer );
@@ -2211,7 +2239,7 @@ void TestQgsProcessing::createFeatureSink()
   QCOMPARE( layer->dataProvider()->name(), QStringLiteral( "memory" ) );
   QCOMPARE( layer->name(), QStringLiteral( "mylayer" ) );
   QVERIFY( layer->customProperty( QStringLiteral( "OnConvertFormatRegeneratePrimaryKey" ) ).toBool() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::PointZM );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::PointZM );
   QCOMPARE( layer->crs().authid(), QStringLiteral( "EPSG:3111" ) );
   QCOMPARE( layer->fields().size(), 1 );
   QCOMPARE( layer->fields().at( 0 ).name(), QStringLiteral( "my_field" ) );
@@ -2226,7 +2254,7 @@ void TestQgsProcessing::createFeatureSink()
   // non memory layer output
   destination = QDir::tempPath() + "/create_feature_sink.tab";
   QString prevDest = destination;
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   QVERIFY( sink.get() );
   f = QgsFeature( fields );
   f.setGeometry( QgsGeometry::fromWkt( QStringLiteral( "Polygon((0 0, 0 1, 1 1, 1 0, 0 0 ))" ) ) );
@@ -2245,7 +2273,7 @@ void TestQgsProcessing::createFeatureSink()
   // no extension, should default to shp
   destination = QDir::tempPath() + "/create_feature_sink2";
   prevDest = QDir::tempPath() + "/create_feature_sink2.gpkg";
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::PointZ, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::PointZ, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   QVERIFY( sink.get() );
   f = QgsFeature( fields );
   f.setAttributes( QgsAttributes() << "val" );
@@ -2254,7 +2282,7 @@ void TestQgsProcessing::createFeatureSink()
   QCOMPARE( destination, prevDest );
   sink.reset( nullptr );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, true ) );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::PointZ );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::PointZ );
   QCOMPARE( layer->crs().authid(), QStringLiteral( "EPSG:3111" ) );
   QCOMPARE( layer->fields().size(), 2 );
   QCOMPARE( layer->fields().at( 0 ).name(), QStringLiteral( "fid" ) );
@@ -2266,13 +2294,13 @@ void TestQgsProcessing::createFeatureSink()
   remapDef.setDestinationFields( layer->fields() );
   remapDef.setDestinationCrs( layer->crs() );
   remapDef.setSourceCrs( QgsCoordinateReferenceSystem( "EPSG:4326" ) );
-  remapDef.setDestinationWkbType( QgsWkbTypes::Polygon );
+  remapDef.setDestinationWkbType( Qgis::WkbType::Polygon );
   remapDef.addMappedField( QStringLiteral( "my_field" ), QgsProperty::fromExpression( QStringLiteral( "field2 || @extra" ) ) );
   QgsFields fields2;
   fields2.append( QgsField( "field2", QVariant::String ) );
   context.expressionContext().appendScope( new QgsExpressionContextScope() );
   context.expressionContext().scope( 0 )->setVariable( QStringLiteral( "extra" ), 2 );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields2, QgsWkbTypes::Point, QgsCoordinateReferenceSystem::fromEpsgId( 4326 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::SinkFlags(), &remapDef ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields2, Qgis::WkbType::Point, QgsCoordinateReferenceSystem::fromEpsgId( 4326 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::SinkFlags(), &remapDef ) );
   QVERIFY( sink.get() );
   f = QgsFeature( fields2 );
   f.setGeometry( QgsGeometry::fromWkt( QStringLiteral( "Point(10 0)" ) ) );
@@ -2294,7 +2322,7 @@ void TestQgsProcessing::createFeatureSink()
   delete layer;
   //windows style path
   destination = "d:\\temp\\create_feature_sink.tab";
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   QVERIFY( sink.get() );
 
   // save to geopackage
@@ -2302,7 +2330,7 @@ void TestQgsProcessing::createFeatureSink()
   if ( QFileInfo::exists( geopackagePath ) )
     QFile::remove( geopackagePath );
   destination = QStringLiteral( "ogr:dbname='%1' table=\"polygons\" (geom) sql=" ).arg( geopackagePath );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   QVERIFY( sink.get() );
   QCOMPARE( destination, QStringLiteral( "%1|layername=polygons" ).arg( geopackagePath ) );
   f = QgsFeature( fields );
@@ -2312,13 +2340,13 @@ void TestQgsProcessing::createFeatureSink()
   sink.reset( nullptr );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, true ) );
   QVERIFY( layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::Polygon );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::Polygon );
   QVERIFY( layer->getFeatures().nextFeature( f ) );
   QCOMPARE( f.attribute( "my_field" ).toString(), QStringLiteral( "val" ) );
 
   // add another output to the same geopackage
   QString destination2 = QStringLiteral( "ogr:dbname='%1' table=\"points\" (geom) sql=" ).arg( geopackagePath );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination2, context, fields, QgsWkbTypes::Point, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination2, context, fields, Qgis::WkbType::Point, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   QVERIFY( sink.get() );
   QCOMPARE( destination2, QStringLiteral( "%1|layername=points" ).arg( geopackagePath ) );
   f = QgsFeature( fields );
@@ -2328,14 +2356,14 @@ void TestQgsProcessing::createFeatureSink()
   sink.reset( nullptr );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination2, context, true ) );
   QVERIFY( layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::Point );
   QVERIFY( layer->getFeatures().nextFeature( f ) );
   QCOMPARE( f.attribute( "my_field" ).toString(), QStringLiteral( "val2" ) );
 
   // original polygon layer should remain
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, true ) );
   QVERIFY( layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::Polygon );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::Polygon );
   QVERIFY( layer->getFeatures().nextFeature( f ) );
   QCOMPARE( f.attribute( "my_field" ).toString(), QStringLiteral( "val" ) );
 
@@ -2344,10 +2372,10 @@ void TestQgsProcessing::createFeatureSink()
   remapDef.setDestinationCrs( layer->crs() );
 
   remapDef.setSourceCrs( QgsCoordinateReferenceSystem( "EPSG:4326" ) );
-  remapDef.setDestinationWkbType( QgsWkbTypes::Point );
+  remapDef.setDestinationWkbType( Qgis::WkbType::Point );
   remapDef.addMappedField( QStringLiteral( "my_field" ), QgsProperty::fromExpression( QStringLiteral( "field2 || @extra" ) ) );
   destination2 = QStringLiteral( "ogr:dbname='%1' table=\"points\" (geom) sql=" ).arg( geopackagePath );
-  sink.reset( QgsProcessingUtils::createFeatureSink( destination2, context, fields2, QgsWkbTypes::PointZ, QgsCoordinateReferenceSystem::fromEpsgId( 4326 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::SinkFlags(), &remapDef ) );
+  sink.reset( QgsProcessingUtils::createFeatureSink( destination2, context, fields2, Qgis::WkbType::PointZ, QgsCoordinateReferenceSystem::fromEpsgId( 4326 ), QVariantMap(), QStringList(), QStringList(), QgsFeatureSink::SinkFlags(), &remapDef ) );
   QVERIFY( sink.get() );
   f = QgsFeature( fields );
   f.setGeometry( QgsGeometry::fromWkt( QStringLiteral( "PointZ(3 4 5)" ) ) );
@@ -2356,7 +2384,7 @@ void TestQgsProcessing::createFeatureSink()
   sink.reset( nullptr );
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination2, context, true ) );
   QVERIFY( layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::Point );
   QCOMPARE( layer->featureCount(), 2L );
   QVERIFY( layer->getFeatures().nextFeature( f ) );
   QCOMPARE( f.attribute( "my_field" ).toString(), QStringLiteral( "val2" ) );
@@ -2375,7 +2403,7 @@ void TestQgsProcessing::createFeatureSinkPostgres()
   std::unique_ptr< QgsFeatureSink > sink;
   try
   {
-    sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, QgsWkbTypes::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
+    sink.reset( QgsProcessingUtils::createFeatureSink( destination, context, fields, Qgis::WkbType::Polygon, QgsCoordinateReferenceSystem::fromEpsgId( 3111 ) ) );
   }
   catch ( QgsProcessingException &e )
   {
@@ -2389,7 +2417,7 @@ void TestQgsProcessing::createFeatureSinkPostgres()
   sink.reset( nullptr );
   QgsVectorLayer *layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destination, context, true ) );
   QVERIFY( layer && layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::Polygon );
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::Polygon );
   QVERIFY( layer->getFeatures().nextFeature( f ) );
   QCOMPARE( f.attribute( "my_field" ).toString(), QStringLiteral( "val" ) );
 }
@@ -2578,7 +2606,7 @@ void TestQgsProcessing::parameters()
 
   // parameters as sinks
 
-  const QgsWkbTypes::Type wkbType = QgsWkbTypes::PolygonM;
+  const Qgis::WkbType wkbType = Qgis::WkbType::PolygonM;
   QgsCoordinateReferenceSystem crs = QgsCoordinateReferenceSystem( QStringLiteral( "epsg:3111" ) );
   QString destId;
   def->setName( QStringLiteral( "string" ) );
@@ -2623,7 +2651,7 @@ void TestQgsProcessing::parameters()
   layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( destId, context ) );
   QVERIFY( layer );
   QVERIFY( layer->isValid() );
-  QCOMPARE( layer->wkbType(), QgsWkbTypes::MultiPolygonM ); // shapefile Polygon[XX] get promoted to Multi
+  QCOMPARE( layer->wkbType(), Qgis::WkbType::MultiPolygonM ); // shapefile Polygon[XX] get promoted to Multi
   QCOMPARE( layer->crs(), crs );
 
   // make sure layer was automatically added to list to load on completion
@@ -2656,11 +2684,11 @@ void TestQgsProcessing::parameters()
   context2.layersToLoadOnCompletion().values().at( 0 ).setOutputLayerName( rl.get() );
   QCOMPARE( rl->name(), QStringLiteral( "landsat" ) );
   // unless setting prohibits it...
-  QgsProcessing::settingsPreferFilenameAsLayerName.setValue( false );
+  QgsProcessing::settingsPreferFilenameAsLayerName->setValue( false );
   context2.layersToLoadOnCompletion().values().at( 0 ).setOutputLayerName( rl.get() );
   QCOMPARE( rl->name(), QStringLiteral( "my_dest" ) );
   // if layer has a layername, we should use that instead of the base file name...
-  QgsProcessing::settingsPreferFilenameAsLayerName.setValue( true );
+  QgsProcessing::settingsPreferFilenameAsLayerName->setValue( true );
   vl = std::make_unique< QgsVectorLayer >( QStringLiteral( TEST_DATA_DIR ) + "/points_gpkg.gpkg|layername=points_small", QString() );
   context2.layersToLoadOnCompletion().values().at( 0 ).setOutputLayerName( vl.get() );
   QCOMPARE( vl->name(), QStringLiteral( "points_small" ) );
@@ -4129,8 +4157,8 @@ void TestQgsProcessing::parameterGeometry()
 
   // non optional with filter
   def.reset( new QgsProcessingParameterGeometry( "filtered", QString(), QString( "Point(-1 3)" ), false,
-  { QgsWkbTypes::LineGeometry } ) );
-  QVERIFY( def->geometryTypes().contains( QgsWkbTypes::LineGeometry ) );
+  { static_cast< int >( Qgis::GeometryType::Line ) } ) );
+  QVERIFY( def->geometryTypes().contains( static_cast< int >( Qgis::GeometryType::Line ) ) );
   QVERIFY( def->checkValueIsAcceptable( "LineString(10 10, 20 20)" ) );
   QVERIFY( !def->checkValueIsAcceptable( "Point(1 2)" ) );
   QVERIFY( !def->checkValueIsAcceptable( "" ) );
@@ -4895,12 +4923,12 @@ void TestQgsProcessing::parameterDistance()
   std::unique_ptr< QgsProcessingParameterDistance > def( new QgsProcessingParameterDistance( "non_optional", QString(), 5, QStringLiteral( "parent" ), false ) );
   QCOMPARE( def->parentParameterName(), QStringLiteral( "parent" ) );
   def->setParentParameterName( QStringLiteral( "parent2" ) );
-  QCOMPARE( def->defaultUnit(), QgsUnitTypes::DistanceUnknownUnit );
-  def->setDefaultUnit( QgsUnitTypes::DistanceFeet );
-  QCOMPARE( def->defaultUnit(), QgsUnitTypes::DistanceFeet );
+  QCOMPARE( def->defaultUnit(), Qgis::DistanceUnit::Unknown );
+  def->setDefaultUnit( Qgis::DistanceUnit::Feet );
+  QCOMPARE( def->defaultUnit(), Qgis::DistanceUnit::Feet );
   std::unique_ptr< QgsProcessingParameterDistance > clone( def->clone() );
   QCOMPARE( clone->parentParameterName(), QStringLiteral( "parent2" ) );
-  QCOMPARE( clone->defaultUnit(), QgsUnitTypes::DistanceFeet );
+  QCOMPARE( clone->defaultUnit(), Qgis::DistanceUnit::Feet );
 
   QCOMPARE( def->parentParameterName(), QStringLiteral( "parent2" ) );
   QVERIFY( def->checkValueIsAcceptable( 5 ) );
@@ -4971,7 +4999,7 @@ void TestQgsProcessing::parameterDistance()
   QCOMPARE( fromMap.maximum(), def->maximum() );
   QCOMPARE( fromMap.dataType(), def->dataType() );
   QCOMPARE( fromMap.parentParameterName(), QStringLiteral( "parent2" ) );
-  QCOMPARE( fromMap.defaultUnit(), QgsUnitTypes::DistanceFeet );
+  QCOMPARE( fromMap.defaultUnit(), Qgis::DistanceUnit::Feet );
   def.reset( dynamic_cast< QgsProcessingParameterDistance *>( QgsProcessingParameters::parameterFromVariantMap( map ) ) );
   QVERIFY( dynamic_cast< QgsProcessingParameterDistance *>( def.get() ) );
 
@@ -5009,11 +5037,11 @@ void TestQgsProcessing::parameterDuration()
 
   // not optional!
   std::unique_ptr< QgsProcessingParameterDuration > def( new QgsProcessingParameterDuration( "non_optional", QString(), 5, false ) );
-  QCOMPARE( def->defaultUnit(), QgsUnitTypes::TemporalMilliseconds );
-  def->setDefaultUnit( QgsUnitTypes::TemporalDays );
-  QCOMPARE( def->defaultUnit(), QgsUnitTypes::TemporalDays );
+  QCOMPARE( def->defaultUnit(), Qgis::TemporalUnit::Milliseconds );
+  def->setDefaultUnit( Qgis::TemporalUnit::Days );
+  QCOMPARE( def->defaultUnit(), Qgis::TemporalUnit::Days );
   std::unique_ptr< QgsProcessingParameterDuration > clone( def->clone() );
-  QCOMPARE( clone->defaultUnit(), QgsUnitTypes::TemporalDays );
+  QCOMPARE( clone->defaultUnit(), Qgis::TemporalUnit::Days );
 
   QVERIFY( def->checkValueIsAcceptable( 5 ) );
   QVERIFY( def->checkValueIsAcceptable( "1.1" ) );
@@ -5082,7 +5110,7 @@ void TestQgsProcessing::parameterDuration()
   QCOMPARE( fromMap.minimum(), def->minimum() );
   QCOMPARE( fromMap.maximum(), def->maximum() );
   QCOMPARE( fromMap.dataType(), def->dataType() );
-  QCOMPARE( fromMap.defaultUnit(), QgsUnitTypes::TemporalDays );
+  QCOMPARE( fromMap.defaultUnit(), Qgis::TemporalUnit::Days );
   def.reset( dynamic_cast< QgsProcessingParameterDuration *>( QgsProcessingParameters::parameterFromVariantMap( map ) ) );
   QVERIFY( dynamic_cast< QgsProcessingParameterDuration *>( def.get() ) );
 
@@ -6086,6 +6114,10 @@ void TestQgsProcessing::parameterString()
   QCOMPARE( def->valueAsJsonObject( QStringLiteral( "abc\ndef" ), context ), QVariant( QStringLiteral( "abc\ndef" ) ) );
   QCOMPARE( def->valueAsJsonObject( "uri='complex' username=\"complex\"", context ), QVariant( QStringLiteral( "uri='complex' username=\"complex\"" ) ) );
   QCOMPARE( def->valueAsJsonObject( QStringLiteral( "c:\\test\\new data\\test.dat" ), context ), QVariant( QStringLiteral( "c:\\test\\new data\\test.dat" ) ) );
+
+  QCOMPARE( def->valueAsJsonObject( QVariant::fromValue( QgsProperty::fromValue( QStringLiteral( "test" ) ) ), context ), QVariant( QStringLiteral( "test" ) ) );
+  QCOMPARE( def->valueAsJsonObject( QVariant::fromValue( QgsProperty::fromField( QStringLiteral( "a field" ) ) ), context ), QVariantMap( {{QStringLiteral( "type" ), QStringLiteral( "data_defined" )}, {QStringLiteral( "field" ), QStringLiteral( "a field" ) }} ) );
+  QCOMPARE( def->valueAsJsonObject( QVariant::fromValue( QgsProperty::fromExpression( QStringLiteral( "\"a field\" * 2" ) ) ), context ), QVariantMap( {{QStringLiteral( "type" ), QStringLiteral( "data_defined" )}, {QStringLiteral( "expression" ),  QStringLiteral( "\"a field\" * 2" ) }} ) );
 
   bool ok = false;
   QCOMPARE( def->valueAsString( QVariant(), context, ok ), QString() );
@@ -9718,8 +9750,8 @@ void TestQgsProcessing::parameterMeshDatasetGroups()
   QgsProject project;
   context.setProject( &project );
 
-  QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariant() ), QList<int>( {0} ) );
-  QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariantList() ), QList<int>( {0} ) );
+  QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariant() ), QList<int>() );
+  QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariantList() ), QList<int>() );
   QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( 3 ), QList<int>( {3} ) );
   QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariant( "3" ) ), QList<int>( {3} ) );
   QCOMPARE( QgsProcessingParameterMeshDatasetGroups::valueAsDatasetGroup( QVariantList( { "3", "4", "5"} ) ), QList<int>( {3, 4, 5 } ) );
@@ -10801,13 +10833,13 @@ void TestQgsProcessing::processingFeatureSink()
   QgsProcessingOutputLayerDefinition fs( sinkString, &p );
   QgsRemappingSinkDefinition remap;
   QVERIFY( !fs.useRemapping() );
-  remap.setDestinationWkbType( QgsWkbTypes::Point );
+  remap.setDestinationWkbType( Qgis::WkbType::Point );
   fs.setRemappingDefinition( remap );
   QVERIFY( fs.useRemapping() );
 
   QCOMPARE( fs.sink.staticValue().toString(), sinkString );
   QCOMPARE( fs.destinationProject, &p );
-  QCOMPARE( fs.remappingDefinition().destinationWkbType(), QgsWkbTypes::Point );
+  QCOMPARE( fs.remappingDefinition().destinationWkbType(), Qgis::WkbType::Point );
 
   // test storing QgsProcessingFeatureSink in variant and retrieving
   const QVariant fsInVariant = QVariant::fromValue( fs );
@@ -10816,7 +10848,7 @@ void TestQgsProcessing::processingFeatureSink()
   const QgsProcessingOutputLayerDefinition fromVar = qvariant_cast<QgsProcessingOutputLayerDefinition>( fsInVariant );
   QCOMPARE( fromVar.sink.staticValue().toString(), sinkString );
   QCOMPARE( fromVar.destinationProject, &p );
-  QCOMPARE( fromVar.remappingDefinition().destinationWkbType(), QgsWkbTypes::Point );
+  QCOMPARE( fromVar.remappingDefinition().destinationWkbType(), Qgis::WkbType::Point );
 
   // test evaluating parameter as sink
   QgsProcessingContext context;
@@ -10827,7 +10859,7 @@ void TestQgsProcessing::processingFeatureSink()
   QVariantMap params;
   params.insert( QStringLiteral( "layer" ), QgsProcessingOutputLayerDefinition( "memory:test", nullptr ) );
   QString dest;
-  std::unique_ptr< QgsFeatureSink > sink( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3111" ), context, dest ) );
+  std::unique_ptr< QgsFeatureSink > sink( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3111" ), context, dest ) );
   QVERIFY( sink.get() );
   QgsVectorLayer *layer = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( dest, context, false ) );
   QVERIFY( layer );
@@ -10835,7 +10867,7 @@ void TestQgsProcessing::processingFeatureSink()
 
   // next using property based definition
   params.insert( QStringLiteral( "layer" ), QgsProcessingOutputLayerDefinition( QgsProperty::fromExpression( QStringLiteral( "trim('memory' + ':test2')" ) ), nullptr ) );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
   QVERIFY( sink.get() );
   QgsVectorLayer *layer2 = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( dest, context, false ) );
   QVERIFY( layer2 );
@@ -10843,7 +10875,7 @@ void TestQgsProcessing::processingFeatureSink()
 
   // temporary sink
   params.insert( QStringLiteral( "layer" ), QgsProcessing::TEMPORARY_OUTPUT );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:28356" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:28356" ), context, dest ) );
   QVERIFY( sink.get() );
   QgsVectorLayer *layer3 = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( dest, context, false ) );
   QVERIFY( layer3 );
@@ -10851,7 +10883,7 @@ void TestQgsProcessing::processingFeatureSink()
   QCOMPARE( layer3->dataProvider()->name(), QStringLiteral( "memory" ) );
 
   params.insert( QStringLiteral( "layer" ), QgsProcessingOutputLayerDefinition( QgsProperty::fromValue( QgsProcessing::TEMPORARY_OUTPUT ), nullptr ) );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:28354" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:28354" ), context, dest ) );
   QVERIFY( sink.get() );
   QgsVectorLayer *layer4 = qobject_cast< QgsVectorLayer *>( QgsProcessingUtils::mapLayerFromString( dest, context, false ) );
   QVERIFY( layer4 );
@@ -10867,7 +10899,7 @@ void TestQgsProcessing::processingFeatureSink()
   QVERIFY( !def->checkValueIsAcceptable( QVariant() ) );
   QVERIFY( !def->checkValueIsAcceptable( 5 ) );
   params.insert( QStringLiteral( "layer" ), QStringLiteral( "memory:test" ) );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
   QVERIFY( sink.get() );
 
   // optional sink
@@ -10879,17 +10911,17 @@ void TestQgsProcessing::processingFeatureSink()
   QVERIFY( def->checkValueIsAcceptable( QVariant() ) );
   QVERIFY( !def->checkValueIsAcceptable( 5 ) );
   params.insert( QStringLiteral( "layer" ), QStringLiteral( "memory:test" ) );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
   QVERIFY( sink.get() );
   // optional sink, not set - should be no sink
   params.insert( QStringLiteral( "layer" ), QVariant() );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
   QVERIFY( !sink.get() );
 
   //.... unless there's a default set
   def.reset( new QgsProcessingParameterFeatureSink( QStringLiteral( "layer" ), QString(), QgsProcessing::TypeMapLayer, QStringLiteral( "memory:defaultlayer" ), true ) );
   params.insert( QStringLiteral( "layer" ), QVariant() );
-  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), QgsWkbTypes::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
+  sink.reset( QgsProcessingParameters::parameterAsSink( def.get(), params, QgsFields(), Qgis::WkbType::Point, QgsCoordinateReferenceSystem( "EPSG:3113" ), context, dest ) );
   QVERIFY( sink.get() );
 
   // appendable
@@ -11029,7 +11061,7 @@ void TestQgsProcessing::tempUtils()
 
   const QgsSettings settings;
   const QString alternative_tempFolder1 = tempDirPath + QStringLiteral( "/alternative_temp_test_one" );
-  QgsProcessing::settingsTempPath.setValue( alternative_tempFolder1 );
+  QgsProcessing::settingsTempPath->setValue( alternative_tempFolder1 );
   // check folder and if it's constant with alternative temp folder 1
   tempFolder = QgsProcessingUtils::tempFolder();
   QCOMPARE( tempFolder.left( alternative_tempFolder1.length() ), alternative_tempFolder1 );
@@ -11041,7 +11073,7 @@ void TestQgsProcessing::tempUtils()
   QVERIFY( alternativeTempFile1.startsWith( alternative_tempFolder1 ) );
   // change temp folder in the settings again
   const QString alternative_tempFolder2 =  tempDirPath + QStringLiteral( "/alternative_temp_test_two" );
-  QgsProcessing::settingsTempPath.setValue( alternative_tempFolder2 );
+  QgsProcessing::settingsTempPath->setValue( alternative_tempFolder2 );
   // check folder and if it's constant constant with alternative temp folder 2
   tempFolder = QgsProcessingUtils::tempFolder();
   QCOMPARE( tempFolder.left( alternative_tempFolder2.length() ), alternative_tempFolder2 );
@@ -11051,7 +11083,7 @@ void TestQgsProcessing::tempUtils()
   QVERIFY( alternativeTempFile2.endsWith( "alternative_temptest.txt" ) );
   QVERIFY( alternativeTempFile2.startsWith( tempFolder ) );
   QVERIFY( alternativeTempFile2.startsWith( alternative_tempFolder2 ) );
-  QgsProcessing::settingsTempPath.setValue( QString() );
+  QgsProcessing::settingsTempPath->setValue( QString() );
 
 }
 
@@ -11520,8 +11552,8 @@ void TestQgsProcessing::defaultExtensionsForProvider()
   QCOMPARE( context.preferredRasterFormat(), QStringLiteral( "tif" ) );
 
   // unless the user has set a default format, which IS supported by that provider
-  QgsProcessing::settingsDefaultOutputVectorLayerExt.setValue( QgsVectorFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "tab" ) ) );
-  QgsProcessing::settingsDefaultOutputRasterLayerExt.setValue( QgsRasterFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "sdat" ) ) );
+  QgsProcessing::settingsDefaultOutputVectorLayerExt->setValue( QgsVectorFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "tab" ) ) );
+  QgsProcessing::settingsDefaultOutputRasterLayerExt->setValue( QgsRasterFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "sdat" ) ) );
 
   QCOMPARE( provider.defaultVectorFileExtension( true ), QStringLiteral( "tab" ) );
   QCOMPARE( provider.defaultRasterFileExtension(), QStringLiteral( "sdat" ) );
@@ -11532,8 +11564,8 @@ void TestQgsProcessing::defaultExtensionsForProvider()
   QCOMPARE( context2.preferredRasterFormat(), QStringLiteral( "sdat" ) );
 
   // but if default is not supported by provider, we use a supported format
-  QgsProcessing::settingsDefaultOutputVectorLayerExt.setValue( QgsVectorFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "gpkg" ) ) );
-  QgsProcessing::settingsDefaultOutputRasterLayerExt.setValue( QgsRasterFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "ecw" ) ) );
+  QgsProcessing::settingsDefaultOutputVectorLayerExt->setValue( QgsVectorFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "gpkg" ) ) );
+  QgsProcessing::settingsDefaultOutputRasterLayerExt->setValue( QgsRasterFileWriter::supportedFormatExtensions().indexOf( QLatin1String( "ecw" ) ) );
   QCOMPARE( provider.defaultVectorFileExtension( true ), QStringLiteral( "mif" ) );
   QCOMPARE( provider.defaultRasterFileExtension(), QStringLiteral( "mig" ) );
 }
@@ -11656,6 +11688,66 @@ void TestQgsProcessing::formatHelp()
   QCOMPARE( QgsProcessingUtils::formatHelpMapAsHtml( help, &a ), QStringLiteral( "<html><body><p></p>\n<h2>Examples</h2>\n<p>aabbcc</p><br></body></html>" ) );
 }
 
+void TestQgsProcessing::preprocessParameters()
+{
+  QVariantMap inputs;
+  inputs.insert( QStringLiteral( "int" ), 5 );
+  inputs.insert( QStringLiteral( "string" ), QStringLiteral( "a string" ) );
+  inputs.insert( QStringLiteral( "data defined field" ), QVariantMap( {{QStringLiteral( "type" ), QStringLiteral( "data_defined" )}, {QStringLiteral( "field" ), QStringLiteral( "DEPTH_FIELD" ) }} ) );
+  inputs.insert( QStringLiteral( "data defined expression" ), QVariantMap( {{QStringLiteral( "type" ), QStringLiteral( "data_defined" )}, {QStringLiteral( "expression" ), QStringLiteral( "A_FIELD * 200" ) }} ) );
+  inputs.insert( QStringLiteral( "data defined field using string" ), QStringLiteral( "field:MY FIELD" ) );
+  inputs.insert( QStringLiteral( "data defined expression using string" ), QStringLiteral( "expression:SOME_FIELD * 2" ) );
+  inputs.insert( QStringLiteral( "invalid" ), QVariantMap( {{QStringLiteral( "type" ), QStringLiteral( "data_defined" )}} ) );
+
+  bool ok = false;
+  QString error;
+  QVariantMap outputs = QgsProcessingUtils::preprocessQgisProcessParameters( inputs, ok, error );
+  QVERIFY( !ok );
+  QVERIFY( !error.isEmpty() );
+
+  inputs.remove( QStringLiteral( "invalid" ) );
+  error.clear();
+  outputs = QgsProcessingUtils::preprocessQgisProcessParameters( inputs, ok, error );
+  QVERIFY( ok );
+  QVERIFY( error.isEmpty() );
+
+  QCOMPARE( outputs.value( QStringLiteral( "int" ) ).toInt(), 5 );
+  QCOMPARE( outputs.value( QStringLiteral( "string" ) ).toString(), QStringLiteral( "a string" ) );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined field" ) ).value< QgsProperty >().propertyType(), QgsProperty::FieldBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined field" ) ).value< QgsProperty >().field(), QStringLiteral( "DEPTH_FIELD" ) );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined field using string" ) ).value< QgsProperty >().propertyType(), QgsProperty::FieldBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined field using string" ) ).value< QgsProperty >().field(), QStringLiteral( "MY FIELD" ) );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined expression" ) ).value< QgsProperty >().propertyType(), QgsProperty::ExpressionBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined expression" ) ).value< QgsProperty >().expressionString(), QStringLiteral( "A_FIELD * 200" ) );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined expression using string" ) ).value< QgsProperty >().propertyType(), QgsProperty::ExpressionBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "data defined expression using string" ) ).value< QgsProperty >().expressionString(), QStringLiteral( "SOME_FIELD * 2" ) );
+
+  // test round trip of data defined parameters
+  const QgsProcessingAlgorithm *bufferAlg = QgsApplication::processingRegistry()->algorithmById( "native:buffer" );
+  QVERIFY( bufferAlg );
+
+  inputs.clear();
+  inputs.insert( QStringLiteral( "DISTANCE" ), QgsProperty::fromField( QStringLiteral( "DEPTH_FIELD" ) ) );
+
+  QgsProcessingContext context;
+  QVariantMap exportedParams = bufferAlg->asMap( inputs, context );
+  outputs = QgsProcessingUtils::preprocessQgisProcessParameters( inputs, ok, error );
+  QVERIFY( ok );
+  QVERIFY( error.isEmpty() );
+
+  QCOMPARE( outputs.value( QStringLiteral( "DISTANCE" ) ).value< QgsProperty >().propertyType(), QgsProperty::FieldBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "DISTANCE" ) ).value< QgsProperty >().field(), QStringLiteral( "DEPTH_FIELD" ) );
+
+  inputs.insert( QStringLiteral( "DISTANCE" ), QgsProperty::fromExpression( QStringLiteral( "A_FIELD * 200" ) ) );
+
+  exportedParams = bufferAlg->asMap( inputs, context );
+  outputs = QgsProcessingUtils::preprocessQgisProcessParameters( inputs, ok, error );
+  QVERIFY( ok );
+  QVERIFY( error.isEmpty() );
+
+  QCOMPARE( outputs.value( QStringLiteral( "DISTANCE" ) ).value< QgsProperty >().propertyType(), QgsProperty::ExpressionBasedProperty );
+  QCOMPARE( outputs.value( QStringLiteral( "DISTANCE" ) ).value< QgsProperty >().expressionString(), QStringLiteral( "A_FIELD * 200" ) );
+}
 
 QGSTEST_MAIN( TestQgsProcessing )
 #include "testqgsprocessing.moc"

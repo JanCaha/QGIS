@@ -24,7 +24,6 @@
 #include "qgscoordinatetransform.h"
 #include "qgsdatasourceuri.h"
 #include "qgsrasteridentifyresult.h"
-#include "qgsrasterlayer.h"
 #include "qgsrectangle.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsnetworkaccessmanager.h"
@@ -45,11 +44,6 @@
 #ifdef QGISDEBUG
 #include <QDir>
 #endif
-
-#include "gdalwarper.h"
-#include "ogr_srs_api.h"
-#include "cpl_conv.h"
-#include "cpl_string.h"
 
 #define ERR(message) QGS_ERROR_MESSAGE(message,"WCS provider")
 #define SRVERR(message) QGS_ERROR_MESSAGE(message,"WCS server")
@@ -950,12 +944,11 @@ QList<QgsColorRampShader::ColorRampItem> QgsWcsProvider::colorTable( int bandNum
   return mColorTables.value( bandNumber - 1 );
 }
 
-int QgsWcsProvider::colorInterpretation( int bandNo ) const
+Qgis::RasterColorInterpretation QgsWcsProvider::colorInterpretation( int bandNo ) const
 {
   GDALRasterBandH myGdalBand = GDALGetRasterBand( mCachedGdalDataset.get(), bandNo );
   return colorInterpretationFromGdal( GDALGetRasterColorInterpretation( myGdalBand ) );
 }
-
 
 bool QgsWcsProvider::parseServiceExceptionReportDom( const QByteArray &xml, const QString &wcsVersion, QString &errorTitle, QString &errorText )
 {
@@ -1044,7 +1037,6 @@ void QgsWcsProvider::parseServiceException( QDomElement const &e, const QString 
   }
   else
   {
-    const QStringList codes;
     seCode = e.attribute( QStringLiteral( "exceptionCode" ) );
     // UMN Mapserver (6.0.3) has messed/switched 'locator' and 'exceptionCode'
     if ( ! exceptions.contains( seCode ) )
@@ -1397,14 +1389,14 @@ QString QgsWcsProvider:: htmlRow( const QString &text1, const QString &text2 )
   return "<tr>" + htmlCell( text1 ) +  htmlCell( text2 ) + "</tr>";
 }
 
-QgsRasterIdentifyResult QgsWcsProvider::identify( const QgsPointXY &point, QgsRaster::IdentifyFormat format, const QgsRectangle &boundingBox, int width, int height, int /*dpi*/ )
+QgsRasterIdentifyResult QgsWcsProvider::identify( const QgsPointXY &point, Qgis::RasterIdentifyFormat format, const QgsRectangle &boundingBox, int width, int height, int /*dpi*/ )
 {
   QgsDebugMsg( QStringLiteral( "thePoint = %1 %2" ).arg( point.x(), 0, 'g', 10 ).arg( point.y(), 0, 'g', 10 ) );
   QgsDebugMsg( QStringLiteral( "theWidth = %1 height = %2" ).arg( width ).arg( height ) );
   QgsDebugMsg( "boundingBox = " + boundingBox.toString() );
   QMap<int, QVariant> results;
 
-  if ( format != QgsRaster::IdentifyFormatValue )
+  if ( format != Qgis::RasterIdentifyFormat::Value )
   {
     return QgsRasterIdentifyResult( QGS_ERROR( tr( "Format not supported" ) ) );
   }
@@ -1416,7 +1408,7 @@ QgsRasterIdentifyResult QgsWcsProvider::identify( const QgsPointXY &point, QgsRa
     {
       results.insert( i, QVariant() );
     }
-    return QgsRasterIdentifyResult( QgsRaster::IdentifyFormatValue, results );
+    return QgsRasterIdentifyResult( Qgis::RasterIdentifyFormat::Value, results );
   }
 
   QgsRectangle finalExtent = boundingBox;
@@ -1448,13 +1440,13 @@ QgsRasterIdentifyResult QgsWcsProvider::identify( const QgsPointXY &point, QgsRa
       // set resolution approximately to 1mm
       switch ( mCrs.mapUnits() )
       {
-        case QgsUnitTypes::DistanceMeters:
+        case Qgis::DistanceUnit::Meters:
           xRes = 0.001;
           break;
-        case QgsUnitTypes::DistanceFeet:
+        case Qgis::DistanceUnit::Feet:
           xRes = 0.003;
           break;
-        case QgsUnitTypes::DistanceDegrees:
+        case Qgis::DistanceUnit::Degrees:
           // max length of degree of latitude on pole is 111694 m
           xRes = 1e-8;
           break;
@@ -1570,7 +1562,7 @@ QgsRasterIdentifyResult QgsWcsProvider::identify( const QgsPointXY &point, QgsRa
     }
   }
 
-  return QgsRasterIdentifyResult( QgsRaster::IdentifyFormatValue, results );
+  return QgsRasterIdentifyResult( Qgis::RasterIdentifyFormat::Value, results );
 }
 
 QgsCoordinateReferenceSystem QgsWcsProvider::crs() const
@@ -2043,9 +2035,9 @@ QString QgsWcsProviderMetadata::encodeUri( const QVariantMap &parts ) const
   return query.toString();
 }
 
-QList<QgsMapLayerType> QgsWcsProviderMetadata::supportedLayerTypes() const
+QList<Qgis::LayerType> QgsWcsProviderMetadata::supportedLayerTypes() const
 {
-  return { QgsMapLayerType::RasterLayer };
+  return { Qgis::LayerType::Raster };
 }
 
 

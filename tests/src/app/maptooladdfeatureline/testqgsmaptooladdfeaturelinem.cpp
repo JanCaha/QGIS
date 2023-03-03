@@ -22,13 +22,10 @@
 #include "qgsmapcanvassnappingutils.h"
 #include "qgssnappingconfig.h"
 #include "qgsmaptooladdfeature.h"
-#include "qgsmapcanvastracer.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
 #include "qgssettingsregistrycore.h"
 #include "qgsvectorlayer.h"
-#include "qgswkbtypes.h"
-#include "qgsmapmouseevent.h"
 #include "testqgsmaptoolutils.h"
 
 bool operator==( const QgsGeometry &g1, const QgsGeometry &g2 )
@@ -125,7 +122,7 @@ void TestQgsMapToolAddFeatureLineM::initTestCase()
   QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mLayerLineM );
 
   QgsPolyline line2;
-  line2 << QgsPoint( QgsWkbTypes::PointM, 1, 1, 0, 0 ) << QgsPoint( QgsWkbTypes::PointM, 2, 1, 0, 1 ) << QgsPoint( QgsWkbTypes::PointM, 3, 2, 0, 2 ) << QgsPoint( QgsWkbTypes::PointM, 1, 2, 0, 3 ) << QgsPoint( QgsWkbTypes::PointM, 1, 1, 0, 0 );
+  line2 << QgsPoint( Qgis::WkbType::PointM, 1, 1, 0, 0 ) << QgsPoint( Qgis::WkbType::PointM, 2, 1, 0, 1 ) << QgsPoint( Qgis::WkbType::PointM, 3, 2, 0, 2 ) << QgsPoint( Qgis::WkbType::PointM, 1, 2, 0, 3 ) << QgsPoint( Qgis::WkbType::PointM, 1, 1, 0, 0 );
   QgsFeature lineF2;
   lineF2.setGeometry( QgsGeometry::fromPolyline( line2 ) );
 
@@ -182,7 +179,7 @@ void TestQgsMapToolAddFeatureLineM::testM()
   mCanvas->setCurrentLayer( mLayerLineM );
 
   // test with default M value = 333
-  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue.setValue( 333 );
+  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue->setValue( 333 );
 
   QSet<QgsFeatureId> oldFids = utils.existingFeatureIds();
   utils.mouseClick( 4, 0, Qt::LeftButton );
@@ -198,7 +195,7 @@ void TestQgsMapToolAddFeatureLineM::testM()
   mLayerLine->undoStack()->undo();
 
   // test with default M value = 222
-  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue.setValue( 222 );
+  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue->setValue( 222 );
 
   oldFids = utils.existingFeatureIds();
   utils.mouseClick( 4, 0, Qt::LeftButton );
@@ -223,7 +220,7 @@ void TestQgsMapToolAddFeatureLineM::testTopologicalEditingM()
   mCanvas->setCurrentLayer( mLayerTopoM );
 
   // test with default M value = 333
-  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue.setValue( 333 );
+  QgsSettingsRegistryCore::settingsDigitizingDefaultMValue->setValue( 333 );
 
   QSet<QgsFeatureId> oldFids = utils.existingFeatureIds();
 

@@ -65,7 +65,7 @@ QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( QgsVectorLayer *layer,
   init();
 }
 
-QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( QgsWkbTypes::GeometryType geometryType, const QgsFields &fields, const QgsCoordinateReferenceSystem &crs, const QString &providerId, const QgsPalLayerSettings *settings, QgsMapLayer *layer, const QString &layerName )
+QgsVectorLayerLabelProvider::QgsVectorLayerLabelProvider( Qgis::GeometryType geometryType, const QgsFields &fields, const QgsCoordinateReferenceSystem &crs, const QString &providerId, const QgsPalLayerSettings *settings, QgsMapLayer *layer, const QString &layerName )
   : QgsAbstractLabelProvider( layer, providerId )
   , mSettings( settings ? * settings : QgsPalLayerSettings() ) // TODO: all providers should have valid settings?
   , mLayerGeometryType( geometryType )
@@ -92,7 +92,7 @@ void QgsVectorLayerLabelProvider::init()
 
   mPriority = 1 - mSettings.priority / 10.0; // convert 0..10 --> 1..0
 
-  if ( mLayerGeometryType == QgsWkbTypes::PointGeometry && mRenderer )
+  if ( mLayerGeometryType == Qgis::GeometryType::Point && mRenderer )
   {
     //override obstacle type to treat any intersection of a label with the point symbol as a high cost conflict
     mObstacleType = QgsLabelObstacleSettings::PolygonWhole;
@@ -170,7 +170,7 @@ QList<QgsLabelFeature *> QgsVectorLayerLabelProvider::labelFeatures( QgsRenderCo
     if ( mRenderer )
     {
       QgsSymbolList symbols = mRenderer->originalSymbolsForFeature( fet, ctx );
-      if ( !symbols.isEmpty() && fet.geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( !symbols.isEmpty() && fet.geometry().type() == Qgis::GeometryType::Point )
       {
         //point feature, use symbol bounds as obstacle
         obstacleGeometry = QgsVectorLayerLabelProvider::getPointObstacleGeometry( fet, ctx, symbols );
@@ -208,7 +208,7 @@ QList< QgsLabelFeature * > QgsVectorLayerLabelProvider::registerFeature( const Q
 
 QgsGeometry QgsVectorLayerLabelProvider::getPointObstacleGeometry( QgsFeature &fet, QgsRenderContext &context, const QgsSymbolList &symbols )
 {
-  if ( !fet.hasGeometry() || fet.geometry().type() != QgsWkbTypes::PointGeometry )
+  if ( !fet.hasGeometry() || fet.geometry().type() != Qgis::GeometryType::Point )
     return QgsGeometry();
 
   bool isMultiPoint = fet.geometry().constGet()->nCoordinates() > 1;
@@ -381,7 +381,7 @@ void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext &context, pal::Lab
   // size has already been calculated and stored in the defined font - this calculated size
   // is in pixels
   format.setSize( dFont.pixelSize() );
-  format.setSizeUnit( QgsUnitTypes::RenderPixels );
+  format.setSizeUnit( Qgis::RenderUnit::Pixels );
   tmpLyr.setFormat( format );
 
   if ( tmpLyr.multilineAlign == Qgis::LabelMultiLineAlignment::FollowPlacement )
@@ -478,7 +478,7 @@ void QgsVectorLayerLabelProvider::drawUnplacedLabel( QgsRenderContext &context, 
   QgsTextFormat format = mSettings.format();
   if ( mSettings.drawLabels
        && mSettings.unplacedVisibility() != Qgis::UnplacedLabelVisibility::NeverShow
-       && mEngine->engineSettings().flags() & QgsLabelingEngineSettings::DrawUnplacedLabels )
+       && mEngine->engineSettings().flags() & Qgis::LabelingFlag::DrawUnplacedLabels )
   {
     QgsPalLayerSettings tmpLyr( mSettings );
     format = tmpLyr.format();
@@ -506,7 +506,7 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
 
   QPointF outPt = xform.transform( label->getX(), label->getY() ).toQPointF();
 
-  if ( mEngine->engineSettings().testFlag( QgsLabelingEngineSettings::DrawLabelRectOnly ) )  // TODO: this should get directly to labeling engine
+  if ( mEngine->engineSettings().testFlag( Qgis::LabelingFlag::DrawLabelRectOnly ) )  // TODO: this should get directly to labeling engine
   {
     //debugging rect
     if ( drawType != Qgis::TextComponent::Text )
@@ -537,6 +537,103 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
       drawLabelPrivate( label->nextPart(), context, tmpLyr, drawType, dpiRatio );
 
     return;
+  }
+  if ( mEngine->engineSettings().testFlag( Qgis::LabelingFlag::DrawLabelMetrics ) )
+  {
+    if ( drawType != Qgis::TextComponent::Text )
+      return;
+
+    QgsPointXY outPt2 = xform.transform( label->getX() + label->getWidth(), label->getY() + label->getHeight() );
+    QRectF rect( 0, 0, outPt2.x() - outPt.x(), outPt2.y() - outPt.y() );
+    painter->save();
+    painter->setRenderHint( QPainter::Antialiasing, false );
+    painter->translate( QPointF( outPt.x(), outPt.y() ) );
+    painter->rotate( -label->getAlpha() * 180 / M_PI );
+
+    painter->setBrush( Qt::NoBrush );
+    painter->setPen( QColor( 255, 0, 0, 220 ) );
+
+    painter->drawRect( rect );
+
+
+    painter->setPen( QColor( 0, 0, 0, 60 ) );
+    const QgsMargins &margins = label->getFeaturePart()->feature()->visualMargin();
+    if ( margins.top() > 0 )
+    {
+      const double topMargin = margins.top() / context.mapToPixel().mapUnitsPerPixel();
+      painter->drawLine( QPointF( rect.left(), rect.top() - topMargin ), QPointF( rect.right(), rect.top() - topMargin ) );
+    }
+    if ( margins.bottom() > 0 )
+    {
+      const double bottomMargin = margins.top() / context.mapToPixel().mapUnitsPerPixel();
+      painter->drawLine( QPointF( rect.left(), rect.bottom() + bottomMargin ), QPointF( rect.right(), rect.bottom() + bottomMargin ) );
+    }
+
+    const QRectF outerBounds = label->getFeaturePart()->feature()->outerBounds();
+    if ( !outerBounds.isNull() )
+    {
+      const QRectF mapOuterBounds = QRectF( label->getX() + outerBounds.left(),
+                                            label->getY() + outerBounds.top(),
+                                            outerBounds.width(), outerBounds.height() );
+
+      QgsPointXY outerBoundsPt1 = xform.transform( mapOuterBounds.left(), mapOuterBounds.top() );
+      QgsPointXY outerBoundsPt2 = xform.transform( mapOuterBounds.right(), mapOuterBounds.bottom() );
+
+      const QRectF outerBoundsPixel( outerBoundsPt1.x() - outPt.x(),
+                                     outerBoundsPt1.y() - outPt.y(),
+                                     outerBoundsPt2.x() - outerBoundsPt1.x(),
+                                     outerBoundsPt2.y() - outerBoundsPt1.y() );
+
+      QPen pen( QColor( 255, 0, 255, 140 ) );
+      pen.setCosmetic( true );
+      pen.setWidth( 1 );
+      painter->setPen( pen );
+      painter->drawRect( outerBoundsPixel );
+    }
+
+    if ( QgsTextLabelFeature *textFeature = dynamic_cast< QgsTextLabelFeature * >( label->getFeaturePart()->feature() ) )
+    {
+      const QgsTextDocumentMetrics &metrics = textFeature->documentMetrics();
+      const QgsTextDocument &document = textFeature->document();
+      const int blockCount = document.size();
+
+      double prevBlockBaseline = rect.bottom() - rect.top();
+
+      // draw block baselines
+      for ( int blockIndex = 0; blockIndex < blockCount; ++blockIndex )
+      {
+        const double blockBaseLine = metrics.baselineOffset( blockIndex, Qgis::TextLayoutMode::Labeling );
+
+        const QgsTextBlock &block = document.at( blockIndex );
+        const int fragmentCount = block.size();
+        double left = 0;
+        for ( int fragmentIndex = 0; fragmentIndex < fragmentCount; ++fragmentIndex )
+        {
+          const double fragmentVerticalOffset = metrics.fragmentVerticalOffset( blockIndex, fragmentIndex, Qgis::TextLayoutMode::Labeling );
+          const double right = left + metrics.fragmentHorizontalAdvance( blockIndex, fragmentIndex, Qgis::TextLayoutMode::Labeling );
+
+          if ( fragmentIndex > 0 )
+          {
+            QPen pen( QColor( 0, 0, 255, 220 ) );
+            pen.setStyle( Qt::PenStyle::DashLine );
+
+            painter->setPen( pen );
+
+            painter->drawLine( QPointF( rect.left() + left, rect.top() + blockBaseLine + fragmentVerticalOffset ),
+                               QPointF( rect.left() + left, rect.top() + prevBlockBaseline ) );
+
+          }
+
+          painter->setPen( QColor( 0, 0, 255, 220 ) );
+          painter->drawLine( QPointF( rect.left() + left, rect.top()  + blockBaseLine + fragmentVerticalOffset ),
+                             QPointF( rect.left() + right, rect.top() + blockBaseLine + fragmentVerticalOffset ) );
+          left = right;
+        }
+        prevBlockBaseline = blockBaseLine;
+      }
+    }
+
+    painter->restore();
   }
 
   QgsTextRenderer::Component component;
@@ -569,8 +666,8 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
       QgsScopedRenderContextReferenceScaleOverride referenceScaleOverride( context, -1.0 );
 
       // convert label size to render units
-      double labelWidthPx = context.convertToPainterUnits( label->getWidth(), QgsUnitTypes::RenderMapUnits, QgsMapUnitScale() );
-      double labelHeightPx = context.convertToPainterUnits( label->getHeight(), QgsUnitTypes::RenderMapUnits, QgsMapUnitScale() );
+      double labelWidthPx = context.convertToPainterUnits( label->getWidth(), Qgis::RenderUnit::MapUnits, QgsMapUnitScale() );
+      double labelHeightPx = context.convertToPainterUnits( label->getHeight(), Qgis::RenderUnit::MapUnits, QgsMapUnitScale() );
 
       component.size = QSizeF( labelWidthPx, labelHeightPx );
     }
@@ -660,7 +757,31 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
 
     QgsTextDocument document;
     QgsTextDocumentMetrics metrics;
-    if ( !tmpLyr.format().allowHtmlFormatting() || tmpLyr.placement == Qgis::LabelPlacement::Curved )
+
+    // If we are using non-curved, HTML formatted labels then we've already precalculated the text metrics.
+    // Otherwise we'll need to calculate them now.
+    bool metricsRequired = !tmpLyr.format().allowHtmlFormatting();
+    if ( !metricsRequired )
+    {
+      switch ( tmpLyr.placement )
+      {
+        case Qgis::LabelPlacement::Curved:
+        case Qgis::LabelPlacement::PerimeterCurved:
+          metricsRequired = true;
+          break;
+
+        case Qgis::LabelPlacement::AroundPoint:
+        case Qgis::LabelPlacement::OverPoint:
+        case Qgis::LabelPlacement::Line:
+        case Qgis::LabelPlacement::Horizontal:
+        case Qgis::LabelPlacement::Free:
+        case Qgis::LabelPlacement::OrderedPositionsAroundPoint:
+        case Qgis::LabelPlacement::OutsidePolygons:
+          break;
+      }
+    }
+
+    if ( metricsRequired )
     {
       const QgsTextCharacterFormat c = lf->characterFormat( label->getPartId() );
       const QStringList multiLineList = QgsPalLabeling::splitToLines( txt, tmpLyr.wrapChar, tmpLyr.autoWrapLength, tmpLyr.useMaxLineLengthForAutoWrap );

@@ -33,7 +33,6 @@ email                : sherman at mrcc.com
 #include "qgslocalec.h"
 #include "qgssymbol.h"
 #include "qgsembeddedsymbolrenderer.h"
-#include "qgszipitem.h"
 #include "qgsprovidersublayerdetails.h"
 #include "qgsvectorlayer.h"
 #include "qgsproviderregistry.h"
@@ -221,7 +220,7 @@ void QgsOgrProvider::repack()
 
 Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
     const QgsFields &fields,
-    QgsWkbTypes::Type wkbType,
+    Qgis::WkbType wkbType,
     const QgsCoordinateReferenceSystem &srs,
     bool overwrite,
     QMap<int, int> *oldToNewAttrIdxMap,
@@ -300,6 +299,28 @@ Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
     }
   }
 
+  QgsFields cleanedFields = fields;
+#if GDAL_VERSION_NUM < GDAL_COMPUTE_VERSION(3, 6, 3)
+  // Temporary solution. Proper fix in https://github.com/OSGeo/gdal/pull/7147
+  if ( driverName == QLatin1String( "OpenFileGDB" ) )
+  {
+    QString fidColumn = QStringLiteral( "OBJECTID" );
+    for ( const QString &layerOption : layerOptions )
+    {
+      if ( layerOption.startsWith( QLatin1String( "FID=" ), Qt::CaseInsensitive ) )
+      {
+        fidColumn = layerOption.mid( static_cast<int>( strlen( "FID=" ) ) );
+        break;
+      }
+    }
+    const int objectIdIndex = cleanedFields.lookupField( fidColumn );
+    if ( objectIdIndex >= 0 )
+    {
+      cleanedFields.remove( objectIdIndex );
+    }
+  }
+#endif
+
   QString newLayerName( layerName );
 
   QgsVectorFileWriter::SaveVectorOptions saveOptions;
@@ -310,7 +331,7 @@ Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
   saveOptions.layerOptions = layerOptions;
   saveOptions.actionOnExistingFile = action;
   saveOptions.symbologyExport = QgsVectorFileWriter::NoSymbology;
-  std::unique_ptr< QgsVectorFileWriter > writer( QgsVectorFileWriter::create( uri, fields, wkbType, srs, QgsCoordinateTransformContext(), saveOptions, QgsFeatureSink::SinkFlags(), nullptr, &newLayerName ) );
+  std::unique_ptr< QgsVectorFileWriter > writer( QgsVectorFileWriter::create( uri, cleanedFields, wkbType, srs, QgsCoordinateTransformContext(), saveOptions, QgsFeatureSink::SinkFlags(), nullptr, &newLayerName ) );
   layerName = newLayerName;
 
   QgsVectorFileWriter::WriterError error = writer->hasError();
@@ -341,7 +362,7 @@ Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
           const QString ogrFidColumnName { OGR_L_GetFIDColumn( hLayer ) };
           firstFieldIsFid = !( EQUAL( OGR_L_GetFIDColumn( hLayer ), "" ) ) &&
                             OGR_FD_GetFieldIndex( OGR_L_GetLayerDefn( hLayer ), ogrFidColumnName.toUtf8() ) < 0 &&
-                            fields.indexFromName( ogrFidColumnName.toUtf8() ) < 0;
+                            cleanedFields.indexFromName( ogrFidColumnName.toUtf8() ) < 0;
           // At this point we must check if there is a real FID field in the the fields argument,
           // because in that case we don't want to shift all fields (see issue GH #34333)
           // Check for unique values should be performed in client code.
@@ -836,6 +857,19 @@ void QgsOgrProvider::loadFields()
       // dataset retains ownership of domain!
       if ( OGRFieldDomainH domain = GDALDatasetGetFieldDomain( ds, domainName ) )
       {
+        switch ( OGR_FldDomain_GetSplitPolicy( domain ) )
+        {
+          case OFDSP_DEFAULT_VALUE:
+            newField.setSplitPolicy( Qgis::FieldDomainSplitPolicy::DefaultValue );
+            break;
+          case OFDSP_DUPLICATE:
+            newField.setSplitPolicy( Qgis::FieldDomainSplitPolicy::Duplicate );
+            break;
+          case OFDSP_GEOMETRY_RATIO:
+            newField.setSplitPolicy( Qgis::FieldDomainSplitPolicy::GeometryRatio );
+            break;
+        }
+
         switch ( OGR_FldDomain_GetDomainType( domain ) )
         {
           case OFDT_CODED:
@@ -1240,7 +1274,9 @@ bool QgsOgrProvider::skipConstraintCheck( int fieldIndex, QgsFieldConstraints::C
   else
   {
     // stricter check
-    return mDefaultValues.contains( fieldIndex ) && mDefaultValues.value( fieldIndex ) == value.toString() && !QgsVariantUtils::isNull( value );
+    return mDefaultValues.contains( fieldIndex ) && !QgsVariantUtils::isNull( value ) && (
+             mDefaultValues.value( fieldIndex ) == value.toString()
+             || value.userType() == QMetaType::type( "QgsUnsetAttributeValue" ) );
   }
 }
 
@@ -1265,21 +1301,21 @@ size_t QgsOgrProvider::layerCount() const
 /**
  * Returns the feature type
  */
-QgsWkbTypes::Type QgsOgrProvider::wkbType() const
+Qgis::WkbType QgsOgrProvider::wkbType() const
 {
-  QgsWkbTypes::Type wkb = QgsOgrUtils::ogrGeometryTypeToQgsWkbType( mOGRGeomType );
-  const QgsWkbTypes::Type wkbFlat = QgsWkbTypes::flatType( wkb );
-  if ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) && ( wkbFlat == QgsWkbTypes::LineString || wkbFlat == QgsWkbTypes::Polygon ) )
+  Qgis::WkbType wkb = QgsOgrUtils::ogrGeometryTypeToQgsWkbType( mOGRGeomType );
+  const Qgis::WkbType wkbFlat = QgsWkbTypes::flatType( wkb );
+  if ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) && ( wkbFlat == Qgis::WkbType::LineString || wkbFlat == Qgis::WkbType::Polygon ) )
   {
     wkb = QgsWkbTypes::multiType( wkb );
   }
   if ( mOGRGeomType % 1000 == wkbPolyhedralSurface ) // is PolyhedralSurface, PolyhedralSurfaceZ, PolyhedralSurfaceM or PolyhedralSurfaceZM => map to MultiPolygon
   {
-    wkb = static_cast<QgsWkbTypes::Type>( mOGRGeomType - ( wkbPolyhedralSurface - wkbMultiPolygon ) );
+    wkb = static_cast<Qgis::WkbType>( mOGRGeomType - ( wkbPolyhedralSurface - wkbMultiPolygon ) );
   }
   else if ( mOGRGeomType % 1000 == wkbTIN ) // is TIN, TINZ, TINM or TINZM => map to MultiPolygon
   {
-    wkb = static_cast<QgsWkbTypes::Type>( mOGRGeomType - ( wkbTIN - wkbMultiPolygon ) );
+    wkb = static_cast<Qgis::WkbType>( mOGRGeomType - ( wkbTIN - wkbMultiPolygon ) );
   }
   return wkb;
 }
@@ -1425,7 +1461,9 @@ bool QgsOgrProvider::addFeaturePrivate( QgsFeature &f, Flags flags, QgsFeatureId
 
     QVariant attrVal = attributes.at( qgisAttributeId );
     // The field value is equal to the default (that might be a provider-side expression)
-    if ( mDefaultValues.contains( qgisAttributeId ) && attrVal.toString() == mDefaultValues.value( qgisAttributeId ) )
+    if ( attributes.isUnsetValue( qgisAttributeId )
+         || ( mDefaultValues.contains( qgisAttributeId ) && attrVal.toString() == mDefaultValues.value( qgisAttributeId ) )
+       )
     {
       OGR_F_UnsetField( feature.get(), ogrAttributeId );
     }
@@ -1471,24 +1509,31 @@ bool QgsOgrProvider::addFeaturePrivate( QgsFeature &f, Flags flags, QgsFeatureId
           break;
 
         case OFTTime:
-          OGR_F_SetFieldDateTime( feature.get(), ogrAttributeId,
-                                  0, 0, 0,
-                                  attrVal.toTime().hour(),
-                                  attrVal.toTime().minute(),
-                                  attrVal.toTime().second(),
-                                  0 );
+        {
+          const QTime time = attrVal.toTime();
+          OGR_F_SetFieldDateTimeEx( feature.get(), ogrAttributeId,
+                                    0, 0, 0,
+                                    time.hour(),
+                                    time.minute(),
+                                    static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                    0 );
           break;
-
+        }
         case OFTDateTime:
-          OGR_F_SetFieldDateTime( feature.get(), ogrAttributeId,
-                                  attrVal.toDateTime().date().year(),
-                                  attrVal.toDateTime().date().month(),
-                                  attrVal.toDateTime().date().day(),
-                                  attrVal.toDateTime().time().hour(),
-                                  attrVal.toDateTime().time().minute(),
-                                  attrVal.toDateTime().time().second(),
-                                  0 );
+        {
+          const QDateTime dt =  attrVal.toDateTime();
+          const QDate date = dt.date();
+          const QTime time = dt.time();
+          OGR_F_SetFieldDateTimeEx( feature.get(), ogrAttributeId,
+                                    date.year(),
+                                    date.month(),
+                                    date.day(),
+                                    time.hour(),
+                                    time.minute(),
+                                    static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                    QgsOgrUtils::OGRTZFlagFromQt( dt ) );
           break;
+        }
 
         case OFTString:
         {
@@ -2164,11 +2209,9 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
   // But this is undesirable in general, so don't do this when we know that
   // we don't need to.
   bool mayNeedResetReadingAfterGetFeature = true;
-  if ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) )
-  {
-    mayNeedResetReadingAfterGetFeature = false;
-  }
-  else if ( mGDALDriverName == QLatin1String( "GPKG" ) )
+  if ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) ||
+       mGDALDriverName == QLatin1String( "GPKG" ) ||
+       mGDALDriverName == QLatin1String( "CSV" ) )
   {
     mayNeedResetReadingAfterGetFeature = false;
   }
@@ -2260,23 +2303,31 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
                                     0 );
             break;
           case OFTTime:
-            OGR_F_SetFieldDateTime( of.get(), f,
-                                    0, 0, 0,
-                                    it2->toTime().hour(),
-                                    it2->toTime().minute(),
-                                    it2->toTime().second(),
-                                    0 );
+          {
+            const QTime time = it2->toTime();
+            OGR_F_SetFieldDateTimeEx( of.get(), f,
+                                      0, 0, 0,
+                                      time.hour(),
+                                      time.minute(),
+                                      static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                      0 );
             break;
+          }
           case OFTDateTime:
-            OGR_F_SetFieldDateTime( of.get(), f,
-                                    it2->toDateTime().date().year(),
-                                    it2->toDateTime().date().month(),
-                                    it2->toDateTime().date().day(),
-                                    it2->toDateTime().time().hour(),
-                                    it2->toDateTime().time().minute(),
-                                    it2->toDateTime().time().second(),
-                                    0 );
+          {
+            const QDateTime dt = it2->toDateTime();
+            const QDate date = dt.date();
+            const QTime time = dt.time();
+            OGR_F_SetFieldDateTimeEx( of.get(), f,
+                                      date.year(),
+                                      date.month(),
+                                      date.day(),
+                                      time.hour(),
+                                      time.minute(),
+                                      static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                      QgsOgrUtils::OGRTZFlagFromQt( dt ) );
             break;
+          }
           case OFTString:
           {
             QString stringValue;
@@ -2844,7 +2895,12 @@ void QgsOgrProvider::computeCapabilities()
       ability |= TransactionSupport;
     }
 
-    if ( GDALGetMetadataItem( mOgrLayer->driver(), GDAL_DCAP_FEATURE_STYLES, nullptr ) != nullptr )
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+    if ( GDALGetMetadataItem( mOgrLayer->driver(), GDAL_DCAP_FEATURE_STYLES_READ, nullptr ) != nullptr )
+#else
+    // GDAL KML driver doesn't support reading feature style, skip metadata check until GDAL can separate reading/writing capability
+    if ( mGDALDriverName != QLatin1String( "KML" ) && GDALGetMetadataItem( mOgrLayer->driver(), GDAL_DCAP_FEATURE_STYLES, nullptr ) != nullptr )
+#endif
     {
       ability |= FeatureSymbology;
       ability |= CreateRenderer;
@@ -3487,7 +3543,7 @@ void QgsOgrProvider::open( OpenMode mode )
 
   // Try to open using VSIFileHandler
   //   see http://trac.osgeo.org/gdal/wiki/UserDocs/ReadInZip
-  QString vsiPrefix = QgsZipItem::vsiPrefix( dataSourceUri( true ) );
+  QString vsiPrefix = qgsVsiPrefix( dataSourceUri( true ) );
   if ( !vsiPrefix.isEmpty() || mFilePath.startsWith( QLatin1String( "/vsicurl/" ) ) )
   {
     // GDAL>=1.8.0 has write support for zip, but read and write operations

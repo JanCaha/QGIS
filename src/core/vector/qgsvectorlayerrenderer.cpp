@@ -15,16 +15,13 @@
 
 #include "qgsvectorlayerrenderer.h"
 
-#include "diagram/qgsdiagram.h"
 
-#include "qgsdiagramrenderer.h"
 #include "qgsmessagelog.h"
 #include "qgspallabeling.h"
 #include "qgsrenderer.h"
 #include "qgsrendercontext.h"
 #include "qgssinglesymbolrenderer.h"
 #include "qgssymbollayer.h"
-#include "qgssymbollayerutils.h"
 #include "qgssymbol.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerdiagramprovider.h"
@@ -42,6 +39,7 @@
 #include "qgsvectorlayertemporalproperties.h"
 #include "qgsmapclippingutils.h"
 #include "qgsfeaturerenderergenerator.h"
+#include "qgssettingsentryimpl.h"
 
 #include <QPicture>
 #include <QTimer>
@@ -116,9 +114,9 @@ QgsVectorLayerRenderer::QgsVectorLayerRenderer( QgsVectorLayer *layer, QgsRender
     mSimplifyGeometry = layer->simplifyDrawingCanbeApplied( *renderContext(), QgsVectorSimplifyMethod::GeometrySimplification );
   }
 
-  mVertexMarkerOnlyForSelection = QgsSettingsRegistryCore::settingsDigitizingMarkerOnlyForSelected.value();
+  mVertexMarkerOnlyForSelection = QgsSettingsRegistryCore::settingsDigitizingMarkerOnlyForSelected->value();
 
-  QString markerTypeString = QgsSettingsRegistryCore::settingsDigitizingMarkerStyle.value();
+  QString markerTypeString = QgsSettingsRegistryCore::settingsDigitizingMarkerStyle->value();
   if ( markerTypeString == QLatin1String( "Cross" ) )
   {
     mVertexMarkerStyle = Qgis::VertexMarkerType::Cross;
@@ -132,7 +130,7 @@ QgsVectorLayerRenderer::QgsVectorLayerRenderer( QgsVectorLayer *layer, QgsRender
     mVertexMarkerStyle = Qgis::VertexMarkerType::NoMarker;
   }
 
-  mVertexMarkerSize = QgsSettingsRegistryCore::settingsDigitizingMarkerSizeMm.value();
+  mVertexMarkerSize = QgsSettingsRegistryCore::settingsDigitizingMarkerSizeMm->value();
 
   QgsDebugMsgLevel( "rendering v2:\n  " + mRenderer->dump(), 2 );
 
@@ -198,7 +196,7 @@ bool QgsVectorLayerRenderer::forceRasterRender() const
 
 bool QgsVectorLayerRenderer::render()
 {
-  if ( mGeometryType == QgsWkbTypes::NullGeometry || mGeometryType == QgsWkbTypes::UnknownGeometry )
+  if ( mGeometryType == Qgis::GeometryType::Null || mGeometryType == Qgis::GeometryType::Unknown )
   {
     mReadyToCompose = true;
     return true;
@@ -264,6 +262,13 @@ bool QgsVectorLayerRenderer::renderInternal( QgsFeatureRenderer *renderer )
 
   renderer->startRender( context, mFields );
 
+  if ( renderer->canSkipRender() )
+  {
+    // nothing to draw for now...
+    renderer->stopRender( context );
+    return true;
+  }
+
   QString rendererFilter = renderer->filter( mFields );
 
   QgsRectangle requestExtent = context.extent();
@@ -275,7 +280,7 @@ bool QgsVectorLayerRenderer::renderInternal( QgsFeatureRenderer *renderer )
     mClipFeatureGeom = QgsMapClippingUtils::calculateFeatureIntersectionGeometry( mClippingRegions, context, mApplyClipGeometries );
 
     bool needsPainterClipPath = false;
-    const QPainterPath path = QgsMapClippingUtils::calculatePainterClipRegion( mClippingRegions, context, QgsMapLayerType::VectorLayer, needsPainterClipPath );
+    const QPainterPath path = QgsMapClippingUtils::calculatePainterClipRegion( mClippingRegions, context, Qgis::LayerType::Vector, needsPainterClipPath );
     if ( needsPainterClipPath )
       context.painter()->setClipPath( path, Qt::IntersectClip );
 
@@ -331,7 +336,7 @@ bool QgsVectorLayerRenderer::renderInternal( QgsFeatureRenderer *renderer )
       {
         QgsCoordinateTransform toleranceTransform = ct;
         QgsPointXY center = context.extent().center();
-        double rectSize = toleranceTransform.sourceCrs().mapUnits() == QgsUnitTypes::DistanceDegrees ? 0.0008983 /* ~100/(40075014/360=111319.4833) */ : 100;
+        double rectSize = toleranceTransform.sourceCrs().mapUnits() == Qgis::DistanceUnit::Degrees ? 0.0008983 /* ~100/(40075014/360=111319.4833) */ : 100;
 
         QgsRectangle sourceRect = QgsRectangle( center.x(), center.y(), center.x() + rectSize, center.y() + rectSize );
         toleranceTransform.setBallparkTransformsAreAppropriate( true );
@@ -492,7 +497,7 @@ void QgsVectorLayerRenderer::drawRenderer( QgsFeatureRenderer *renderer, QgsFeat
           QgsGeometry obstacleGeometry;
           QgsSymbolList symbols = renderer->originalSymbolsForFeature( fet, context );
           QgsSymbol *symbol = nullptr;
-          if ( !symbols.isEmpty() && fet.geometry().type() == QgsWkbTypes::PointGeometry )
+          if ( !symbols.isEmpty() && fet.geometry().type() == Qgis::GeometryType::Point )
           {
             obstacleGeometry = QgsVectorLayerLabelProvider::getPointObstacleGeometry( fet, context, symbols );
           }
@@ -603,7 +608,7 @@ void QgsVectorLayerRenderer::drawRendererLevels( QgsFeatureRenderer *renderer, Q
       QgsGeometry obstacleGeometry;
       QgsSymbolList symbols = renderer->originalSymbolsForFeature( fet, context );
       QgsSymbol *symbol = nullptr;
-      if ( !symbols.isEmpty() && fet.geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( !symbols.isEmpty() && fet.geometry().type() == Qgis::GeometryType::Point )
       {
         obstacleGeometry = QgsVectorLayerLabelProvider::getPointObstacleGeometry( fet, context, symbols );
       }

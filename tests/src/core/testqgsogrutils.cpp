@@ -22,8 +22,6 @@
 #include <QDateTime>
 
 #include <ogr_api.h>
-#include "cpl_conv.h"
-#include "cpl_string.h"
 #include <ogr_srs_api.h>
 #include <gdal.h>
 
@@ -39,6 +37,7 @@
 #include "qgsfontutils.h"
 #include "qgssymbol.h"
 #include "qgsfielddomain.h"
+#include "qgsweakrelation.h"
 
 class TestQgsOgrUtils: public QObject
 {
@@ -76,6 +75,11 @@ class TestQgsOgrUtils: public QObject
 #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,3,0)
     void testConvertFieldDomain();
     void testConvertToFieldDomain();
+#endif
+
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,6,0)
+    void testConvertGdalRelationship();
+    void testConvertToGdalRelationship();
 #endif
 
   private:
@@ -129,7 +133,7 @@ void TestQgsOgrUtils::ogrGeometryToQgsGeometry()
 
   QgsGeometry geom = QgsOgrUtils::ogrGeometryToQgsGeometry( ogrGeom );
   QVERIFY( !geom.isNull() );
-  QCOMPARE( geom.constGet()->wkbType(), QgsWkbTypes::LineString );
+  QCOMPARE( geom.constGet()->wkbType(), Qgis::WkbType::LineString );
   QCOMPARE( geom.constGet()->nCoordinates(), 71 );
 
   OGR_F_Destroy( oFeat );
@@ -205,23 +209,23 @@ void TestQgsOgrUtils::ogrGeometryToQgsGeometry2_data()
   QTest::addColumn<QString>( "wkt" );
   QTest::addColumn<int>( "type" );
 
-  QTest::newRow( "point" ) << QStringLiteral( "Point (1.1 2.2)" ) << static_cast< int >( QgsWkbTypes::Point );
-  QTest::newRow( "pointz" ) << QStringLiteral( "PointZ (1.1 2.2 3.3)" ) <<  static_cast< int >( QgsWkbTypes::PointZ );
-  QTest::newRow( "pointm" ) << QStringLiteral( "PointM (1.1 2.2 3.3)" ) <<  static_cast< int >( QgsWkbTypes::PointM );
-  QTest::newRow( "pointzm" ) << QStringLiteral( "PointZM (1.1 2.2 3.3 4.4)" ) <<  static_cast< int >( QgsWkbTypes::PointZM );
-  QTest::newRow( "point25d" ) << QStringLiteral( "Point25D (1.1 2.2 3.3)" ) <<  static_cast< int >( QgsWkbTypes::PointZ );
+  QTest::newRow( "point" ) << QStringLiteral( "Point (1.1 2.2)" ) << static_cast< int >( Qgis::WkbType::Point );
+  QTest::newRow( "pointz" ) << QStringLiteral( "PointZ (1.1 2.2 3.3)" ) <<  static_cast< int >( Qgis::WkbType::PointZ );
+  QTest::newRow( "pointm" ) << QStringLiteral( "PointM (1.1 2.2 3.3)" ) <<  static_cast< int >( Qgis::WkbType::PointM );
+  QTest::newRow( "pointzm" ) << QStringLiteral( "PointZM (1.1 2.2 3.3 4.4)" ) <<  static_cast< int >( Qgis::WkbType::PointZM );
+  QTest::newRow( "point25d" ) << QStringLiteral( "Point25D (1.1 2.2 3.3)" ) <<  static_cast< int >( Qgis::WkbType::PointZ );
 
-  QTest::newRow( "linestring" ) << QStringLiteral( "LineString (1.1 2.2, 3.3 4.4)" ) << static_cast< int >( QgsWkbTypes::LineString );
-  QTest::newRow( "linestringz" ) << QStringLiteral( "LineStringZ (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( QgsWkbTypes::LineStringZ );
-  QTest::newRow( "linestringm" ) << QStringLiteral( "LineStringM (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( QgsWkbTypes::LineStringM );
-  QTest::newRow( "linestringzm" ) << QStringLiteral( "LineStringZM (1.1 2.2 3.3 4.4, 5.5 6.6 7.7 8.8)" ) <<  static_cast< int >( QgsWkbTypes::LineStringZM );
-  QTest::newRow( "linestring25d" ) << QStringLiteral( "LineString25D (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( QgsWkbTypes::LineStringZ );
+  QTest::newRow( "linestring" ) << QStringLiteral( "LineString (1.1 2.2, 3.3 4.4)" ) << static_cast< int >( Qgis::WkbType::LineString );
+  QTest::newRow( "linestringz" ) << QStringLiteral( "LineStringZ (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( Qgis::WkbType::LineStringZ );
+  QTest::newRow( "linestringm" ) << QStringLiteral( "LineStringM (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( Qgis::WkbType::LineStringM );
+  QTest::newRow( "linestringzm" ) << QStringLiteral( "LineStringZM (1.1 2.2 3.3 4.4, 5.5 6.6 7.7 8.8)" ) <<  static_cast< int >( Qgis::WkbType::LineStringZM );
+  QTest::newRow( "linestring25d" ) << QStringLiteral( "LineString25D (1.1 2.2 3.3, 4.4 5.5 6.6)" ) <<  static_cast< int >( Qgis::WkbType::LineStringZ );
 
-  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineString ((1.1 2.2, 3.3 4.4))" ) << static_cast< int >( QgsWkbTypes::MultiLineString );
-  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineString ((1.1 2.2, 3.3 4.4),(5 5, 6 6))" ) << static_cast< int >( QgsWkbTypes::MultiLineString );
-  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringZ ((1.1 2.2 3, 3.3 4.4 6),(5 5 3, 6 6 1))" ) << static_cast< int >( QgsWkbTypes::MultiLineStringZ );
-  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringM ((1.1 2.2 4, 3.3 4.4 7),(5 5 4, 6 6 2))" ) << static_cast< int >( QgsWkbTypes::MultiLineStringM );
-  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringZM ((1.1 2.2 4 5, 3.3 4.4 8 9),(5 5 7 1, 6 6 2 3))" ) << static_cast< int >( QgsWkbTypes::MultiLineStringZM );
+  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineString ((1.1 2.2, 3.3 4.4))" ) << static_cast< int >( Qgis::WkbType::MultiLineString );
+  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineString ((1.1 2.2, 3.3 4.4),(5 5, 6 6))" ) << static_cast< int >( Qgis::WkbType::MultiLineString );
+  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringZ ((1.1 2.2 3, 3.3 4.4 6),(5 5 3, 6 6 1))" ) << static_cast< int >( Qgis::WkbType::MultiLineStringZ );
+  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringM ((1.1 2.2 4, 3.3 4.4 7),(5 5 4, 6 6 2))" ) << static_cast< int >( Qgis::WkbType::MultiLineStringM );
+  QTest::newRow( "linestring" ) << QStringLiteral( "MultiLineStringZM ((1.1 2.2 4 5, 3.3 4.4 8 9),(5 5 7 1, 6 6 2 3))" ) << static_cast< int >( Qgis::WkbType::MultiLineStringZM );
 }
 
 void TestQgsOgrUtils::ogrGeometryToQgsGeometry2()
@@ -268,7 +272,7 @@ void TestQgsOgrUtils::readOgrFeatureGeometry()
 
   QgsOgrUtils::readOgrFeatureGeometry( oFeat, f );
   QVERIFY( f.hasGeometry() );
-  QCOMPARE( f.geometry().constGet()->wkbType(), QgsWkbTypes::LineString );
+  QCOMPARE( f.geometry().constGet()->wkbType(), Qgis::WkbType::LineString );
   QCOMPARE( f.geometry().constGet()->nCoordinates(), 71 );
 
   OGR_F_Destroy( oFeat );
@@ -417,7 +421,7 @@ void TestQgsOgrUtils::readOgrFeature()
   QCOMPARE( f.attribute( "datetime_field" ), QVariant( QDateTime( QDate( 2005, 3, 5 ), QTime( 6, 45, 0, 123 ) ) ) );
   QCOMPARE( f.attribute( "string_field" ), QVariant( "a string" ) );
   QVERIFY( f.hasGeometry() );
-  QCOMPARE( f.geometry().constGet()->wkbType(), QgsWkbTypes::LineString );
+  QCOMPARE( f.geometry().constGet()->wkbType(), Qgis::WkbType::LineString );
   QCOMPARE( f.geometry().constGet()->nCoordinates(), 71 );
 
   OGR_F_Destroy( oFeat );
@@ -475,7 +479,7 @@ void TestQgsOgrUtils::stringToFeatureList()
   features = QgsOgrUtils::stringToFeatureList( QStringLiteral( "{\n\"type\": \"Feature\",\"geometry\": {\"type\": \"Point\",\"coordinates\": [125, 10]},\"properties\": {\"name\": \"Dinagat Islands\"}}" ), fields, QTextCodec::codecForName( "System" ) );
   QCOMPARE( features.length(), 1 );
   QVERIFY( features.at( 0 ).hasGeometry() && !features.at( 0 ).geometry().isNull() );
-  QCOMPARE( features.at( 0 ).geometry().constGet()->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( features.at( 0 ).geometry().constGet()->wkbType(), Qgis::WkbType::Point );
   QgsGeometry featureGeom = features.at( 0 ).geometry();
   const QgsPoint *point = dynamic_cast< const QgsPoint * >( featureGeom.constGet() );
   QCOMPARE( point->x(), 125.0 );
@@ -487,14 +491,14 @@ void TestQgsOgrUtils::stringToFeatureList()
              " {\n\"type\": \"Feature\",\"geometry\": {\"type\": \"Point\",\"coordinates\": [110, 20]},\"properties\": {\"name\": \"Henry Gale Island\"}}]}", fields, QTextCodec::codecForName( "System" ) );
   QCOMPARE( features.length(), 2 );
   QVERIFY( features.at( 0 ).hasGeometry() && !features.at( 0 ).geometry().isNull() );
-  QCOMPARE( features.at( 0 ).geometry().constGet()->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( features.at( 0 ).geometry().constGet()->wkbType(), Qgis::WkbType::Point );
   featureGeom = features.at( 0 ).geometry();
   point = dynamic_cast< const QgsPoint * >( featureGeom.constGet() );
   QCOMPARE( point->x(), 125.0 );
   QCOMPARE( point->y(), 10.0 );
   QCOMPARE( features.at( 0 ).attribute( "name" ).toString(), QString( "Dinagat Islands" ) );
   QVERIFY( features.at( 1 ).hasGeometry() && !features.at( 1 ).geometry().isNull() );
-  QCOMPARE( features.at( 1 ).geometry().constGet()->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( features.at( 1 ).geometry().constGet()->wkbType(), Qgis::WkbType::Point );
   featureGeom = features.at( 1 ).geometry();
   point = dynamic_cast< const QgsPoint * >( featureGeom.constGet() );
   QCOMPARE( point->x(), 110.0 );
@@ -593,12 +597,12 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( dynamic_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->color().name(), QStringLiteral( "#0040c0" ) );
   // px sizes should be converted to pts
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->width(), 5.25 );
-  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->penCapStyle(), Qt::RoundCap );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->penJoinStyle(), Qt::RoundJoin );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->customDashVector().at( 0 ), 21.0 );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->customDashVector().at( 1 ), 10.5 );
-  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->customDashPatternUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->customDashPatternUnit(), Qgis::RenderUnit::Points );
   QVERIFY( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->useCustomDashPattern() );
 
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(PEN(c:#00000087,w:10.500000cm,cap:p,j:b))""" ), Qgis::SymbolType::Line );
@@ -607,7 +611,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->color().name(), QStringLiteral( "#000000" ) );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->color().alpha(), 135 );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->width(), 105.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), QgsUnitTypes::RenderMillimeters );
+  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), Qgis::RenderUnit::Millimeters );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->penCapStyle(), Qt::SquareCap );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->penJoinStyle(), Qt::BevelJoin );
 
@@ -618,7 +622,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->color().name(), QStringLiteral( "#ffff00" ) );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->color().alpha(), 127 );
   QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->width(), 4.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->widthUnit(), Qgis::RenderUnit::Points );
 
   // brush
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(BRUSH(fc:#00FF007F))""" ), Qgis::SymbolType::Fill );
@@ -667,7 +671,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->shape(), Qgis::MarkerShape::Square );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 36.0 );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), 0.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeStyle(), Qt::NoPen );
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(SYMBOL(a:0,c:#5050ff,s:36pt,id:"ogr-sym-6"))""" ), Qgis::SymbolType::Marker );
   QVERIFY( symbol );
@@ -677,7 +681,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->shape(), Qgis::MarkerShape::Triangle );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 36.0 );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), 0.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeStyle(), Qt::SolidLine );
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(SYMBOL(a:20,c:#5050ff,s:36pt,id:"ogr-sym-5"))""" ), Qgis::SymbolType::Marker );
   QVERIFY( symbol );
@@ -687,7 +691,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 36.0 );
   // OGR symbol angles are opposite direction to qgis marker angles
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), -20.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeStyle(), Qt::NoPen );
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(SYMBOL(c:#5050ff,o:#3030ff,s:36pt,id:"ogr-sym-5"))""" ), Qgis::SymbolType::Marker );
   QVERIFY( symbol );
@@ -696,7 +700,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->shape(), Qgis::MarkerShape::Square );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 36.0 );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), 0.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeStyle(), Qt::SolidLine );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeColor().name(), QStringLiteral( "#3030ff" ) );
 
@@ -709,7 +713,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->character(), QStringLiteral( "K" ) );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 12.0 );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), 0.0 );
-  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeWidth(), 0 );
 
   symbol = QgsOgrUtils::symbolFromStyleString( QStringLiteral( R"""(SYMBOL(a:20,c:#00FF00,o:#3030ff,s:12pt,id:"font-sym-75,ogr-sym-9",f:"%1"))""" ).arg( f.family() ), Qgis::SymbolType::Marker );
@@ -719,9 +723,9 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->character(), QStringLiteral( "K" ) );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 12.0 );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), -20.0 );
-  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeWidth(), 1 );
-  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeWidthUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeWidthUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsFontMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeColor().name(), QStringLiteral( "#3030ff" ) );
 
   // bad font name, should fallback to ogr symbol id
@@ -732,7 +736,7 @@ void TestQgsOgrUtils::convertStyleString()
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->shape(), Qgis::MarkerShape::Star );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->size(), 12.0 );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->angle(), 0.0 );
-  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), QgsUnitTypes::RenderPoints );
+  QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->sizeUnit(), Qgis::RenderUnit::Points );
   QCOMPARE( qgis::down_cast<QgsSimpleMarkerSymbolLayer * >( symbol->symbolLayer( 0 ) )->strokeStyle(), Qt::NoPen );
 }
 
@@ -1132,6 +1136,204 @@ void TestQgsOgrUtils::testConvertToFieldDomain()
 
 }
 #endif
+
+
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,6,0)
+void TestQgsOgrUtils::testConvertGdalRelationship()
+{
+  gdal::relationship_unique_ptr relationH( GDALRelationshipCreate( "relation_name",
+      "left_table",
+      "right_table",
+      GDALRelationshipCardinality::GRC_ONE_TO_ONE ) );
+
+  QgsWeakRelation rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.name(), QStringLiteral( "relation_name" ) );
+  QCOMPARE( rel.referencedLayerSource(), QStringLiteral( "/some_data.gdb|layername=left_table" ) );
+  QCOMPARE( rel.referencingLayerSource(), QStringLiteral( "/some_data.gdb|layername=right_table" ) );
+  QCOMPARE( rel.cardinality(), Qgis::RelationshipCardinality::OneToOne );
+
+  relationH.reset( GDALRelationshipCreate( "relation_name",
+                   "left_table",
+                   "right_table",
+                   GDALRelationshipCardinality::GRC_ONE_TO_MANY ) );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.cardinality(), Qgis::RelationshipCardinality::OneToMany );
+
+  relationH.reset( GDALRelationshipCreate( "relation_name",
+                   "left_table",
+                   "right_table",
+                   GDALRelationshipCardinality::GRC_MANY_TO_ONE ) );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.cardinality(), Qgis::RelationshipCardinality::ManyToOne );
+
+  relationH.reset( GDALRelationshipCreate( "relation_name",
+                   "left_table",
+                   "right_table",
+                   GDALRelationshipCardinality::GRC_MANY_TO_MANY ) );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.cardinality(), Qgis::RelationshipCardinality::ManyToMany );
+
+  const char *const fieldsLeft[] {"fielda", "fieldb", nullptr};
+  GDALRelationshipSetLeftTableFields( relationH.get(), fieldsLeft );
+
+  const char *const fieldsRight[] {"fieldc", "fieldd", nullptr};
+  GDALRelationshipSetRightTableFields( relationH.get(), fieldsRight );
+
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.referencedLayerFields(), QStringList() << QStringLiteral( "fielda" ) << QStringLiteral( "fieldb" ) );
+  QCOMPARE( rel.referencingLayerFields(), QStringList() << QStringLiteral( "fieldc" ) << QStringLiteral( "fieldd" ) );
+
+  QCOMPARE( rel.mappingTableSource(), QString() );
+
+  GDALRelationshipSetMappingTableName( relationH.get(), "mapping_table" );
+
+  const char *const mappingFieldsLeft[] {"fieldd", "fielde", nullptr};
+  GDALRelationshipSetLeftMappingTableFields( relationH.get(), mappingFieldsLeft );
+
+  const char *const mappingFieldsRight[] {"fieldf", "fieldg", nullptr};
+  GDALRelationshipSetRightMappingTableFields( relationH.get(), mappingFieldsRight );
+
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.mappingTableSource(), QStringLiteral( "/some_data.gdb|layername=mapping_table" ) );
+  QCOMPARE( rel.referencedLayerFields(), QStringList() << QStringLiteral( "fielda" ) << QStringLiteral( "fieldb" ) );
+  QCOMPARE( rel.referencingLayerFields(), QStringList() << QStringLiteral( "fieldc" ) << QStringLiteral( "fieldd" ) );
+  QCOMPARE( rel.mappingReferencedLayerFields(), QStringList() << QStringLiteral( "fieldd" ) << QStringLiteral( "fielde" ) );
+  QCOMPARE( rel.mappingReferencingLayerFields(), QStringList() << QStringLiteral( "fieldf" ) << QStringLiteral( "fieldg" ) );
+
+  GDALRelationshipSetType( relationH.get(), GRT_COMPOSITE );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.strength(), Qgis::RelationshipStrength::Composition );
+  GDALRelationshipSetType( relationH.get(), GRT_ASSOCIATION );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.strength(), Qgis::RelationshipStrength::Association );
+
+  GDALRelationshipSetForwardPathLabel( relationH.get(), "forward label" );
+  GDALRelationshipSetBackwardPathLabel( relationH.get(), "backward label" );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.forwardPathLabel(), QStringLiteral( "forward label" ) );
+  QCOMPARE( rel.backwardPathLabel(), QStringLiteral( "backward label" ) );
+
+  GDALRelationshipSetRelatedTableType( relationH.get(), "table_type" );
+  rel = QgsOgrUtils::convertRelationship( relationH.get(), QStringLiteral( "/some_data.gdb" ) );
+  QCOMPARE( rel.relatedTableType(), QStringLiteral( "table_type" ) );
+}
+
+void TestQgsOgrUtils::testConvertToGdalRelationship()
+{
+  QgsWeakRelation rel( QStringLiteral( "id" ), QStringLiteral( "name" ),
+                       Qgis::RelationshipStrength::Association,
+                       QStringLiteral( "referencing_layer_id" ),
+                       QStringLiteral( "referencing_layer_name" ),
+                       QStringLiteral( "/some_data.gdb|layername=referencing" ),
+                       QStringLiteral( "ogr" ),
+                       QStringLiteral( "referenced_layer_id" ),
+                       QStringLiteral( "referenced_layer_name" ),
+                       QStringLiteral( "/some_data.gdb|layername=referenced" ),
+                       QStringLiteral( "ogr" ) );
+  rel.setReferencedLayerFields( QStringList() << QStringLiteral( "fielda" ) << QStringLiteral( "fieldb" ) );
+  rel.setReferencingLayerFields( QStringList() << QStringLiteral( "fieldc" ) << QStringLiteral( "fieldd" ) );
+  rel.setCardinality( Qgis::RelationshipCardinality::OneToMany );
+
+  QString error;
+  gdal::relationship_unique_ptr relationH = QgsOgrUtils::convertRelationship( rel, error );
+
+  QCOMPARE( QString( GDALRelationshipGetName( relationH.get() ) ), QStringLiteral( "name" ) );
+  QCOMPARE( QString( GDALRelationshipGetLeftTableName( relationH.get() ) ), QStringLiteral( "referenced" ) );
+  QCOMPARE( QString( GDALRelationshipGetRightTableName( relationH.get() ) ), QStringLiteral( "referencing" ) );
+
+  char **cslLeftTableFieldNames = GDALRelationshipGetLeftTableFields( relationH.get() );
+  const QStringList leftTableFieldNames = QgsOgrUtils::cStringListToQStringList( cslLeftTableFieldNames );
+  CSLDestroy( cslLeftTableFieldNames );
+  QCOMPARE( leftTableFieldNames, QStringList() << QStringLiteral( "fielda" ) << QStringLiteral( "fieldb" ) );
+
+  char **cslRightTableFieldNames = GDALRelationshipGetRightTableFields( relationH.get() );
+  const QStringList rightTableFieldNames = QgsOgrUtils::cStringListToQStringList( cslRightTableFieldNames );
+  CSLDestroy( cslRightTableFieldNames );
+  QCOMPARE( rightTableFieldNames, QStringList() << QStringLiteral( "fieldc" ) << QStringLiteral( "fieldd" ) );
+
+  QCOMPARE( GDALRelationshipGetCardinality( relationH.get() ), GDALRelationshipCardinality::GRC_ONE_TO_MANY );
+  rel.setCardinality( Qgis::RelationshipCardinality::OneToOne );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( GDALRelationshipGetCardinality( relationH.get() ), GDALRelationshipCardinality::GRC_ONE_TO_ONE );
+  rel.setCardinality( Qgis::RelationshipCardinality::ManyToOne );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( GDALRelationshipGetCardinality( relationH.get() ), GDALRelationshipCardinality::GRC_MANY_TO_ONE );
+  rel.setCardinality( Qgis::RelationshipCardinality::ManyToMany );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( GDALRelationshipGetCardinality( relationH.get() ), GDALRelationshipCardinality::GRC_MANY_TO_MANY );
+
+  QCOMPARE( GDALRelationshipGetType( relationH.get() ), GDALRelationshipType::GRT_ASSOCIATION );
+
+  rel = QgsWeakRelation( QStringLiteral( "id" ), QStringLiteral( "name" ),
+                         Qgis::RelationshipStrength::Composition,
+                         QStringLiteral( "referencing_layer_id" ),
+                         QStringLiteral( "referencing_layer_name" ),
+                         QStringLiteral( "/some_data.gdb|layername=referencing" ),
+                         QStringLiteral( "ogr" ),
+                         QStringLiteral( "referenced_layer_id" ),
+                         QStringLiteral( "referenced_layer_name" ),
+                         QStringLiteral( "/some_data.gdb|layername=referenced" ),
+                         QStringLiteral( "ogr" ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( GDALRelationshipGetType( relationH.get() ), GDALRelationshipType::GRT_COMPOSITE );
+
+  rel.setForwardPathLabel( QStringLiteral( "forward" ) );
+  rel.setBackwardPathLabel( QStringLiteral( "backward" ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( QString( GDALRelationshipGetForwardPathLabel( relationH.get() ) ), QStringLiteral( "forward" ) );
+  QCOMPARE( QString( GDALRelationshipGetBackwardPathLabel( relationH.get() ) ), QStringLiteral( "backward" ) );
+
+  rel.setRelatedTableType( QStringLiteral( "table_type" ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( QString( GDALRelationshipGetRelatedTableType( relationH.get() ) ), QStringLiteral( "table_type" ) );
+
+  rel.setMappingTable( QgsVectorLayerRef( QStringLiteral( "mapping_id" ),
+                                          QStringLiteral( "mapping_name" ),
+                                          QStringLiteral( "/some_data.gdb|layername=mapping" ),
+                                          QStringLiteral( "ogr" ) ) );
+  rel.setMappingReferencedLayerFields( QStringList() << QStringLiteral( "fielde" ) << QStringLiteral( "fieldf" ) );
+  rel.setMappingReferencingLayerFields( QStringList() << QStringLiteral( "fieldh" ) << QStringLiteral( "fieldi" ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QCOMPARE( QString( GDALRelationshipGetMappingTableName( relationH.get() ) ), QStringLiteral( "mapping" ) );
+
+  char **cslLeftMappingTableFieldNames = GDALRelationshipGetLeftMappingTableFields( relationH.get() );
+  const QStringList leftMappingTableFieldNames = QgsOgrUtils::cStringListToQStringList( cslLeftMappingTableFieldNames );
+  CSLDestroy( cslLeftMappingTableFieldNames );
+  QCOMPARE( leftMappingTableFieldNames, QStringList() << QStringLiteral( "fielde" ) << QStringLiteral( "fieldf" ) );
+
+  char **cslRightMappingTableFieldNames = GDALRelationshipGetRightMappingTableFields( relationH.get() );
+  const QStringList rightMappingTableFieldNames = QgsOgrUtils::cStringListToQStringList( cslRightMappingTableFieldNames );
+  CSLDestroy( cslRightMappingTableFieldNames );
+  QCOMPARE( rightMappingTableFieldNames, QStringList() << QStringLiteral( "fieldh" ) << QStringLiteral( "fieldi" ) );
+
+  // check that error is raised when tables from different dataset
+  rel.setMappingTable( QgsVectorLayerRef( QStringLiteral( "mapping_id" ),
+                                          QStringLiteral( "mapping_name" ),
+                                          QStringLiteral( "/some_other_data.gdb|layername=mapping" ),
+                                          QStringLiteral( "ogr" ) ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QVERIFY( !relationH.get() );
+  QCOMPARE( error, QStringLiteral( "Parent and mapping table must be from the same dataset" ) );
+  error.clear();
+
+  rel = QgsWeakRelation( QStringLiteral( "id" ), QStringLiteral( "name" ),
+                         Qgis::RelationshipStrength::Composition,
+                         QStringLiteral( "referencing_layer_id" ),
+                         QStringLiteral( "referencing_layer_name" ),
+                         QStringLiteral( "/some_data.gdb|layername=referencing" ),
+                         QStringLiteral( "ogr" ),
+                         QStringLiteral( "referenced_layer_id" ),
+                         QStringLiteral( "referenced_layer_name" ),
+                         QStringLiteral( "/some_other_data.gdb|layername=referenced" ),
+                         QStringLiteral( "ogr" ) );
+  relationH = QgsOgrUtils::convertRelationship( rel, error );
+  QVERIFY( !relationH.get() );
+  QCOMPARE( error, QStringLiteral( "Parent and child table must be from the same dataset" ) );
+  error.clear();
+
+}
+#endif
+
 
 QGSTEST_MAIN( TestQgsOgrUtils )
 #include "testqgsogrutils.moc"

@@ -33,7 +33,8 @@ from qgis.core import QgsApplication, QgsSettings, Qgis
 from qgis.gui import (
     QgsCodeEditorPython,
     QgsCodeEditorColorScheme,
-    QgsCodeEditor
+    QgsCodeEditor,
+    QgsCodeInterpreter
 )
 
 _init_statements = [
@@ -66,25 +67,13 @@ except ModuleNotFoundError:
 ]
 
 
-class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
+class PythonInterpreter(QgsCodeInterpreter, code.InteractiveInterpreter):
 
-    def __init__(self, parent=None):
-        super(QgsCodeEditorPython, self).__init__(parent, [], QgsCodeEditor.Mode.CommandInput)
+    def __init__(self):
+        super(QgsCodeInterpreter, self).__init__()
         code.InteractiveInterpreter.__init__(self, locals=None)
 
-        self.parent = parent
-
-        self.opening = ['(', '{', '[', "'", '"']
-        self.closing = [')', '}', ']', "'", '"']
-
-        self.settings = QgsSettings()
-
-        self.new_input_line = True
-
         self.buffer = []
-        self.continuationLine = False
-
-        self.displayPrompt(self.continuationLine)
 
         for statement in _init_statements:
             try:
@@ -92,10 +81,74 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
             except ModuleNotFoundError:
                 pass
 
+    def execCommandImpl(self, cmd):
+        res = self.currentState()
+
+        self.writeCMD(cmd)
+        import webbrowser
+        version = 'master' if 'master' in Qgis.QGIS_VERSION.lower() else \
+            re.findall(r'^\d.[0-9]*', Qgis.QGIS_VERSION)[0]
+        if cmd in ('_pyqgis', '_api', '_cookbook'):
+            if cmd == '_pyqgis':
+                webbrowser.open("https://qgis.org/pyqgis/{}".format(version))
+            elif cmd == '_api':
+                webbrowser.open(
+                    "https://qgis.org/api/{}".format('' if version == 'master' else version))
+            elif cmd == '_cookbook':
+                webbrowser.open(
+                    "https://docs.qgis.org/{}/en/docs/pyqgis_developer_cookbook/".format(
+                        'testing' if version == 'master' else version))
+        else:
+            self.buffer.append(cmd)
+            src = "\n".join(self.buffer)
+            res = self.runsource(src)
+            if res == 0:
+                self.buffer = []
+
+        return res
+
+    def writeCMD(self, txt):
+        if sys.stdout:
+            sys.stdout.fire_keyboard_interrupt = False
+        if len(txt) > 0:
+            prompt = "... " if self.currentState() == 1 else ">>> "
+            sys.stdout.write(prompt + txt + '\n')
+
+    def runsource(self, source, filename='<input>', symbol='single'):
+        if sys.stdout:
+            sys.stdout.fire_keyboard_interrupt = False
+
+        hook = sys.excepthook
+        try:
+            def excepthook(etype, value, tb):
+                self.write("".join(traceback.format_exception(etype, value, tb)))
+
+            sys.excepthook = excepthook
+
+            return super(PythonInterpreter, self).runsource(source, filename, symbol)
+        finally:
+            sys.excepthook = hook
+
+    def promptForState(self, state):
+        return "..." if state == 1 else ">>>"
+
+
+class ShellScintilla(QgsCodeEditorPython):
+
+    def __init__(self, parent=None):
+        super().__init__(parent, [], QgsCodeEditor.Mode.CommandInput)
+
+        self.parent = parent
+        self._interpreter = PythonInterpreter()
+        self.setInterpreter(self._interpreter)
+
+        self.opening = ['(', '{', '[', "'", '"']
+        self.closing = [')', '}', ']', "'", '"']
+
+        self.settings = QgsSettings()
+
         self.setHistoryFilePath(
             os.path.join(QgsApplication.qgisSettingsDirPath(), "console_history.txt"))
-
-        self.historyDlg = None  # HistoryDialog(self)
 
         self.refreshSettingsShell()
 
@@ -119,18 +172,6 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
         self.sessionHistoryCleared.connect(self.on_session_history_cleared)
         self.persistentHistoryCleared.connect(self.on_persistent_history_cleared)
 
-    def initializeLexer(self):
-        super().initializeLexer()
-        self.setCaretLineVisible(False)
-        self.setLineNumbersVisible(False)  # NO linenumbers for the input line
-        self.setFoldingVisible(False)
-        # Margin 1 is used for the '>>>' prompt (console input)
-        self.setMarginLineNumbers(1, True)
-        self.setMarginWidth(1, "00000")
-        self.setMarginType(1, 5)  # TextMarginRightJustified=5
-        self.setMarginsBackgroundColor(self.color(QgsCodeEditorColorScheme.ColorRole.Background))
-        self.setEdgeMode(QsciScintilla.EdgeNone)
-
     def _setMinimumHeight(self):
         font = self.lexer().defaultFont(0)
         fm = QFontMetrics(font)
@@ -143,18 +184,6 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
 
         # Sets minimum height for input area based of font metric
         self._setMinimumHeight()
-
-    def moveCursorToStart(self):
-        super().moveCursorToStart()
-        self.displayPrompt(self.continuationLine)
-
-    def moveCursorToEnd(self):
-        super().moveCursorToEnd()
-        self.displayPrompt(self.continuationLine)
-
-    def displayPrompt(self, more=False):
-        self.SendScintilla(QsciScintilla.SCI_MARGINSETTEXT, 0,
-                           str.encode("..." if more else ">>>"))
 
     def on_session_history_cleared(self):
         msgText = QCoreApplication.translate('PythonConsole',
@@ -170,99 +199,14 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
         # update the live history
         self.updateSoftHistory()
 
-        startLine, startPos, endLine, endPos = self.getSelection()
-
-        # handle invalid cursor position and multiline selections
-        if startLine < endLine:
-            # allow copying and selecting
-            if e.modifiers() & (Qt.ControlModifier | Qt.MetaModifier):
-                if e.key() == Qt.Key_C:
-                    # only catch and return from Ctrl-C here if there's a selection
-                    if self.hasSelectedText():
-                        QsciScintilla.keyPressEvent(self, e)
-                        return
-                elif e.key() == Qt.Key_A:
-                    QsciScintilla.keyPressEvent(self, e)
-                    return
-                else:
-                    return
-            # allow selection
-            if e.modifiers() & Qt.ShiftModifier:
-                if e.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
-                    QsciScintilla.keyPressEvent(self, e)
-                return
-            # all other keystrokes get sent to the input line
-            self.moveCursorToEnd()
-
+        # keyboard interrupt
         if e.modifiers() & (
                 Qt.ControlModifier | Qt.MetaModifier) and e.key() == Qt.Key_C and not self.hasSelectedText():
-            # keyboard interrupt
             sys.stdout.fire_keyboard_interrupt = True
             return
 
-        line, index = self.getCursorPosition()
-        cmd = self.text(line)
-        hasSelectedText = self.hasSelectedText()
-
-        if e.key() in (Qt.Key_Return, Qt.Key_Enter) and not self.isListActive():
-            self.entered()
-
-        elif e.key() in (Qt.Key_Left, Qt.Key_Home):
-            QsciScintilla.keyPressEvent(self, e)
-
-        elif e.key() in (Qt.Key_Backspace, Qt.Key_Delete):
-            QsciScintilla.keyPressEvent(self, e)
-            self.recolor()
-
-        elif (e.modifiers() & (Qt.ControlModifier | Qt.MetaModifier) and e.key() == Qt.Key_V) or \
-                (e.modifiers() & Qt.ShiftModifier and e.key() == Qt.Key_Insert):
-            self.paste()
-            e.accept()
-
-        elif e.key() == Qt.Key_Down and not self.isListActive():
-            self.showPreviousCommand()
-
-        elif e.key() == Qt.Key_Up and not self.isListActive():
-            self.showNextCommand()
-
-        # TODO: press event for auto-completion file directory
-        else:
-            t = e.text()
-            self.autoCloseBracket = self.settings.value("pythonConsole/autoCloseBracket", False,
-                                                        type=bool)
-            self.autoImport = self.settings.value("pythonConsole/autoInsertionImport", True,
-                                                  type=bool)
-            # Close bracket automatically
-            if t in self.opening and self.autoCloseBracket:
-                i = self.opening.index(t)
-                if self.hasSelectedText() and startPos != 0:
-                    selText = self.selectedText()
-                    self.removeSelectedText()
-                    self.insert(self.opening[i] + selText + self.closing[i])
-                    self.setCursorPosition(endLine, endPos + 2)
-                    return
-                elif t == '(' and (re.match(r'^[ \t]*def \w+$', cmd)
-                                   or re.match(r'^[ \t]*class \w+$', cmd)):
-                    self.insert('):')
-                else:
-                    self.insert(self.closing[i])
-            # FIXES #8392 (automatically removes the redundant char
-            # when autoclosing brackets option is enabled)
-            elif t in [')', ']', '}'] and self.autoCloseBracket:
-                try:
-                    if cmd[index - 1] in self.opening and t == cmd[index]:
-                        self.setCursorPosition(line, index + 1)
-                        self.SendScintilla(QsciScintilla.SCI_DELETEBACK)
-                except IndexError:
-                    pass
-            elif t == ' ' and self.autoImport:
-                ptrn = r'^[ \t]*from [\w.]+$'
-                if re.match(ptrn, cmd):
-                    self.insert(' import')
-                    self.setCursorPosition(line, index + 7)
-            QsciScintilla.keyPressEvent(self, e)
-
-        self.displayPrompt(self.continuationLine)
+        QgsCodeEditorPython.keyPressEvent(self, e)
+        self.updatePrompt()
 
     def populateContextMenu(self, menu):
         pyQGISHelpAction = menu.addAction(
@@ -285,7 +229,7 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
             self.insertFromDropPaste(stringSel)
             e.accept()
         else:
-            QsciScintilla.mousePressEvent(self, e)
+            QgsCodeEditorPython.mousePressEvent(self, e)
 
     def paste(self):
         """
@@ -311,7 +255,7 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
             e.setDropAction(Qt.CopyAction)
             e.accept()
         else:
-            QsciScintilla.dropEvent(self, e)
+            QgsCodeEditorPython.dropEvent(self, e)
 
     def insertFromDropPaste(self, textDP):
         pasteList = textDP.splitlines()
@@ -344,57 +288,6 @@ class ShellScintilla(QgsCodeEditorPython, code.InteractiveInterpreter):
         self.setFocus()
         self.moveCursorToEnd()
 
-    def runCommand(self, cmd):
-        self.writeCMD(cmd)
-        import webbrowser
-        self.updateHistory([cmd])
-        version = 'master' if 'master' in Qgis.QGIS_VERSION.lower() else \
-            re.findall(r'^\d.[0-9]*', Qgis.QGIS_VERSION)[0]
-        if cmd in ('_pyqgis', '_api', '_cookbook'):
-            if cmd == '_pyqgis':
-                webbrowser.open("https://qgis.org/pyqgis/{}".format(version))
-            elif cmd == '_api':
-                webbrowser.open(
-                    "https://qgis.org/api/{}".format('' if version == 'master' else version))
-            elif cmd == '_cookbook':
-                webbrowser.open(
-                    "https://docs.qgis.org/{}/en/docs/pyqgis_developer_cookbook/".format(
-                        'testing' if version == 'master' else version))
-        else:
-            self.buffer.append(cmd)
-            src = "\n".join(self.buffer)
-            more = self.runsource(src)
-            self.continuationLine = more
-            if not more:
-                self.buffer = []
-
-        # prevents to commands with more lines to break the console
-        # in the case they have a eol different from '\n'
-        self.setText('')
-        self.moveCursorToEnd()
-        self.displayPrompt(self.continuationLine)
-
     def write(self, txt):
         if sys.stderr:
             sys.stderr.write(txt)
-
-    def writeCMD(self, txt):
-        if sys.stdout:
-            sys.stdout.fire_keyboard_interrupt = False
-        if len(txt) > 0:
-            prompt = "... " if self.continuationLine else ">>> "
-            sys.stdout.write(prompt + txt + '\n')
-
-    def runsource(self, source, filename='<input>', symbol='single'):
-        if sys.stdout:
-            sys.stdout.fire_keyboard_interrupt = False
-        hook = sys.excepthook
-        try:
-            def excepthook(etype, value, tb):
-                self.write("".join(traceback.format_exception(etype, value, tb)))
-
-            sys.excepthook = excepthook
-
-            return super(ShellScintilla, self).runsource(source, filename, symbol)
-        finally:
-            sys.excepthook = hook

@@ -35,6 +35,7 @@
 #include "qgstemporalrangeobject.h"
 #include "qgsmapclippingregion.h"
 #include "qgsvectorsimplifymethod.h"
+#include "qgselevationshadingrenderer.h"
 
 class QPainter;
 
@@ -353,7 +354,7 @@ class CORE_EXPORT QgsMapSettings : public QgsTemporalRangeObject
     /**
      * Returns the units of the map's geographical coordinates - used for scale calculation.
      */
-    QgsUnitTypes::DistanceUnit mapUnits() const;
+    Qgis::DistanceUnit mapUnits() const;
 
     /**
      * Sets the \a ellipsoid by its acronym. Known ellipsoid acronyms can be
@@ -864,6 +865,22 @@ class CORE_EXPORT QgsMapSettings : public QgsTemporalRangeObject
      */
     void setCurrentFrame( long long frame );
 
+    /**
+     * Returns the shading renderer used to render shading on the entire map
+     *
+     * \see setElevationShadingRenderer()
+     * \since QGIS 3.30
+     */
+    const QgsElevationShadingRenderer &elevationShadingRenderer() const;
+
+    /**
+     * Sets the shading \a renderer used to render shading on the entire map
+     *
+     * \see elevationShadingRenderer()
+     * \since QGIS 3.30
+     */
+    void setElevationShadingRenderer( const QgsElevationShadingRenderer &renderer );
+
   protected:
 
     double mDpi = 96.0;
@@ -924,6 +941,8 @@ class CORE_EXPORT QgsMapSettings : public QgsTemporalRangeObject
     QgsVectorSimplifyMethod mSimplifyMethod;
 
     Qgis::RendererUsage mRendererUsage = Qgis::RendererUsage::Unknown;
+
+    QgsElevationShadingRenderer mShadingRenderer;
 
     double mFrameRate = -1;
     long long mCurrentFrame = -1;

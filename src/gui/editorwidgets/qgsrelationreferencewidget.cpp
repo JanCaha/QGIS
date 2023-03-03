@@ -22,28 +22,20 @@
 #include <QCompleter>
 
 #include "qgsattributeform.h"
-#include "qgsattributetablefiltermodel.h"
 #include "qgsattributedialog.h"
 #include "qgsapplication.h"
 #include "qgscollapsiblegroupbox.h"
-#include "qgseditorwidgetfactory.h"
 #include "qgsexpression.h"
-#include "qgsfeaturelistmodel.h"
 #include "qgsfields.h"
 #include "qgsgeometry.h"
 #include "qgshighlight.h"
 #include "qgsmapcanvas.h"
 #include "qgsmessagebar.h"
-#include "qgsrelationreferenceconfigdlg.h"
 #include "qgsvectorlayer.h"
-#include "qgsattributetablemodel.h"
 #include "qgsmaptoolidentifyfeature.h"
 #include "qgsmaptooldigitizefeature.h"
 #include "qgsfeatureiterator.h"
 #include "qgsfeaturelistcombobox.h"
-#include "qgsexpressioncontextutils.h"
-#include "qgsfeaturefiltermodel.h"
-#include "qgsidentifymenu.h"
 #include "qgsvectorlayerutils.h"
 
 
@@ -584,7 +576,7 @@ void QgsRelationReferenceWidget::highlightFeature( QgsFeature f, CanvasExtent ca
   // highlight
   deleteHighlight();
   mHighlight = new QgsHighlight( mCanvas, f, mReferencedLayer );
-  QgsIdentifyMenu::styleHighlight( mHighlight );
+  mHighlight->applyDefaultStyle();
   mHighlight->show();
 
   QTimer *timer = new QTimer( this );
@@ -808,11 +800,11 @@ void QgsRelationReferenceWidget::filterChanged()
           QgsAttributeList subset = attrs;
 
           QString expression = filterExpression;
-          if ( ! filterExpression.isEmpty() && ! filtersAttrs.values().isEmpty() )
+          if ( ! filterExpression.isEmpty() && ! filtersAttrs.isEmpty() )
             expression += QLatin1String( " AND " );
 
           expression += filtersAttrs.isEmpty() ? QString() : QStringLiteral( " ( " );
-          expression += filtersAttrs.values().join( QLatin1String( " AND " ) );
+          expression += qgsMapJoinValues( filtersAttrs, QLatin1String( " AND " ) );
           expression += filtersAttrs.isEmpty() ? QString() : QStringLiteral( " ) " );
 
           subset << mReferencedLayer->fields().lookupField( fieldName );
@@ -844,11 +836,11 @@ void QgsRelationReferenceWidget::filterChanged()
     }
   }
 
-  if ( ! filterExpression.isEmpty() && ! filters.values().isEmpty() )
+  if ( ! filterExpression.isEmpty() && ! filters.isEmpty() )
     filterExpression += QLatin1String( " AND " );
 
   filterExpression += filters.isEmpty() ? QString() : QStringLiteral( " ( " );
-  filterExpression += filters.values().join( QLatin1String( " AND " ) );
+  filterExpression += qgsMapJoinValues( filters, QLatin1String( " AND " ) );
   filterExpression += filters.isEmpty() ? QString() : QStringLiteral( " ) " );
 
   mComboBox->setFilterExpression( filterExpression );
@@ -866,7 +858,7 @@ void QgsRelationReferenceWidget::addEntry()
     return;
 
   // no geometry, skip the digitizing
-  if ( mReferencedLayer->geometryType() == QgsWkbTypes::UnknownGeometry || mReferencedLayer->geometryType() == QgsWkbTypes::NullGeometry )
+  if ( mReferencedLayer->geometryType() == Qgis::GeometryType::Unknown || mReferencedLayer->geometryType() == Qgis::GeometryType::Null )
   {
     QgsFeature f( mReferencedLayer->fields() );
     entryAdded( f );

@@ -196,20 +196,20 @@ QgsMapLayer *QgsProcessingUtils::mapLayerFromStore( const QString &string, QgsMa
   {
     switch ( layer->type() )
     {
-      case QgsMapLayerType::VectorLayer:
+      case Qgis::LayerType::Vector:
         return !canUseLayer( qobject_cast< QgsVectorLayer * >( layer ) );
-      case QgsMapLayerType::RasterLayer:
+      case Qgis::LayerType::Raster:
         return !canUseLayer( qobject_cast< QgsRasterLayer * >( layer ) );
-      case QgsMapLayerType::PluginLayer:
-      case QgsMapLayerType::GroupLayer:
+      case Qgis::LayerType::Plugin:
+      case Qgis::LayerType::Group:
         return true;
-      case QgsMapLayerType::MeshLayer:
+      case Qgis::LayerType::Mesh:
         return !canUseLayer( qobject_cast< QgsMeshLayer * >( layer ) );
-      case QgsMapLayerType::VectorTileLayer:
+      case Qgis::LayerType::VectorTile:
         return !canUseLayer( qobject_cast< QgsVectorTileLayer * >( layer ) );
-      case QgsMapLayerType::PointCloudLayer:
+      case Qgis::LayerType::PointCloud:
         return !canUseLayer( qobject_cast< QgsPointCloudLayer * >( layer ) );
-      case QgsMapLayerType::AnnotationLayer:
+      case Qgis::LayerType::Annotation:
         return !canUseLayer( qobject_cast< QgsAnnotationLayer * >( layer ) );
     }
     return true;
@@ -223,19 +223,19 @@ QgsMapLayer *QgsProcessingUtils::mapLayerFromStore( const QString &string, QgsMa
         return true;
 
       case LayerHint::Vector:
-        return l->type() == QgsMapLayerType::VectorLayer;
+        return l->type() == Qgis::LayerType::Vector;
 
       case LayerHint::Raster:
-        return l->type() == QgsMapLayerType::RasterLayer;
+        return l->type() == Qgis::LayerType::Raster;
 
       case LayerHint::Mesh:
-        return l->type() == QgsMapLayerType::MeshLayer;
+        return l->type() == Qgis::LayerType::Mesh;
 
       case LayerHint::PointCloud:
-        return l->type() == QgsMapLayerType::PointCloudLayer;
+        return l->type() == Qgis::LayerType::PointCloud;
 
       case LayerHint::Annotation:
-        return l->type() == QgsMapLayerType::AnnotationLayer;
+        return l->type() == Qgis::LayerType::Annotation;
     }
     return true;
   };
@@ -581,9 +581,9 @@ bool QgsProcessingUtils::canUseLayer( const QgsVectorLayer *layer, const QList<i
 {
   return layer && layer->isValid() &&
          ( sourceTypes.isEmpty()
-           || ( sourceTypes.contains( QgsProcessing::TypeVectorPoint ) && layer->geometryType() == QgsWkbTypes::PointGeometry )
-           || ( sourceTypes.contains( QgsProcessing::TypeVectorLine ) && layer->geometryType() == QgsWkbTypes::LineGeometry )
-           || ( sourceTypes.contains( QgsProcessing::TypeVectorPolygon ) && layer->geometryType() == QgsWkbTypes::PolygonGeometry )
+           || ( sourceTypes.contains( QgsProcessing::TypeVectorPoint ) && layer->geometryType() == Qgis::GeometryType::Point )
+           || ( sourceTypes.contains( QgsProcessing::TypeVectorLine ) && layer->geometryType() == Qgis::GeometryType::Line )
+           || ( sourceTypes.contains( QgsProcessing::TypeVectorPolygon ) && layer->geometryType() == Qgis::GeometryType::Polygon )
            || ( sourceTypes.contains( QgsProcessing::TypeVectorAnyGeometry ) && layer->isSpatial() )
            || sourceTypes.contains( QgsProcessing::TypeVector )
          );
@@ -789,7 +789,7 @@ void QgsProcessingUtils::parseDestinationString( QString &destination, QString &
   }
 }
 
-QgsFeatureSink *QgsProcessingUtils::createFeatureSink( QString &destination, QgsProcessingContext &context, const QgsFields &fields, QgsWkbTypes::Type geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &createOptions, const QStringList &datasourceOptions, const QStringList &layerOptions, QgsFeatureSink::SinkFlags sinkFlags, QgsRemappingSinkDefinition *remappingDefinition )
+QgsFeatureSink *QgsProcessingUtils::createFeatureSink( QString &destination, QgsProcessingContext &context, const QgsFields &fields, Qgis::WkbType geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &createOptions, const QStringList &datasourceOptions, const QStringList &layerOptions, QgsFeatureSink::SinkFlags sinkFlags, QgsRemappingSinkDefinition *remappingDefinition )
 {
   QVariantMap options = createOptions;
   if ( !options.contains( QStringLiteral( "fileEncoding" ) ) )
@@ -808,7 +808,7 @@ QgsFeatureSink *QgsProcessingUtils::createFeatureSink( QString &destination, Qgs
       destination = QStringLiteral( "output" );
 
     // memory provider cannot be used with QgsVectorLayerImport - so create layer manually
-    std::unique_ptr< QgsVectorLayer > layer( QgsMemoryProviderUtils::createMemoryLayer( destination, fields, geometryType, crs ) );
+    std::unique_ptr< QgsVectorLayer > layer( QgsMemoryProviderUtils::createMemoryLayer( destination, fields, geometryType, crs, false ) );
     if ( !layer || !layer->isValid() )
     {
       throw QgsProcessingException( QObject::tr( "Could not create memory layer" ) );
@@ -941,7 +941,7 @@ QgsFeatureSink *QgsProcessingUtils::createFeatureSink( QString &destination, Qgs
   }
 }
 
-void QgsProcessingUtils::createFeatureSinkPython( QgsFeatureSink **sink, QString &destination, QgsProcessingContext &context, const QgsFields &fields, QgsWkbTypes::Type geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &options )
+void QgsProcessingUtils::createFeatureSinkPython( QgsFeatureSink **sink, QString &destination, QgsProcessingContext &context, const QgsFields &fields, Qgis::WkbType geometryType, const QgsCoordinateReferenceSystem &crs, const QVariantMap &options )
 {
   *sink = createFeatureSink( destination, context, fields, geometryType, crs, options );
 }
@@ -1036,7 +1036,7 @@ QString QgsProcessingUtils::tempFolder()
   static QString sFolder;
   static QMutex sMutex;
   QMutexLocker locker( &sMutex );
-  const QString basePath = QgsProcessing::settingsTempPath.value();
+  const QString basePath = QgsProcessing::settingsTempPath->value();
   if ( basePath.isEmpty() )
   {
     // default setting -- automatically create a temp folder
@@ -1304,7 +1304,7 @@ QgsFields QgsProcessingUtils::indicesToFields( const QList<int> &indices, const 
 
 QString QgsProcessingUtils::defaultVectorExtension()
 {
-  const int setting = QgsProcessing::settingsDefaultOutputVectorLayerExt.value();
+  const int setting = QgsProcessing::settingsDefaultOutputVectorLayerExt->value();
   if ( setting == -1 )
     return QStringLiteral( "gpkg" );
   return QgsVectorFileWriter::supportedFormatExtensions().value( setting, QStringLiteral( "gpkg" ) );
@@ -1312,7 +1312,7 @@ QString QgsProcessingUtils::defaultVectorExtension()
 
 QString QgsProcessingUtils::defaultRasterExtension()
 {
-  const int setting = QgsProcessing::settingsDefaultOutputRasterLayerExt.value();
+  const int setting = QgsProcessing::settingsDefaultOutputRasterLayerExt->value();
   if ( setting == -1 )
     return QStringLiteral( "tif" );
   return QgsRasterFileWriter::supportedFormatExtensions().value( setting, QStringLiteral( "tif" ) );
@@ -1379,6 +1379,63 @@ QVariantMap QgsProcessingUtils::removePointerValuesFromMap( const QVariantMap &m
   return res;
 }
 
+QVariantMap QgsProcessingUtils::preprocessQgisProcessParameters( const QVariantMap &parameters, bool &ok, QString &error )
+{
+  QVariantMap output;
+  ok = true;
+  for ( auto it = parameters.constBegin(); it != parameters.constEnd(); ++it )
+  {
+    if ( it.value().type() == QVariant::Map )
+    {
+      const QVariantMap value = it.value().toMap();
+      if ( value.value( QStringLiteral( "type" ) ).toString() == QLatin1String( "data_defined" ) )
+      {
+        const QString expression = value.value( QStringLiteral( "expression" ) ).toString();
+        const QString field = value.value( QStringLiteral( "field" ) ).toString();
+        if ( !expression.isEmpty() )
+        {
+          output.insert( it.key(), QgsProperty::fromExpression( expression ) );
+        }
+        else if ( !field.isEmpty() )
+        {
+          output.insert( it.key(), QgsProperty::fromField( field ) );
+        }
+        else
+        {
+          ok = false;
+          error = QObject::tr( "Invalid data defined parameter for %1, requires 'expression' or 'field' values." ).arg( it.key() );
+        }
+      }
+      else
+      {
+        output.insert( it.key(), it.value() );
+      }
+    }
+    else if ( it.value().type() == QVariant::String )
+    {
+      const QString stringValue = it.value().toString();
+
+      if ( stringValue.startsWith( QLatin1String( "field:" ) ) )
+      {
+        output.insert( it.key(), QgsProperty::fromField( stringValue.mid( 6 ) ) );
+      }
+      else if ( stringValue.startsWith( QLatin1String( "expression:" ) ) )
+      {
+        output.insert( it.key(), QgsProperty::fromExpression( stringValue.mid( 11 ) ) );
+      }
+      else
+      {
+        output.insert( it.key(), it.value() );
+      }
+    }
+    else
+    {
+      output.insert( it.key(), it.value() );
+    }
+  }
+  return output;
+}
+
 //
 // QgsProcessingFeatureSource
 //
@@ -1386,7 +1443,7 @@ QVariantMap QgsProcessingUtils::removePointerValuesFromMap( const QVariantMap &m
 QgsProcessingFeatureSource::QgsProcessingFeatureSource( QgsFeatureSource *originalSource, const QgsProcessingContext &context, bool ownsOriginalSource, long long featureLimit )
   : mSource( originalSource )
   , mOwnsSource( ownsOriginalSource )
-  , mInvalidGeometryCheck( QgsWkbTypes::geometryType( mSource->wkbType() ) == QgsWkbTypes::PointGeometry
+  , mInvalidGeometryCheck( QgsWkbTypes::geometryType( mSource->wkbType() ) == Qgis::GeometryType::Point
                            ? QgsFeatureRequest::GeometryNoCheck // never run geometry validity checks for point layers!
                            : context.invalidGeometryCheck() )
   , mInvalidGeometryCallback( context.invalidGeometryCallback( originalSource ) )
@@ -1460,7 +1517,7 @@ QgsFields QgsProcessingFeatureSource::fields() const
   return mSource->fields();
 }
 
-QgsWkbTypes::Type QgsProcessingFeatureSource::wkbType() const
+Qgis::WkbType QgsProcessingFeatureSource::wkbType() const
 {
   return mSource->wkbType();
 }

@@ -16,8 +16,6 @@
  ***************************************************************************/
 
 #include "qgis.h"
-#include "qgslogger.h"
-#include "qgsproviderregistry.h"
 #include "qgseptprovider.h"
 #include "qgseptpointcloudindex.h"
 #include "qgsremoteeptpointcloudindex.h"
@@ -25,6 +23,7 @@
 #include "qgsapplication.h"
 #include "qgsprovidersublayerdetails.h"
 #include "qgsproviderutils.h"
+#include "qgsthreadingutils.h"
 
 #include <QFileInfo>
 #include <QIcon>
@@ -56,46 +55,65 @@ QgsEptProvider::~QgsEptProvider() = default;
 
 QgsCoordinateReferenceSystem QgsEptProvider::crs() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->crs();
 }
 
 QgsRectangle QgsEptProvider::extent() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->extent();
 }
 
 QgsPointCloudAttributeCollection QgsEptProvider::attributes() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->attributes();
 }
 
 bool QgsEptProvider::isValid() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->isValid();
 }
 
 QString QgsEptProvider::name() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return QStringLiteral( "ept" );
 }
 
 QString QgsEptProvider::description() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return QStringLiteral( "Point Clouds EPT" );
 }
 
 QgsPointCloudIndex *QgsEptProvider::index() const
 {
+  // BAD! 2D rendering of point clouds is NOT thread safe
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS_NON_FATAL
+
   return mIndex.get();
 }
 
 qint64 QgsEptProvider::pointCount() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->pointCount();
 }
 
 void QgsEptProvider::loadIndex( )
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   if ( mIndex->isValid() )
     return;
 
@@ -104,11 +122,15 @@ void QgsEptProvider::loadIndex( )
 
 QVariantMap QgsEptProvider::originalMetadata() const
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   return mIndex->originalMetadata();
 }
 
 void QgsEptProvider::generateIndex()
 {
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
   //no-op, index is always generated
 }
 
@@ -135,7 +157,7 @@ QList<QgsProviderSublayerDetails> QgsEptProviderMetadata::querySublayers( const 
     QgsProviderSublayerDetails details;
     details.setUri( uri );
     details.setProviderKey( QStringLiteral( "ept" ) );
-    details.setType( QgsMapLayerType::PointCloudLayer );
+    details.setType( Qgis::LayerType::PointCloud );
     details.setName( QgsProviderUtils::suggestLayerNameFromFilePath( uri ) );
     return {details};
   }
@@ -154,13 +176,13 @@ int QgsEptProviderMetadata::priorityForUri( const QString &uri ) const
   return 0;
 }
 
-QList<QgsMapLayerType> QgsEptProviderMetadata::validLayerTypesForUri( const QString &uri ) const
+QList<Qgis::LayerType> QgsEptProviderMetadata::validLayerTypesForUri( const QString &uri ) const
 {
   const QVariantMap parts = decodeUri( uri );
   if ( parts.value( QStringLiteral( "file-name" ) ).toString().compare( QLatin1String( "ept.json" ), Qt::CaseInsensitive ) == 0 )
-    return QList< QgsMapLayerType>() << QgsMapLayerType::PointCloudLayer;
+    return QList< Qgis::LayerType>() << Qgis::LayerType::PointCloud;
 
-  return QList< QgsMapLayerType>();
+  return QList< Qgis::LayerType>();
 }
 
 bool QgsEptProviderMetadata::uriIsBlocklisted( const QString &uri ) const
@@ -208,9 +230,9 @@ QgsProviderMetadata::ProviderCapabilities QgsEptProviderMetadata::providerCapabi
   return FileBasedUris;
 }
 
-QList<QgsMapLayerType> QgsEptProviderMetadata::supportedLayerTypes() const
+QList<Qgis::LayerType> QgsEptProviderMetadata::supportedLayerTypes() const
 {
-  return { QgsMapLayerType::PointCloudLayer };
+  return { Qgis::LayerType::PointCloud };
 }
 
 QString QgsEptProviderMetadata::encodeUri( const QVariantMap &parts ) const

@@ -41,7 +41,7 @@ Constructor
     virtual QgsLayerTreeView *layerTreeView() = 0;
 
     virtual void addCustomActionForLayerType( QAction *action, QString menu,
-        QgsMapLayerType type, bool allLayers ) = 0;
+        Qgis::LayerType type, bool allLayers ) = 0;
 %Docstring
 Add action to context menu for layers in the layer tree.
 If allLayers is ``True``, then the action will be available for all layers of given type,
@@ -177,6 +177,61 @@ Advanced digitizing dock widget
 Returns a reference to the main window "Project" menu.
 %End
 
+    virtual QMenu *projectImportExportMenu() = 0;
+%Docstring
+Returns a reference to the main window "Import/Export" project menu.
+
+.. seealso:: :py:func:`addProjectImportAction`
+
+.. seealso:: :py:func:`addProjectExportAction`
+
+.. versionadded:: 3.30
+%End
+
+    virtual void addProjectImportAction( QAction *action ) = 0;
+%Docstring
+Adds an ``action`` to the QGIS "Import project" menu.
+
+.. seealso:: :py:func:`removeProjectImportAction`
+
+.. seealso:: :py:func:`addProjectExportAction`
+
+.. versionadded:: 3.30
+%End
+
+    virtual void removeProjectImportAction( QAction *action ) = 0;
+%Docstring
+Adds an ``action`` to the QGIS "Import project" menu.
+
+.. seealso:: :py:func:`addProjectImportAction`
+
+.. seealso:: :py:func:`removeProjectExportAction`
+
+.. versionadded:: 3.30
+%End
+
+    virtual void addProjectExportAction( QAction *action ) = 0;
+%Docstring
+Adds an ``action`` to the QGIS "Export project" menu.
+
+.. seealso:: :py:func:`removeProjectExportAction`
+
+.. seealso:: :py:func:`addProjectImportAction`
+
+.. versionadded:: 3.30
+%End
+
+    virtual void removeProjectExportAction( QAction *action ) = 0;
+%Docstring
+Adds an ``action`` to the QGIS "Export project" menu.
+
+.. seealso:: :py:func:`addProjectExportAction`
+
+.. seealso:: :py:func:`removeProjectImportAction`
+
+.. versionadded:: 3.30
+%End
+
     virtual QMenu *editMenu() = 0;
 %Docstring
 Returns a reference to the main window "Edit" menu.
@@ -279,6 +334,15 @@ Returns a reference to the main window "Layer" toolbar.
 Returns a reference to the main window "Data Source Manager" toolbar.
 
 .. versionadded:: 3.4
+%End
+
+    virtual void openDataSourceManagerPage( const QString &pageName ) = 0;
+%Docstring
+Opens a page in the main window "Data Source Manager" dialog.
+
+This method creates and opens the dialog if it is not already visible.
+
+.. versionadded:: 3.30
 %End
 
     virtual QToolBar *mapNavToolToolBar() = 0;
@@ -842,6 +906,13 @@ This represents the current layer tree group and index where newly added map lay
 .. versionadded:: 3.10
 %End
 
+    virtual QgsUserProfileManager *userProfileManager() = 0;
+%Docstring
+Returns a reference to the user profile manager
+
+.. versionadded:: 3.30
+%End
+
   public slots: // TODO: do these functions really need to be slots?
 
 
@@ -1233,20 +1304,21 @@ Vector Layer:
 mOptsPage_Information, mOptsPage_Source, mOptsPage_Style, mOptsPage_Labels,
 mOptsPage_Masks, mOptsPage_Diagrams, mOptsPage_SourceFields, mOptsPage_AttributesForm,
 mOptsPage_Joins, mOptsPage_AuxiliaryStorage, mOptsPage_Actions, mOptsPage_Display,
-mOptsPage_Rendering, mOptsPage_Temporal, mOptsPage_Variables, mOptsPage_Metadata,
-mOptsPage_DataDependencies, mOptsPage_Legend, mOptsPage_Server
+mOptsPage_Rendering, mOptsPage_Temporal, mOptsPage_Variables, mOptsPage_Elevation,
+mOptsPage_Metadata, mOptsPage_DataDependencies, mOptsPage_Legend, mOptsPage_Server
 
 Raster Layer:
 mOptsPage_Information, mOptsPage_Source, mOptsPage_Style, mOptsPage_Transparency,
 mOptsPage_Histogram, mOptsPage_Rendering, mOptsPage_Temporal, mOptsPage_Pyramids,
-mOptsPage_Metadata, mOptsPage_Legend, mOptsPage_Server
+mOptsPage_Elevation, mOptsPage_Metadata, mOptsPage_Legend, mOptsPage_Server
 
 Mesh Layer:
 mOptsPage_Information, mOptsPage_Source, mOptsPage_Style, mOptsPage_StyleContent,
-mOptsPage_Rendering, mOptsPage_Temporal, mOptsPage_Metadata
+mOptsPage_Rendering, mOptsPage_Temporal, mOptsPage_Elevation, mOptsPage_Metadata
 
 Point Cloud Layer:
-mOptsPage_Information, mOptsPage_Source, mOptsPage_Metadata, mOptsPage_Statistics
+mOptsPage_Information, mOptsPage_Source, mOptsPage_Elevation, mOptsPage_Metadata,
+mOptsPage_Statistics, mOptsPage_Rendering
 
 Vector Tile Layer:
 mOptsPage_Information, mOptsPage_Style, mOptsPage_Labeling, mOptsPage_Metadata
@@ -1639,7 +1711,7 @@ creating a new browser model for every use.
 .. versionadded:: 3.4
 %End
 
-    virtual void setGpsPanelConnection( QgsGpsConnection *connection ) = 0;
+    virtual void setGpsPanelConnection( QgsGpsConnection *connection /Transfer/ ) = 0;
 %Docstring
 Sets a GPS ``connection`` to use within the GPS Panel widget.
 

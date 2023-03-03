@@ -25,8 +25,6 @@
 #include "qgspointcloudattributebyramprendererwidget.h"
 #include "qgspointcloudclassifiedrendererwidget.h"
 #include "qgspointcloudextentrendererwidget.h"
-
-#include "qgspointcloudrgbrenderer.h"
 #include "qgslogger.h"
 #include "qgsproject.h"
 #include "qgsprojectutils.h"
@@ -95,8 +93,12 @@ QgsPointCloudRendererPropertiesWidget::QgsPointCloudRendererPropertiesWidget( Qg
   connect( mBlendModeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
   connect( mOpacityWidget, &QgsOpacityWidget::opacityChanged, this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
 
-  mPointSizeUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
-                                  << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
+  mPointSizeUnitWidget->setUnits( {Qgis::RenderUnit::Millimeters,
+                                   Qgis::RenderUnit::MetersInMapUnits,
+                                   Qgis::RenderUnit::MapUnits,
+                                   Qgis::RenderUnit::Pixels,
+                                   Qgis::RenderUnit::Points,
+                                   Qgis::RenderUnit::Inches } );
 
   connect( mPointSizeSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
   connect( mPointSizeUnitWidget, &QgsUnitSelectionWidget::changed, this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
@@ -105,29 +107,20 @@ QgsPointCloudRendererPropertiesWidget::QgsPointCloudRendererPropertiesWidget( Qg
   mDrawOrderComboBox->addItem( tr( "Bottom to Top" ), static_cast< int >( Qgis::PointCloudDrawOrder::BottomToTop ) );
   mDrawOrderComboBox->addItem( tr( "Top to Bottom" ), static_cast< int >( Qgis::PointCloudDrawOrder::TopToBottom ) );
 
-  mMaxErrorUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
-                                 << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
+  mMaxErrorUnitWidget->setUnits( { Qgis::RenderUnit::Millimeters,
+                                   Qgis::RenderUnit::MetersInMapUnits,
+                                   Qgis::RenderUnit::MapUnits,
+                                   Qgis::RenderUnit::Pixels,
+                                   Qgis::RenderUnit::Points,
+                                   Qgis::RenderUnit::Inches } );
   mMaxErrorSpinBox->setClearValue( 0.3 );
-
-  mEdlStrength->setClearValue( 1000 );
-  mEdlDistance->setClearValue( 0.5 );
-
-  mEdlDistanceUnit->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
-                              << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
 
   connect( mMaxErrorSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
   connect( mMaxErrorUnitWidget, &QgsUnitSelectionWidget::changed, this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
 
   connect( mPointStyleComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
   connect( mDrawOrderComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
-  connect( mDrawOrderComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ]
-  {
-    mEdlWarningLabel->setVisible( mDrawOrderComboBox->currentIndex() == 0 );  // visible on default draw order
-  } );
-  connect( mEyeDomeLightingGroupBox, &QGroupBox::toggled, this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
-  connect( mEdlStrength, qOverload<int>( &QSpinBox::valueChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
-  connect( mEdlDistance, qOverload<double>( &QDoubleSpinBox::valueChanged ), this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
-  connect( mEdlDistanceUnit, &QgsUnitSelectionWidget::changed, this, &QgsPointCloudRendererPropertiesWidget::emitWidgetChanged );
+
   syncToLayer( layer );
 }
 
@@ -170,12 +163,6 @@ void QgsPointCloudRendererPropertiesWidget::syncToLayer( QgsMapLayer *layer )
 
     mMaxErrorSpinBox->setValue( mLayer->renderer()->maximumScreenError() );
     mMaxErrorUnitWidget->setUnit( mLayer->renderer()->maximumScreenErrorUnit() );
-
-    mEyeDomeLightingGroupBox->setChecked( mLayer->renderer()->eyeDomeLightingEnabled() );
-    mEdlStrength->setValue( mLayer->renderer()->eyeDomeLightingStrength() );
-    mEdlDistance->setValue( mLayer->renderer()->eyeDomeLightingDistance() );
-    mEdlDistanceUnit->setUnit( mLayer->renderer()->eyeDomeLightingDistanceUnit() );
-    mEdlWarningLabel->setVisible( mLayer->renderer()->drawOrder2d() == Qgis::PointCloudDrawOrder::Default );
   }
 
   mBlockChangedSignal = false;
@@ -210,10 +197,6 @@ void QgsPointCloudRendererPropertiesWidget::apply()
   mLayer->renderer()->setMaximumScreenError( mMaxErrorSpinBox->value() );
   mLayer->renderer()->setMaximumScreenErrorUnit( mMaxErrorUnitWidget->unit() );
   mLayer->renderer()->setDrawOrder2d( static_cast< Qgis::PointCloudDrawOrder >( mDrawOrderComboBox->currentData().toInt() ) );
-  mLayer->renderer()->setEyeDomeLightingEnabled( mEyeDomeLightingGroupBox->isChecked() );
-  mLayer->renderer()->setEyeDomeLightingStrength( mEdlStrength->value() );
-  mLayer->renderer()->setEyeDomeLightingDistance( mEdlDistance->value() );
-  mLayer->renderer()->setEyeDomeLightingDistanceUnit( mEdlDistanceUnit->unit() );
 }
 
 void QgsPointCloudRendererPropertiesWidget::rendererChanged()

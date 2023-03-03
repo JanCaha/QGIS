@@ -15,19 +15,10 @@
 
 #include "qgsmaptooladdfeature.h"
 #include "qgsadvanceddigitizingdockwidget.h"
-#include "qgsapplication.h"
-#include "qgsattributedialog.h"
 #include "qgsexception.h"
-#include "qgscurvepolygon.h"
-#include "qgsfields.h"
 #include "qgsgeometry.h"
-#include "qgslinestring.h"
-#include "qgsmultipoint.h"
 #include "qgsmapcanvas.h"
-#include "qgsmapmouseevent.h"
-#include "qgspolygon.h"
 #include "qgsproject.h"
-#include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 #include "qgslogger.h"
 #include "qgsfeatureaction.h"
@@ -53,17 +44,49 @@ QgsMapToolAddFeature::QgsMapToolAddFeature( QgsMapCanvas *canvas, CaptureMode mo
 {
 }
 
+std::unique_ptr<QgsHighlight> QgsMapToolAddFeature::createHighlight( QgsVectorLayer *layer, const QgsFeature &f )
+{
+  std::unique_ptr< QgsHighlight > highlight = std::make_unique< QgsHighlight >( mCanvas, f.geometry(), layer );
+  highlight->applyDefaultStyle();
+  highlight->mPointSizeRadiusMM = 1.0;
+  highlight->mPointSymbol = QgsHighlight::PointSymbol::Circle;
+  return highlight;
+};
+
 bool QgsMapToolAddFeature::addFeature( QgsVectorLayer *vlayer, const QgsFeature &f, bool showModal )
 {
   QgsFeature feat( f );
-  QgsExpressionContextScope *scope = QgsExpressionContextUtils::mapToolCaptureScope( snappingMatches() );
+  std::unique_ptr< QgsExpressionContextScope > scope( QgsExpressionContextUtils::mapToolCaptureScope( snappingMatches() ) );
   QgsFeatureAction *action = new QgsFeatureAction( tr( "add feature" ), feat, vlayer, QUuid(), -1, this );
+
+  std::unique_ptr< QgsHighlight > highlight;
   if ( QgsRubberBand *rb = takeRubberBand() )
+  {
     connect( action, &QgsFeatureAction::addFeatureFinished, rb, &QgsRubberBand::deleteLater );
-  const bool res = action->addFeature( QgsAttributeMap(), showModal, scope );
+  }
+  else
+  {
+    // if we didn't get a rubber band, then create manually a highlight for the geometry. This ensures
+    // that tools which don't create a rubber band (ie those which digitize single points) still have
+    // a visible way of representing the captured geometry
+    highlight = createHighlight( vlayer, f );
+  }
+
+  const QgsFeatureAction::AddFeatureResult res = action->addFeature( QgsAttributeMap(), showModal, std::move( scope ), false, std::move( highlight ) );
   if ( showModal )
     delete action;
-  return res;
+
+  switch ( res )
+  {
+    case QgsFeatureAction::AddFeatureResult::Success:
+    case QgsFeatureAction::AddFeatureResult::Pending:
+      return true;
+    case QgsFeatureAction::AddFeatureResult::LayerStateError:
+    case QgsFeatureAction::AddFeatureResult::Canceled:
+    case QgsFeatureAction::AddFeatureResult::FeatureError:
+      return false;
+  }
+  BUILTIN_UNREACHABLE
 }
 
 void QgsMapToolAddFeature::featureDigitized( const QgsFeature &feature )
@@ -89,7 +112,7 @@ void QgsMapToolAddFeature::featureDigitized( const QgsFeature &feature )
         for ( QgsVectorLayer *vl : intersectionLayers )
         {
           //can only add topological points if background layer is editable...
-          if ( vl->geometryType() == QgsWkbTypes::PolygonGeometry && vl->isEditable() )
+          if ( vl->geometryType() == Qgis::GeometryType::Polygon && vl->isEditable() )
           {
             vl->addTopologicalPoints( feature.geometry() );
           }

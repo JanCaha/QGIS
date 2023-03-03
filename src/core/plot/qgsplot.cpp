@@ -29,12 +29,12 @@
 
 QgsPlot::~QgsPlot() = default;
 
-bool QgsPlot::writeXml( QDomElement &, QDomDocument &, QgsReadWriteContext & ) const
+bool QgsPlot::writeXml( QDomElement &, QDomDocument &, const QgsReadWriteContext & ) const
 {
   return true;
 }
 
-bool QgsPlot::readXml( const QDomElement &, QgsReadWriteContext & )
+bool QgsPlot::readXml( const QDomElement &, const QgsReadWriteContext & )
 {
   return true;
 }
@@ -45,21 +45,14 @@ bool QgsPlot::readXml( const QDomElement &, QgsReadWriteContext & )
 QgsPlotAxis::QgsPlotAxis()
 {
   // setup default style
-
-  mNumericFormat = std::make_unique< QgsBasicNumericFormat >();
-
-  std::unique_ptr< QgsSimpleLineSymbolLayer > gridMinor = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20, 50 ), 0.1 );
-  gridMinor->setPenCapStyle( Qt::FlatCap );
-  mGridMinorSymbol = std::make_unique< QgsLineSymbol>( QgsSymbolLayerList( { gridMinor.release() } ) );
-
-  std::unique_ptr< QgsSimpleLineSymbolLayer > gridMajor = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20, 150 ), 0.1 );
-  gridMajor->setPenCapStyle( Qt::FlatCap );
-  mGridMajorSymbol = std::make_unique< QgsLineSymbol>( QgsSymbolLayerList( { gridMajor.release() } ) );
+  mNumericFormat.reset( QgsPlotDefaultSettings::axisLabelNumericFormat() );
+  mGridMinorSymbol.reset( QgsPlotDefaultSettings::axisGridMinorSymbol() );
+  mGridMajorSymbol.reset( QgsPlotDefaultSettings::axisGridMajorSymbol() );
 }
 
 QgsPlotAxis::~QgsPlotAxis() = default;
 
-bool QgsPlotAxis::writeXml( QDomElement &element, QDomDocument &document, QgsReadWriteContext &context ) const
+bool QgsPlotAxis::writeXml( QDomElement &element, QDomDocument &document, const QgsReadWriteContext &context ) const
 {
   element.setAttribute( QStringLiteral( "gridIntervalMinor" ), qgsDoubleToString( mGridIntervalMinor ) );
   element.setAttribute( QStringLiteral( "gridIntervalMajor" ), qgsDoubleToString( mGridIntervalMajor ) );
@@ -83,7 +76,7 @@ bool QgsPlotAxis::writeXml( QDomElement &element, QDomDocument &document, QgsRea
   return true;
 }
 
-bool QgsPlotAxis::readXml( const QDomElement &element, QgsReadWriteContext &context )
+bool QgsPlotAxis::readXml( const QDomElement &element, const QgsReadWriteContext &context )
 {
   mGridIntervalMinor = element.attribute( QStringLiteral( "gridIntervalMinor" ) ).toDouble();
   mGridIntervalMajor = element.attribute( QStringLiteral( "gridIntervalMajor" ) ).toDouble();
@@ -152,14 +145,11 @@ Qgs2DPlot::Qgs2DPlot()
   : mMargins( 2, 2, 2, 2 )
 {
   // setup default style
-  std::unique_ptr< QgsSimpleFillSymbolLayer > chartFill = std::make_unique< QgsSimpleFillSymbolLayer >( QColor( 255, 255, 255 ) );
-  mChartBackgroundSymbol = std::make_unique< QgsFillSymbol>( QgsSymbolLayerList( { chartFill.release() } ) );
-
-  std::unique_ptr< QgsSimpleLineSymbolLayer > chartBorder = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20 ), 0.1 );
-  mChartBorderSymbol = std::make_unique< QgsFillSymbol>( QgsSymbolLayerList( { chartBorder.release() } ) );
+  mChartBackgroundSymbol.reset( QgsPlotDefaultSettings::chartBackgroundSymbol() );
+  mChartBorderSymbol.reset( QgsPlotDefaultSettings::chartBorderSymbol() );
 }
 
-bool Qgs2DPlot::writeXml( QDomElement &element, QDomDocument &document, QgsReadWriteContext &context ) const
+bool Qgs2DPlot::writeXml( QDomElement &element, QDomDocument &document, const QgsReadWriteContext &context ) const
 {
   QgsPlot::writeXml( element, document, context );
 
@@ -187,7 +177,7 @@ bool Qgs2DPlot::writeXml( QDomElement &element, QDomDocument &document, QgsReadW
   return true;
 }
 
-bool Qgs2DPlot::readXml( const QDomElement &element, QgsReadWriteContext &context )
+bool Qgs2DPlot::readXml( const QDomElement &element, const QgsReadWriteContext &context )
 {
   QgsPlot::readXml( element, context );
 
@@ -326,7 +316,7 @@ void Qgs2DPlot::render( QgsRenderContext &context )
   {
     plotScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "plot_axis_value" ), currentX, true ) );
     const QString text = mXAxis.numericFormat()->formatDouble( currentX, numericContext );
-    QgsTextRenderer::drawText( QPointF( ( currentX - mMinX ) * xScale + chartAreaLeft, mSize.height() - context.convertToPainterUnits( mMargins.bottom(), QgsUnitTypes::RenderMillimeters ) ),
+    QgsTextRenderer::drawText( QPointF( ( currentX - mMinX ) * xScale + chartAreaLeft, mSize.height() - context.convertToPainterUnits( mMargins.bottom(), Qgis::RenderUnit::Millimeters ) ),
                                0, Qgis::TextHorizontalAlignment::Center, { text }, context, mXAxis.textFormat() );
   }
 
@@ -339,7 +329,7 @@ void Qgs2DPlot::render( QgsRenderContext &context )
     const QString text = mYAxis.numericFormat()->formatDouble( currentY, numericContext );
     const double height = QgsTextRenderer::textHeight( context, mYAxis.textFormat(), { text } );
     QgsTextRenderer::drawText( QPointF(
-                                 maxYAxisLabelWidth + context.convertToPainterUnits( mMargins.left(), QgsUnitTypes::RenderMillimeters ),
+                                 maxYAxisLabelWidth + context.convertToPainterUnits( mMargins.left(), Qgis::RenderUnit::Millimeters ),
                                  chartAreaBottom - ( currentY - mMinY ) * yScale + height / 2 ),
                                0, Qgis::TextHorizontalAlignment::Right, { text }, context, mYAxis.textFormat(), false );
   }
@@ -418,15 +408,15 @@ QRectF Qgs2DPlot::interiorPlotArea( QgsRenderContext &context ) const
     maxYAxisLabelWidth = std::max( maxYAxisLabelWidth, QgsTextRenderer::textWidth( context, mYAxis.textFormat(), { text } ) );
   }
 
-  const double leftTextSize = maxYAxisLabelWidth + context.convertToPainterUnits( 1, QgsUnitTypes::RenderMillimeters );
+  const double leftTextSize = maxYAxisLabelWidth + context.convertToPainterUnits( 1, Qgis::RenderUnit::Millimeters );
   const double rightTextSize = 0;
-  const double bottomTextSize = maxXAxisLabelHeight + context.convertToPainterUnits( 0.5, QgsUnitTypes::RenderMillimeters );
+  const double bottomTextSize = maxXAxisLabelHeight + context.convertToPainterUnits( 0.5, Qgis::RenderUnit::Millimeters );
   const double topTextSize = 0;
 
-  const double leftMargin = context.convertToPainterUnits( mMargins.left(), QgsUnitTypes::RenderMillimeters ) + leftTextSize;
-  const double rightMargin = context.convertToPainterUnits( mMargins.right(), QgsUnitTypes::RenderMillimeters ) + rightTextSize;
-  const double topMargin = context.convertToPainterUnits( mMargins.top(), QgsUnitTypes::RenderMillimeters ) + topTextSize;
-  const double bottomMargin = context.convertToPainterUnits( mMargins.bottom(), QgsUnitTypes::RenderMillimeters ) + bottomTextSize;
+  const double leftMargin = context.convertToPainterUnits( mMargins.left(), Qgis::RenderUnit::Millimeters ) + leftTextSize;
+  const double rightMargin = context.convertToPainterUnits( mMargins.right(), Qgis::RenderUnit::Millimeters ) + rightTextSize;
+  const double topMargin = context.convertToPainterUnits( mMargins.top(), Qgis::RenderUnit::Millimeters ) + topTextSize;
+  const double bottomMargin = context.convertToPainterUnits( mMargins.bottom(), Qgis::RenderUnit::Millimeters ) + bottomTextSize;
 
   return QRectF( leftMargin, topMargin, mSize.width() - rightMargin - leftMargin, mSize.height() - bottomMargin - topMargin );
 }
@@ -438,10 +428,10 @@ void Qgs2DPlot::calculateOptimisedIntervals( QgsRenderContext &context )
   constexpr double TOLERANCE = 0.04;
   constexpr int MAX_LABELS = 1000;
 
-  const double leftMargin = context.convertToPainterUnits( mMargins.left(), QgsUnitTypes::RenderMillimeters );
-  const double rightMargin = context.convertToPainterUnits( mMargins.right(), QgsUnitTypes::RenderMillimeters );
-  const double topMargin = context.convertToPainterUnits( mMargins.top(), QgsUnitTypes::RenderMillimeters );
-  const double bottomMargin = context.convertToPainterUnits( mMargins.bottom(), QgsUnitTypes::RenderMillimeters );
+  const double leftMargin = context.convertToPainterUnits( mMargins.left(), Qgis::RenderUnit::Millimeters );
+  const double rightMargin = context.convertToPainterUnits( mMargins.right(), Qgis::RenderUnit::Millimeters );
+  const double topMargin = context.convertToPainterUnits( mMargins.top(), Qgis::RenderUnit::Millimeters );
+  const double bottomMargin = context.convertToPainterUnits( mMargins.bottom(), Qgis::RenderUnit::Millimeters );
 
   const double availableWidth = mSize.width() - leftMargin - rightMargin;
   const double availableHeight = mSize.height() - topMargin - bottomMargin;
@@ -585,4 +575,39 @@ const QgsMargins &Qgs2DPlot::margins() const
 void Qgs2DPlot::setMargins( const QgsMargins &margins )
 {
   mMargins = margins;
+}
+
+//
+// QgsPlotDefaultSettings
+//
+
+QgsNumericFormat *QgsPlotDefaultSettings::axisLabelNumericFormat()
+{
+  return new QgsBasicNumericFormat();
+}
+
+QgsLineSymbol *QgsPlotDefaultSettings::axisGridMajorSymbol()
+{
+  std::unique_ptr< QgsSimpleLineSymbolLayer > gridMajor = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20, 150 ), 0.1 );
+  gridMajor->setPenCapStyle( Qt::FlatCap );
+  return new QgsLineSymbol( QgsSymbolLayerList( { gridMajor.release() } ) );
+}
+
+QgsLineSymbol *QgsPlotDefaultSettings::axisGridMinorSymbol()
+{
+  std::unique_ptr< QgsSimpleLineSymbolLayer > gridMinor = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20, 50 ), 0.1 );
+  gridMinor->setPenCapStyle( Qt::FlatCap );
+  return new QgsLineSymbol( QgsSymbolLayerList( { gridMinor.release() } ) );
+}
+
+QgsFillSymbol *QgsPlotDefaultSettings::chartBackgroundSymbol()
+{
+  std::unique_ptr< QgsSimpleFillSymbolLayer > chartFill = std::make_unique< QgsSimpleFillSymbolLayer >( QColor( 255, 255, 255 ) );
+  return new QgsFillSymbol( QgsSymbolLayerList( { chartFill.release() } ) );
+}
+
+QgsFillSymbol *QgsPlotDefaultSettings::chartBorderSymbol()
+{
+  std::unique_ptr< QgsSimpleLineSymbolLayer > chartBorder = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 20, 20, 20 ), 0.1 );
+  return new QgsFillSymbol( QgsSymbolLayerList( { chartBorder.release() } ) );
 }

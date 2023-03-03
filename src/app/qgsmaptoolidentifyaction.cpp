@@ -30,11 +30,11 @@
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 #include "qgsproject.h"
-#include "qgsunittypes.h"
 #include "qgsstatusbar.h"
 #include "qgssettings.h"
 #include "qgsmapmouseevent.h"
 #include "qgslayertreeview.h"
+#include "qgsmaplayeraction.h"
 
 #include <QCursor>
 #include <QPixmap>
@@ -48,8 +48,8 @@ QgsMapToolIdentifyAction::QgsMapToolIdentifyAction( QgsMapCanvas *canvas )
   setCursor( QgsApplication::getThemeCursor( QgsApplication::Cursor::Identify ) );
   connect( this, &QgsMapToolIdentify::changedRasterResults, this, &QgsMapToolIdentifyAction::handleChangedRasterResults );
   mIdentifyMenu->setAllowMultipleReturn( true );
-  QgsMapLayerAction *attrTableAction = new QgsMapLayerAction( tr( "Show Attribute Table" ), mIdentifyMenu, QgsMapLayerType::VectorLayer, QgsMapLayerAction::MultipleFeatures );
-  connect( attrTableAction, &QgsMapLayerAction::triggeredForFeatures, this, &QgsMapToolIdentifyAction::showAttributeTable );
+  QgsMapLayerAction *attrTableAction = new QgsMapLayerAction( tr( "Show Attribute Table" ), mIdentifyMenu, Qgis::LayerType::Vector, Qgis::MapLayerActionTarget::MultipleFeatures );
+  connect( attrTableAction, &QgsMapLayerAction::triggeredForFeaturesV2, this, &QgsMapToolIdentifyAction::showAttributeTable );
   identifyMenu()->addCustomAction( attrTableAction );
   mSelectionHandler = new QgsMapToolSelectionHandler( canvas, QgsMapToolSelectionHandler::SelectSimple );
   connect( mSelectionHandler, &QgsMapToolSelectionHandler::geometryChanged, this, &QgsMapToolIdentifyAction::identifyFromGeometry );
@@ -82,7 +82,7 @@ QgsIdentifyResultsDialog *QgsMapToolIdentifyAction::resultsDialog()
   return mResultsDialog;
 }
 
-void QgsMapToolIdentifyAction::showAttributeTable( QgsMapLayer *layer, const QList<QgsFeature> &featureList )
+void QgsMapToolIdentifyAction::showAttributeTable( QgsMapLayer *layer, const QList<QgsFeature> &featureList, const QgsMapLayerActionContext & )
 {
   resultsDialog()->clear();
 
@@ -110,7 +110,7 @@ void QgsMapToolIdentifyAction::identifyFromGeometry()
   connect( this, &QgsMapToolIdentifyAction::identifyMessage, QgisApp::instance(), &QgisApp::showStatusMessage );
 
   const QgsGeometry geometry = mSelectionHandler->selectedGeometry();
-  const bool isSinglePoint = geometry.type() == QgsWkbTypes::PointGeometry;
+  const bool isSinglePoint = geometry.type() == Qgis::GeometryType::Point;
 
   if ( isSinglePoint )
     setClickContextScope( geometry.asPoint() );
@@ -187,7 +187,7 @@ void QgsMapToolIdentifyAction::handleChangedRasterResults( QList<IdentifyResult>
   QList<IdentifyResult>::const_iterator rresult;
   for ( rresult = results.constBegin(); rresult != results.constEnd(); ++rresult )
   {
-    if ( rresult->mLayer->type() == QgsMapLayerType::RasterLayer )
+    if ( rresult->mLayer->type() == Qgis::LayerType::Raster )
     {
       resultsDialog()->addFeature( *rresult );
     }
@@ -232,12 +232,12 @@ void QgsMapToolIdentifyAction::showResultsForFeature( QgsVectorLayer *vlayer, Qg
   resultsDialog()->updateViewModes();
 }
 
-QgsUnitTypes::DistanceUnit QgsMapToolIdentifyAction::displayDistanceUnits() const
+Qgis::DistanceUnit QgsMapToolIdentifyAction::displayDistanceUnits() const
 {
   return QgsProject::instance()->distanceUnits();
 }
 
-QgsUnitTypes::AreaUnit QgsMapToolIdentifyAction::displayAreaUnits() const
+Qgis::AreaUnit QgsMapToolIdentifyAction::displayAreaUnits() const
 {
   return QgsProject::instance()->areaUnits();
 }

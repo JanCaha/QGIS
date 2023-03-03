@@ -20,7 +20,6 @@
 #include "qgsmessagelog.h"
 #include "qgsproviderregistry.h"
 #include "qgsspatialiteutils.h"
-#include "qgsvectorfilewriter.h"
 #include "qgswfsutils.h" // for isCompatibleType()
 
 #include <QCryptographicHash>
@@ -227,8 +226,8 @@ bool QgsBackgroundCachedSharedData::createCache()
     return false;
   }
   const QString vsimemFilename = QStringLiteral( "/vsimem/qgis_cache_template_%1/features.sqlite" ).arg( reinterpret_cast< quintptr >( this ), QT_POINTER_SIZE * 2, 16, QLatin1Char( '0' ) );
-  mCacheTablename = CPLGetBasename( vsimemFilename.toStdString().c_str() );
-  VSIUnlink( vsimemFilename.toStdString().c_str() );
+  mCacheTablename = CPLGetBasename( vsimemFilename.toUtf8().constData() );
+  VSIUnlink( vsimemFilename.toUtf8().constData() );
   const char *apszOptions[] = { "INIT_WITH_EPSG=NO", "SPATIALITE=YES", nullptr };
   GDALDatasetH hDS = GDALCreate( hDrv, vsimemFilename.toUtf8().constData(), 0, 0, 0, GDT_Unknown, const_cast<char **>( apszOptions ) );
   if ( !hDS )
@@ -240,9 +239,9 @@ bool QgsBackgroundCachedSharedData::createCache()
 
   // Copy the temporary database back to disk
   vsi_l_offset nLength = 0;
-  GByte *pabyData = VSIGetMemFileBuffer( vsimemFilename.toStdString().c_str(), &nLength, TRUE );
+  GByte *pabyData = VSIGetMemFileBuffer( vsimemFilename.toUtf8().constData(), &nLength, TRUE );
   Q_ASSERT( !QFile::exists( mCacheDbname ) );
-  VSILFILE *fp = VSIFOpenL( mCacheDbname.toStdString().c_str(), "wb" );
+  VSILFILE *fp = VSIFOpenL( mCacheDbname.toUtf8().constData(), "wb" );
   if ( fp )
   {
     VSIFWriteL( pabyData, 1, nLength, fp );
@@ -794,9 +793,9 @@ void QgsBackgroundCachedSharedData::endOfDownload( bool success, long long featu
       {
         // Grow the extent by ~ 50 km (completely arbitrary number if you wonder!)
         // so that it is sufficiently zoomed out
-        if ( mSourceCrs.mapUnits() == QgsUnitTypes::DistanceMeters )
+        if ( mSourceCrs.mapUnits() == Qgis::DistanceUnit::Meters )
           mComputedExtent.grow( 50. * 1000. );
-        else if ( mSourceCrs.mapUnits() == QgsUnitTypes::DistanceDegrees )
+        else if ( mSourceCrs.mapUnits() == Qgis::DistanceUnit::Degrees )
           mComputedExtent.grow( 50. / 110 );
         pushError( QObject::tr( "Layer extent reported by the server is not correct. "
                                 "You may need to zoom on layer and then zoom out to see all features" ) );

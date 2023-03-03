@@ -18,7 +18,6 @@
 
 #include "qgsdxfexport.h"
 #include "qgsdxfpaintdevice.h"
-#include "qgsexpression.h"
 #include "qgsfontutils.h"
 #include "qgsimagecache.h"
 #include "qgsimageoperation.h"
@@ -114,8 +113,8 @@ QgsSimpleMarkerSymbolLayerBase::QgsSimpleMarkerSymbolLayerBase( Qgis::MarkerShap
   mAngle = angle;
   mOffset = QPointF( 0, 0 );
   mScaleMethod = scaleMethod;
-  mSizeUnit = QgsUnitTypes::RenderMillimeters;
-  mOffsetUnit = QgsUnitTypes::RenderMillimeters;
+  mSizeUnit = Qgis::RenderUnit::Millimeters;
+  mOffsetUnit = Qgis::RenderUnit::Millimeters;
 }
 
 QgsSimpleMarkerSymbolLayerBase::~QgsSimpleMarkerSymbolLayerBase() = default;
@@ -186,11 +185,11 @@ void QgsSimpleMarkerSymbolLayerBase::startRender( QgsSymbolRenderContext &contex
   if ( !hasDataDefinedSize )
   {
     double scaledSize = context.renderContext().convertToPainterUnits( mSize, mSizeUnit, mSizeMapUnitScale );
-    if ( mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
+    if ( mSizeUnit == Qgis::RenderUnit::MetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
     {
       // rendering for symbol previews -- an size in meters in map units can't be calculated, so treat the size as millimeters
       // and clamp it to a reasonable range. It's the best we can do in this situation!
-      scaledSize = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, QgsUnitTypes::RenderMillimeters ), 3.0 ), 100.0 );
+      scaledSize = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, Qgis::RenderUnit::Millimeters ), 3.0 ), 100.0 );
     }
 
     const double half = scaledSize / 2.0;
@@ -272,11 +271,11 @@ void QgsSimpleMarkerSymbolLayerBase::renderPoint( QPointF point, QgsSymbolRender
   if ( hasDataDefinedSize || createdNewPath )
   {
     double s = context.renderContext().convertToPainterUnits( scaledSize, mSizeUnit, mSizeMapUnitScale );
-    if ( mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
+    if ( mSizeUnit == Qgis::RenderUnit::MetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
     {
       // rendering for symbol previews -- a size in meters in map units can't be calculated, so treat the size as millimeters
       // and clamp it to a reasonable range. It's the best we can do in this situation!
-      s = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, QgsUnitTypes::RenderMillimeters ), 3.0 ), 100.0 );
+      s = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, Qgis::RenderUnit::Millimeters ), 3.0 ), 100.0 );
     }
     const double half = s / 2.0;
     transform.scale( half, half );
@@ -956,7 +955,7 @@ void QgsSimpleMarkerSymbolLayerBase::calculateOffsetAndRotation( QgsSymbolRender
     const QgsFeature *f = context.feature();
     if ( f )
     {
-      if ( f->hasGeometry() && f->geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( f->hasGeometry() && f->geometry().type() == Qgis::GeometryType::Point )
       {
         const QgsMapToPixel &m2p = context.renderContext().mapToPixel();
         angle += m2p.mapRotation();
@@ -1158,11 +1157,11 @@ void QgsSimpleMarkerSymbolLayer::startRender( QgsSymbolRenderContext &context )
 bool QgsSimpleMarkerSymbolLayer::prepareCache( QgsSymbolRenderContext &context )
 {
   double scaledSize = context.renderContext().convertToPainterUnits( mSize, mSizeUnit, mSizeMapUnitScale );
-  if ( mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
+  if ( mSizeUnit == Qgis::RenderUnit::MetersInMapUnits && context.renderContext().flags() & Qgis::RenderContextFlag::RenderSymbolPreview )
   {
     // rendering for symbol previews -- a size in meters in map units can't be calculated, so treat the size as millimeters
     // and clamp it to a reasonable range. It's the best we can do in this situation!
-    scaledSize = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, QgsUnitTypes::RenderMillimeters ), 3.0 ), 100.0 );
+    scaledSize = std::min( std::max( context.renderContext().convertToPainterUnits( mSize, Qgis::RenderUnit::Millimeters ), 3.0 ), 100.0 );
   }
 
   // take into account angle (which is not data-defined otherwise cache wouldn't be used)
@@ -1416,16 +1415,25 @@ void QgsSimpleMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement 
 
   // <Rotation>
   QString angleFunc;
-  bool ok;
-  const double angle = props.value( QStringLiteral( "angle" ), QStringLiteral( "0" ) ).toDouble( &ok );
-  if ( !ok )
+
+  if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::PropertyAngle ) )
   {
-    angleFunc = QStringLiteral( "%1 + %2" ).arg( props.value( QStringLiteral( "angle" ), QStringLiteral( "0" ) ).toString() ).arg( mAngle );
+    angleFunc = mDataDefinedProperties.property( QgsSymbolLayer::Property::PropertyAngle ).asExpression();
   }
-  else if ( !qgsDoubleNear( angle + mAngle, 0.0 ) )
+  else
   {
-    angleFunc = QString::number( angle + mAngle );
+    bool ok;
+    const double angle = props.value( QStringLiteral( "angle" ), QStringLiteral( "0" ) ).toDouble( &ok );
+    if ( !ok )
+    {
+      angleFunc = QStringLiteral( "%1 + %2" ).arg( props.value( QStringLiteral( "angle" ), QStringLiteral( "0" ) ).toString() ).arg( mAngle );
+    }
+    else if ( !qgsDoubleNear( angle + mAngle, 0.0 ) )
+    {
+      angleFunc = QString::number( angle + mAngle );
+    }
   }
+
   QgsSymbolLayerUtils::createRotationElement( doc, graphicElem, angleFunc );
 
   // <Displacement>
@@ -1528,7 +1536,7 @@ QgsSymbolLayer *QgsSimpleMarkerSymbolLayer::createFromSld( QDomElement &element 
 
   double scaleFactor = 1.0;
   const QString uom = element.attribute( QStringLiteral( "uom" ) );
-  QgsUnitTypes::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
+  Qgis::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
   size = size * scaleFactor;
   offset.setX( offset.x() * scaleFactor );
   offset.setY( offset.y() * scaleFactor );
@@ -1586,12 +1594,12 @@ bool QgsSimpleMarkerSymbolLayer::writeDxf( QgsDxfExport &e, double mmMapUnitScal
     size *= QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), mSizeUnit, e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
   }
 
-  if ( mSizeUnit == QgsUnitTypes::RenderMillimeters )
+  if ( mSizeUnit == Qgis::RenderUnit::Millimeters )
   {
     size *= mmMapUnitScaleFactor;
   }
 
-  if ( mSizeUnit == QgsUnitTypes::RenderMapUnits )
+  if ( mSizeUnit == Qgis::RenderUnit::MapUnits )
   {
     e.clipValueToMapUnitScale( size, mSizeMapUnitScale, context.renderContext().scaleFactor() );
   }
@@ -1606,7 +1614,7 @@ bool QgsSimpleMarkerSymbolLayer::writeDxf( QgsDxfExport &e, double mmMapUnitScal
     strokeWidth = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::PropertyStrokeWidth, context.renderContext().expressionContext(), mStrokeWidth );
   }
   strokeWidth *= QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), mStrokeWidthUnit, e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
-  if ( mSizeUnit == QgsUnitTypes::RenderMapUnits )
+  if ( mSizeUnit == Qgis::RenderUnit::MapUnits )
   {
     e.clipValueToMapUnitScale( strokeWidth, mStrokeWidthMapUnitScale, context.renderContext().scaleFactor() );
   }
@@ -1750,19 +1758,19 @@ bool QgsSimpleMarkerSymbolLayer::writeDxf( QgsDxfExport &e, double mmMapUnitScal
 }
 
 
-void QgsSimpleMarkerSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
+void QgsSimpleMarkerSymbolLayer::setOutputUnit( Qgis::RenderUnit unit )
 {
   QgsSimpleMarkerSymbolLayerBase::setOutputUnit( unit );
   mStrokeWidthUnit = unit;
 }
 
-QgsUnitTypes::RenderUnit QgsSimpleMarkerSymbolLayer::outputUnit() const
+Qgis::RenderUnit QgsSimpleMarkerSymbolLayer::outputUnit() const
 {
   if ( QgsMarkerSymbolLayer::outputUnit() == mStrokeWidthUnit )
   {
     return mStrokeWidthUnit;
   }
-  return QgsUnitTypes::RenderUnknownUnit;
+  return Qgis::RenderUnit::Unknown;
 }
 
 void QgsSimpleMarkerSymbolLayer::setMapUnitScale( const QgsMapUnitScale &scale )
@@ -1782,9 +1790,9 @@ QgsMapUnitScale QgsSimpleMarkerSymbolLayer::mapUnitScale() const
 
 bool QgsSimpleMarkerSymbolLayer::usesMapUnits() const
 {
-  return mSizeUnit == QgsUnitTypes::RenderMapUnits || mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mOffsetUnit == QgsUnitTypes::RenderMapUnits || mOffsetUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mStrokeWidthUnit == QgsUnitTypes::RenderMapUnits || mStrokeWidthUnit == QgsUnitTypes::RenderMetersInMapUnits;
+  return mSizeUnit == Qgis::RenderUnit::MapUnits || mSizeUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mOffsetUnit == Qgis::RenderUnit::MapUnits || mOffsetUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mStrokeWidthUnit == Qgis::RenderUnit::MapUnits || mStrokeWidthUnit == Qgis::RenderUnit::MetersInMapUnits;
 }
 
 QRectF QgsSimpleMarkerSymbolLayer::bounds( QPointF point, QgsSymbolRenderContext &context )
@@ -2021,12 +2029,12 @@ QColor QgsFilledMarkerSymbolLayer::color() const
 
 bool QgsFilledMarkerSymbolLayer::usesMapUnits() const
 {
-  return mSizeUnit == QgsUnitTypes::RenderMapUnits || mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mOffsetUnit == QgsUnitTypes::RenderMapUnits || mOffsetUnit == QgsUnitTypes::RenderMetersInMapUnits
+  return mSizeUnit == Qgis::RenderUnit::MapUnits || mSizeUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mOffsetUnit == Qgis::RenderUnit::MapUnits || mOffsetUnit == Qgis::RenderUnit::MetersInMapUnits
          || ( mFill && mFill->usesMapUnits() );
 }
 
-void QgsFilledMarkerSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
+void QgsFilledMarkerSymbolLayer::setOutputUnit( Qgis::RenderUnit unit )
 {
   QgsSimpleMarkerSymbolLayerBase::setOutputUnit( unit );
   if ( mFill )
@@ -2086,7 +2094,7 @@ QgsSvgMarkerSymbolLayer::QgsSvgMarkerSymbolLayer( const QString &path, double si
   mOffset = QPointF( 0, 0 );
   mScaleMethod = scaleMethod;
   mStrokeWidth = 0.2;
-  mStrokeWidthUnit = QgsUnitTypes::RenderMillimeters;
+  mStrokeWidthUnit = Qgis::RenderUnit::Millimeters;
   mColor = QColor( 35, 35, 35 );
   mStrokeColor = QColor( 35, 35, 35 );
   setPath( path );
@@ -2537,7 +2545,7 @@ void QgsSvgMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContext
     const QgsFeature *f = context.feature();
     if ( f )
     {
-      if ( f->hasGeometry() && f->geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( f->hasGeometry() && f->geometry().type() == Qgis::GeometryType::Point )
       {
         const QgsMapToPixel &m2p = context.renderContext().mapToPixel();
         angle += m2p.mapRotation();
@@ -2578,9 +2586,9 @@ QVariantMap QgsSvgMarkerSymbolLayer::properties() const
 
 bool QgsSvgMarkerSymbolLayer::usesMapUnits() const
 {
-  return mSizeUnit == QgsUnitTypes::RenderMapUnits || mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mOffsetUnit == QgsUnitTypes::RenderMapUnits || mOffsetUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mStrokeWidthUnit == QgsUnitTypes::RenderMapUnits || mStrokeWidthUnit == QgsUnitTypes::RenderMetersInMapUnits;
+  return mSizeUnit == Qgis::RenderUnit::MapUnits || mSizeUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mOffsetUnit == Qgis::RenderUnit::MapUnits || mOffsetUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mStrokeWidthUnit == Qgis::RenderUnit::MapUnits || mStrokeWidthUnit == Qgis::RenderUnit::MetersInMapUnits;
 }
 
 QgsSvgMarkerSymbolLayer *QgsSvgMarkerSymbolLayer::clone() const
@@ -2606,18 +2614,18 @@ QgsSvgMarkerSymbolLayer *QgsSvgMarkerSymbolLayer::clone() const
   return m;
 }
 
-void QgsSvgMarkerSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
+void QgsSvgMarkerSymbolLayer::setOutputUnit( Qgis::RenderUnit unit )
 {
   QgsMarkerSymbolLayer::setOutputUnit( unit );
   mStrokeWidthUnit = unit;
 }
 
-QgsUnitTypes::RenderUnit QgsSvgMarkerSymbolLayer::outputUnit() const
+Qgis::RenderUnit QgsSvgMarkerSymbolLayer::outputUnit() const
 {
-  const QgsUnitTypes::RenderUnit unit = QgsMarkerSymbolLayer::outputUnit();
+  const Qgis::RenderUnit unit = QgsMarkerSymbolLayer::outputUnit();
   if ( unit != mStrokeWidthUnit )
   {
-    return QgsUnitTypes::RenderUnknownUnit;
+    return Qgis::RenderUnit::Unknown;
   }
   return unit;
 }
@@ -2686,7 +2694,7 @@ QgsSymbolLayer *QgsSvgMarkerSymbolLayer::createFromSld( QDomElement &element )
 
   double scaleFactor = 1.0;
   const QString uom = element.attribute( QStringLiteral( "uom" ) );
-  QgsUnitTypes::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
+  Qgis::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
   size = size * scaleFactor;
 
   if ( mimeType != QLatin1String( "image/svg+xml" ) )
@@ -2807,7 +2815,7 @@ bool QgsSvgMarkerSymbolLayer::writeDxf( QgsDxfExport &e, double mmMapUnitScaleFa
     }
   }
 
-  if ( mSizeUnit == QgsUnitTypes::RenderMillimeters )
+  if ( mSizeUnit == Qgis::RenderUnit::Millimeters )
   {
     size *= mmMapUnitScaleFactor;
   }
@@ -3132,7 +3140,7 @@ void QgsRasterMarkerSymbolLayer::renderPoint( QPointF point, QgsSymbolRenderCont
   double angle = 0.0;
 
   // RenderPercentage Unit Type takes original image size
-  if ( mSizeUnit == QgsUnitTypes::RenderPercentage )
+  if ( mSizeUnit == Qgis::RenderUnit::Percentage )
   {
     const QSize size = QgsApplication::imageCache()->originalSize( path );
     if ( size.isEmpty() )
@@ -3299,7 +3307,7 @@ void QgsRasterMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderCont
     const QgsFeature *f = context.feature();
     if ( f )
     {
-      if ( f->hasGeometry() && f->geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( f->hasGeometry() && f->geometry().type() == Qgis::GeometryType::Point )
       {
         const QgsMapToPixel &m2p = context.renderContext().mapToPixel();
         angle += m2p.mapRotation();
@@ -3356,8 +3364,8 @@ void QgsRasterMarkerSymbolLayer::copyCommonProperties( QgsRasterMarkerSymbolLaye
 
 bool QgsRasterMarkerSymbolLayer::usesMapUnits() const
 {
-  return mSizeUnit == QgsUnitTypes::RenderMapUnits || mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mOffsetUnit == QgsUnitTypes::RenderMapUnits || mOffsetUnit == QgsUnitTypes::RenderMetersInMapUnits;
+  return mSizeUnit == Qgis::RenderUnit::MapUnits || mSizeUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mOffsetUnit == Qgis::RenderUnit::MapUnits || mOffsetUnit == Qgis::RenderUnit::MetersInMapUnits;
 }
 
 QColor QgsRasterMarkerSymbolLayer::color() const
@@ -3420,12 +3428,12 @@ QgsFontMarkerSymbolLayer::QgsFontMarkerSymbolLayer( const QString &fontFamily, Q
   mAngle = angle;
   mSize = pointSize;
   mOrigSize = pointSize;
-  mSizeUnit = QgsUnitTypes::RenderMillimeters;
+  mSizeUnit = Qgis::RenderUnit::Millimeters;
   mOffset = QPointF( 0, 0 );
-  mOffsetUnit = QgsUnitTypes::RenderMillimeters;
+  mOffsetUnit = Qgis::RenderUnit::Millimeters;
   mStrokeColor = DEFAULT_FONTMARKER_BORDERCOLOR;
   mStrokeWidth = 0.0;
-  mStrokeWidthUnit = QgsUnitTypes::RenderMillimeters;
+  mStrokeWidthUnit = Qgis::RenderUnit::Millimeters;
   mPenJoinStyle = DEFAULT_FONTMARKER_JOINSTYLE;
 }
 
@@ -3602,7 +3610,7 @@ void QgsFontMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContex
     const QgsFeature *f = context.feature();
     if ( f )
     {
-      if ( f->hasGeometry() && f->geometry().type() == QgsWkbTypes::PointGeometry )
+      if ( f->hasGeometry() && f->geometry().type() == Qgis::GeometryType::Point )
       {
         const QgsMapToPixel &m2p = context.renderContext().mapToPixel();
         angle += m2p.mapRotation();
@@ -3836,12 +3844,12 @@ void QgsFontMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &e
 
 bool QgsFontMarkerSymbolLayer::usesMapUnits() const
 {
-  return mSizeUnit == QgsUnitTypes::RenderMapUnits || mSizeUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mStrokeWidthUnit == QgsUnitTypes::RenderMapUnits || mStrokeWidthUnit == QgsUnitTypes::RenderMetersInMapUnits
-         || mOffsetUnit == QgsUnitTypes::RenderMapUnits || mOffsetUnit == QgsUnitTypes::RenderMetersInMapUnits;
+  return mSizeUnit == Qgis::RenderUnit::MapUnits || mSizeUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mStrokeWidthUnit == Qgis::RenderUnit::MapUnits || mStrokeWidthUnit == Qgis::RenderUnit::MetersInMapUnits
+         || mOffsetUnit == Qgis::RenderUnit::MapUnits || mOffsetUnit == Qgis::RenderUnit::MetersInMapUnits;
 }
 
-void QgsFontMarkerSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
+void QgsFontMarkerSymbolLayer::setOutputUnit( Qgis::RenderUnit unit )
 {
   QgsMarkerSymbolLayer::setOutputUnit( unit );
   mStrokeWidthUnit = unit;
@@ -3921,7 +3929,7 @@ QgsSymbolLayer *QgsFontMarkerSymbolLayer::createFromSld( QDomElement &element )
 
   double scaleFactor = 1.0;
   const QString uom = element.attribute( QStringLiteral( "uom" ) );
-  QgsUnitTypes::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
+  Qgis::RenderUnit sldUnitSize = QgsSymbolLayerUtils::decodeSldUom( uom, &scaleFactor );
   offset.setX( offset.x() * scaleFactor );
   offset.setY( offset.y() * scaleFactor );
   size = size * scaleFactor;

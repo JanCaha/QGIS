@@ -34,9 +34,9 @@
 
 #include "qgis_core.h"
 #include "qgis_sip.h"
-#include "qgssettingsentryimpl.h"
 
 class QgsFeedback;
+class QgsSettingsEntryInteger;
 
 #ifndef SIP_RUN
 #include "qgsconfig.h"
@@ -664,7 +664,7 @@ class CORE_EXPORT QgsNetworkAccessManager : public QNetworkAccessManager
 
 #ifndef SIP_RUN
     //! Settings entry network timeout
-    static const inline QgsSettingsEntryInteger settingsNetworkTimeout = QgsSettingsEntryInteger( QStringLiteral( "networkTimeout" ), QgsSettings::Prefix::QGIS_NETWORKANDPROXY, 60000, QObject::tr( "Network timeout" ) );
+    static const QgsSettingsEntryInteger *settingsNetworkTimeout;
 #endif
 
     /**

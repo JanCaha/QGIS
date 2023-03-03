@@ -33,9 +33,10 @@ struct QgsMaskedLayer
   bool hasEffects = false;
 
   // masked symbol layers
-  QSet<QgsSymbolLayerId> symbolLayerIds;
+  QSet<QString> symbolLayerIds;
 };
 
+//! masked layers where key is the layer id
 typedef QHash<QString, QgsMaskedLayer> QgsMaskedLayers;
 
 #endif
@@ -182,6 +183,14 @@ class CORE_EXPORT QgsVectorLayerUtils
      * \since QGIS 3.6
      */
     static QVariant createUniqueValueFromCache( const QgsVectorLayer *layer, int fieldIndex, const QSet<QVariant> &existingValues, const QVariant &seed = QVariant() );
+
+    /**
+     * Returns TRUE if a feature attribute has active constraints.
+     * \param layer the vector layer from which field constraints will be checked for
+     * \param attributeIndex the attribute index
+     * \since QGIS 3.30
+     */
+    static bool attributeHasConstraints( const QgsVectorLayer *layer, int attributeIndex );
 
     /**
      * Tests a feature attribute value to check whether it passes all constraints which are present on the corresponding field.

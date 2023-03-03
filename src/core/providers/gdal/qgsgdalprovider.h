@@ -34,8 +34,6 @@
 #include <QMap>
 #include <QVector>
 
-#include "qgis_sip.h"
-
 ///@cond PRIVATE
 #define SIP_NO_FILE
 
@@ -136,7 +134,7 @@ class QgsGdalProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
     QgsCoordinateReferenceSystem crs() const override;
     QgsRectangle extent() const override;
     bool isValid() const override;
-    QgsRasterIdentifyResult identify( const QgsPointXY &point, QgsRaster::IdentifyFormat format, const QgsRectangle &boundingBox = QgsRectangle(), int width = 0, int height = 0, int dpi = 96 ) override;
+    QgsRasterIdentifyResult identify( const QgsPointXY &point, Qgis::RasterIdentifyFormat format, const QgsRectangle &boundingBox = QgsRectangle(), int width = 0, int height = 0, int dpi = 96 ) override;
     double sample( const QgsPointXY &point, int band, bool *ok = nullptr, const QgsRectangle &boundingBox = QgsRectangle(), int width = 0, int height = 0, int dpi = 96 ) override;
     QString lastErrorTitle() override;
     QString lastError() override;
@@ -144,7 +142,7 @@ class QgsGdalProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
     Qgis::DataType dataType( int bandNo ) const override;
     Qgis::DataType sourceDataType( int bandNo ) const override;
     int bandCount() const override;
-    int colorInterpretation( int bandNo ) const override;
+    Qgis::RasterColorInterpretation colorInterpretation( int bandNo ) const override;
     int xBlockSize() const override;
     int yBlockSize() const override;
     int xSize() const override;
@@ -193,7 +191,7 @@ class QgsGdalProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
 
     QString buildPyramids( const QList<QgsRasterPyramid> &rasterPyramidList,
                            const QString &resamplingMethod = "NEAREST",
-                           QgsRaster::RasterPyramidsFormat format = QgsRaster::PyramidsGTiff,
+                           Qgis::RasterPyramidFormat format = Qgis::RasterPyramidFormat::GeoTiff,
                            const QStringList &createOptions = QStringList(),
                            QgsRasterBlockFeedback *feedback = nullptr ) override;
     QList<QgsRasterPyramid> buildPyramidList( const QList<int> &overviewList = QList<int>() ) override;
@@ -208,7 +206,7 @@ class QgsGdalProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
     bool remove() override;
 
     QString validateCreationOptions( const QStringList &createOptions, const QString &format ) override;
-    QString validatePyramidsConfigOptions( QgsRaster::RasterPyramidsFormat pyramidsFormat,
+    QString validatePyramidsConfigOptions( Qgis::RasterPyramidFormat pyramidsFormat,
                                            const QStringList &configOptions, const QString &fileFormat ) override;
 
     QgsPoint transformCoordinates( const QgsPoint &point, TransformType type ) override;
@@ -227,6 +225,11 @@ class QgsGdalProvider final: public QgsRasterDataProvider, QgsGdalProviderBase
 
     //! Open mGdalDataset/mGdalBaseDataset if needed.
     bool initIfNeeded();
+
+    //! Load attribute tables
+    bool readNativeAttributeTable( QString *errorMessage = nullptr ) override;
+
+    bool writeNativeAttributeTable( QString *errorMessage = nullptr ) override;  //#spellok
 
     // There are 2 cloning mechanisms.
     // * Either the cloned provider use the same GDAL handles as the main provider
@@ -371,6 +374,8 @@ class QgsGdalProviderMetadata final: public QgsProviderMetadata
     QIcon icon() const override;
     QVariantMap decodeUri( const QString &uri ) const override;
     QString encodeUri( const QVariantMap &parts ) const override;
+    QString absoluteToRelativeUri( const QString &uri, const QgsReadWriteContext &context ) const override;
+    QString relativeToAbsoluteUri( const QString &uri, const QgsReadWriteContext &context ) const override;
     bool uriIsBlocklisted( const QString &uri ) const override;
     QgsGdalProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() ) override;
     QgsGdalProvider *createRasterDataProvider(
@@ -389,7 +394,7 @@ class QgsGdalProviderMetadata final: public QgsProviderMetadata
     ProviderCapabilities providerCapabilities() const override;
     QList< QgsProviderSublayerDetails > querySublayers( const QString &uri, Qgis::SublayerQueryFlags flags = Qgis::SublayerQueryFlags(), QgsFeedback *feedback = nullptr ) const override;
     QStringList sidecarFilesForUri( const QString &uri ) const override;
-    QList< QgsMapLayerType > supportedLayerTypes() const override;
+    QList< Qgis::LayerType > supportedLayerTypes() const override;
 };
 
 ///@endcond

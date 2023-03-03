@@ -188,7 +188,7 @@ The linestring Z and M type will be set based on the type of the first point in 
                 ml.append( p->m() );
               }
 
-              if ( i == 0 && p->wkbType() == QgsWkbTypes::Point25D )
+              if ( i == 0 && p->wkbType() == Qgis::WkbType::Point25D )
                 is25D = true;
             }
             sipReleaseType( p, sipType_QgsPoint, state );
@@ -363,7 +363,8 @@ corresponds to the last point in the line.
 
 
 
-    double zAt( int index ) const;
+    virtual double zAt( int index ) const;
+
 %Docstring
 Returns the z-coordinate of the specified node in the line string.
 
@@ -391,7 +392,8 @@ corresponds to the last point in the line.
 %End
 
 
-    double mAt( int index ) const;
+    virtual double mAt( int index ) const;
+
 %Docstring
 Returns the m-coordinate of the specified node in the line string.
 
@@ -732,7 +734,7 @@ since otherwise a bug can be introduced (such as the bug fixed for github issue 
     virtual void swapXy();
 
 
-    virtual bool convertTo( QgsWkbTypes::Type type );
+    virtual bool convertTo( Qgis::WkbType type );
 
 
     virtual bool transform( QgsAbstractGeometryTransformer *transformer, QgsFeedback *feedback = 0 );

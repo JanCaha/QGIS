@@ -322,12 +322,21 @@ class CORE_EXPORT QgsRuleBasedRenderer : public QgsFeatureRenderer
         /**
          * Create a rule from the SLD provided in element and for the specified geometry type.
          */
-        static QgsRuleBasedRenderer::Rule *createFromSld( QDomElement &element, QgsWkbTypes::GeometryType geomType ) SIP_FACTORY;
+        static QgsRuleBasedRenderer::Rule *createFromSld( QDomElement &element, Qgis::GeometryType geomType ) SIP_FACTORY;
 
         QDomElement save( QDomDocument &doc, QgsSymbolMap &symbolMap ) const;
 
         //! prepare the rule for rendering and its children (build active children array)
         bool startRender( QgsRenderContext &context, const QgsFields &fields, QString &filter );
+
+        /**
+         * Returns TRUE if the rule has any active children.
+         *
+         * \note Must be called after startRender()
+         *
+         * \since QGIS 3.30
+         */
+        bool hasActiveChildren() const;
 
         //! Gets all used z-levels from this rule and children
         QSet<int> collectZLevels();
@@ -383,10 +392,11 @@ class CORE_EXPORT QgsRuleBasedRenderer : public QgsFeatureRenderer
          *
          * \param ruleElem  The XML rule element
          * \param symbolMap Symbol map
+         * \param reuseId set to TRUE to create an exact copy of the original symbol or FALSE to create a new rule with the same parameters as the original but a new unique ruleKey(). (Since QGIS 3.30)
          *
          * \returns A new rule
          */
-        static QgsRuleBasedRenderer::Rule *create( QDomElement &ruleElem, QgsSymbolMap &symbolMap ) SIP_FACTORY;
+        static QgsRuleBasedRenderer::Rule *create( QDomElement &ruleElem, QgsSymbolMap &symbolMap, bool reuseId = true ) SIP_FACTORY;
 
         /**
          * Returns all children rules of this rule
@@ -509,7 +519,7 @@ class CORE_EXPORT QgsRuleBasedRenderer : public QgsFeatureRenderer
     bool renderFeature( const QgsFeature &feature, QgsRenderContext &context, int layer = -1, bool selected = false, bool drawVertexMarker = false ) override SIP_THROW( QgsCsException );
 
     void startRender( QgsRenderContext &context, const QgsFields &fields ) override;
-
+    bool canSkipRender() override;
     void stopRender( QgsRenderContext &context ) override;
 
     QString filter( const QgsFields &fields = QgsFields() ) override;
@@ -522,7 +532,10 @@ class CORE_EXPORT QgsRuleBasedRenderer : public QgsFeatureRenderer
 
     void toSld( QDomDocument &doc, QDomElement &element, const QVariantMap &props = QVariantMap() ) const override;
 
-    static QgsFeatureRenderer *createFromSld( QDomElement &element, QgsWkbTypes::GeometryType geomType ) SIP_FACTORY;
+    /**
+     * Creates a new rule based renderer from an SLD XML element.
+     */
+    static QgsFeatureRenderer *createFromSld( QDomElement &element, Qgis::GeometryType geomType ) SIP_FACTORY;
 
     QgsSymbolList symbols( QgsRenderContext &context ) const override;
 

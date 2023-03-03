@@ -32,8 +32,8 @@
 
 //qgis includes
 #include "qgis_sip.h"
+#include "qgis.h"
 #include "qgsconfig.h"
-#include "qgsunittypes.h"
 #include "qgsrectangle.h"
 #include "qgssqliteutils.h"
 
@@ -212,7 +212,7 @@ class CORE_EXPORT QgsCoordinateReferenceSystem
 {
     Q_GADGET
 
-    Q_PROPERTY( QgsUnitTypes::DistanceUnit mapUnits READ mapUnits )
+    Q_PROPERTY( Qgis::DistanceUnit mapUnits READ mapUnits )
     Q_PROPERTY( bool isGeographic READ isGeographic )
     Q_PROPERTY( QString authid READ authid )
     Q_PROPERTY( QString description READ description )
@@ -889,7 +889,7 @@ class CORE_EXPORT QgsCoordinateReferenceSystem
     /**
      * Returns the units for the projection used by the CRS.
      */
-    QgsUnitTypes::DistanceUnit mapUnits() const;
+    Qgis::DistanceUnit mapUnits() const;
 
     /**
      * Returns the approximate bounds for the region the CRS is usable within.
@@ -900,6 +900,14 @@ class CORE_EXPORT QgsCoordinateReferenceSystem
      * \since QGIS 3.0
      */
     QgsRectangle bounds() const;
+
+    /**
+     * Returns the crs as OGC URI (format: http://www.opengis.net/def/crs/OGC/1.3/CRS84)
+     * Returns an empty string on failure.
+     *
+     * \since QGIS 3.30
+     */
+    QString toOgcUri() const;
 
     // Mutators -----------------------------------
 

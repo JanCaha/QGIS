@@ -29,6 +29,7 @@
 #include "qgsrendererrasterpropertieswidget.h"
 #include "qgsrenderermeshpropertieswidget.h"
 #include "qgsrasterhistogramwidget.h"
+#include "qgsrasterattributetablewidget.h"
 #include "qgsrasterrenderer.h"
 #include "qgsrasterrendererwidget.h"
 #include "qgsmapcanvas.h"
@@ -36,7 +37,6 @@
 #include "qgsmaplayerstylemanager.h"
 #include "qgsstyle.h"
 #include "qgsvectorlayer.h"
-#include "qgspointcloudlayer.h"
 #include "qgsvectortilelayer.h"
 #include "qgsvectortilebasiclabelingwidget.h"
 #include "qgsvectortilebasicrendererwidget.h"
@@ -50,7 +50,6 @@
 #include "qgsrasterlayer.h"
 #include "qgsmaplayerconfigwidget.h"
 #include "qgsmaplayerstylemanagerwidget.h"
-#include "qgsruntimeprofiler.h"
 #include "qgsrasterminmaxwidget.h"
 #include "qgisapp.h"
 #include "qgssymbolwidgetcontext.h"
@@ -194,7 +193,7 @@ void QgsLayerStylingWidget::setLayer( QgsMapLayer *layer )
 
   switch ( layer->type() )
   {
-    case QgsMapLayerType::VectorLayer:
+    case Qgis::LayerType::Vector:
     {
       QListWidgetItem *symbolItem = new QListWidgetItem( QgsApplication::getThemeIcon( QStringLiteral( "propertyicons/symbology.svg" ) ), QString() );
       symbolItem->setData( Qt::UserRole, Symbology );
@@ -217,7 +216,7 @@ void QgsLayerStylingWidget::setLayer( QgsMapLayer *layer )
 #endif
       break;
     }
-    case QgsMapLayerType::RasterLayer:
+    case Qgis::LayerType::Raster:
     {
       QListWidgetItem *symbolItem = new QListWidgetItem( QgsApplication::getThemeIcon( QStringLiteral( "propertyicons/symbology.svg" ) ), QString() );
       symbolItem->setData( Qt::UserRole, Symbology );
@@ -235,9 +234,14 @@ void QgsLayerStylingWidget::setLayer( QgsMapLayer *layer )
         mOptionsListWidget->addItem( histogramItem );
         histogramItem->setToolTip( tr( "Histogram" ) );
       }
+
+      QListWidgetItem *rasterAttributeTableItem = new QListWidgetItem( QgsApplication::getThemeIcon( QStringLiteral( "propertyicons/attributes.svg" ) ), QString() );
+      rasterAttributeTableItem->setToolTip( tr( "Raster Attribute Tables" ) );
+      rasterAttributeTableItem->setData( Qt::UserRole, RasterAttributeTables );
+      mOptionsListWidget->addItem( rasterAttributeTableItem );
       break;
     }
-    case QgsMapLayerType::MeshLayer:
+    case Qgis::LayerType::Mesh:
     {
       QListWidgetItem *symbolItem = new QListWidgetItem( QgsApplication::getThemeIcon( QStringLiteral( "propertyicons/symbology.svg" ) ), QString() );
       symbolItem->setData( Qt::UserRole, Symbology );
@@ -253,7 +257,7 @@ void QgsLayerStylingWidget::setLayer( QgsMapLayer *layer )
       break;
     }
 
-    case QgsMapLayerType::VectorTileLayer:
+    case Qgis::LayerType::VectorTile:
     {
       QListWidgetItem *symbolItem = new QListWidgetItem( QgsApplication::getThemeIcon( QStringLiteral( "propertyicons/symbology.svg" ) ), QString() );
       symbolItem->setData( Qt::UserRole, Symbology );
@@ -266,10 +270,10 @@ void QgsLayerStylingWidget::setLayer( QgsMapLayer *layer )
       break;
     }
 
-    case QgsMapLayerType::PointCloudLayer:
-    case QgsMapLayerType::PluginLayer:
-    case QgsMapLayerType::AnnotationLayer:
-    case QgsMapLayerType::GroupLayer:
+    case Qgis::LayerType::PointCloud:
+    case Qgis::LayerType::Plugin:
+    case Qgis::LayerType::Annotation:
+    case Qgis::LayerType::Group:
       break;
   }
 
@@ -462,6 +466,8 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
       panel->setMapLayerConfigWidgetContext( mContext );
       connect( panel, &QgsPanelWidget::widgetChanged, this, &QgsLayerStylingWidget::autoApply );
       mWidgetStack->setMainPanel( panel );
+      mBlockAutoApply = false;
+      return;
     }
   }
 
@@ -474,7 +480,7 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
   {
     switch ( mCurrentLayer->type() )
     {
-      case QgsMapLayerType::VectorLayer:
+      case Qgis::LayerType::Vector:
       {
         QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mCurrentLayer );
 
@@ -539,7 +545,7 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
         break;
       }
 
-      case QgsMapLayerType::RasterLayer:
+      case Qgis::LayerType::Raster:
       {
         QgsRasterLayer *rlayer = qobject_cast<QgsRasterLayer *>( mCurrentLayer );
         bool hasMinMaxCollapsedState = false;
@@ -618,13 +624,25 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
             }
             break;
           }
+          case 3: // Attribute Tables
+          {
+            if ( !mRasterAttributeTableWidget )
+            {
+              mRasterAttributeTableWidget = new QgsRasterAttributeTableWidget( mWidgetStack, rlayer );
+              mRasterAttributeTableWidget->setDockMode( true );
+            }
+
+            mWidgetStack->setMainPanel( mRasterAttributeTableWidget );
+
+            break;
+          }
           default:
             break;
         }
         break;
       }
 
-      case QgsMapLayerType::MeshLayer:
+      case Qgis::LayerType::Mesh:
       {
         QgsMeshLayer *meshLayer = qobject_cast<QgsMeshLayer *>( mCurrentLayer );
         switch ( row )
@@ -662,7 +680,7 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
         break;
       }
 
-      case QgsMapLayerType::VectorTileLayer:
+      case Qgis::LayerType::VectorTile:
       {
         QgsVectorTileLayer *vtLayer = qobject_cast<QgsVectorTileLayer *>( mCurrentLayer );
         switch ( row )
@@ -689,14 +707,14 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
         break;
       }
 
-      case QgsMapLayerType::PointCloudLayer:
-      case QgsMapLayerType::AnnotationLayer:
-      case QgsMapLayerType::GroupLayer:
+      case Qgis::LayerType::PointCloud:
+      case Qgis::LayerType::Annotation:
+      case Qgis::LayerType::Group:
       {
         break;
       }
 
-      case QgsMapLayerType::PluginLayer:
+      case Qgis::LayerType::Plugin:
       {
         mStackedWidget->setCurrentIndex( mNotSupportedPage );
         break;
@@ -724,7 +742,10 @@ void QgsLayerStylingWidget::setAnnotationItem( QgsAnnotationLayer *layer, const 
 {
   mContext.setAnnotationId( itemId );
   if ( layer )
+  {
     setLayer( layer );
+    mStackedWidget->setCurrentIndex( mLayerPage );
+  }
 
   if ( QgsMapLayerConfigWidget *configWidget = qobject_cast< QgsMapLayerConfigWidget * >( mWidgetStack->mainPanel() ) )
   {
@@ -877,16 +898,16 @@ bool QgsLayerStyleManagerWidgetFactory::supportsLayer( QgsMapLayer *layer ) cons
 {
   switch ( layer->type() )
   {
-    case QgsMapLayerType::VectorLayer:
-    case QgsMapLayerType::RasterLayer:
-    case QgsMapLayerType::MeshLayer:
+    case Qgis::LayerType::Vector:
+    case Qgis::LayerType::Raster:
+    case Qgis::LayerType::Mesh:
       return true;
 
-    case QgsMapLayerType::VectorTileLayer:
-    case QgsMapLayerType::PointCloudLayer:
-    case QgsMapLayerType::PluginLayer:
-    case QgsMapLayerType::AnnotationLayer:
-    case QgsMapLayerType::GroupLayer:
+    case Qgis::LayerType::VectorTile:
+    case Qgis::LayerType::PointCloud:
+    case Qgis::LayerType::Plugin:
+    case Qgis::LayerType::Annotation:
+    case Qgis::LayerType::Group:
       return false;
   }
   return false; // no warnings

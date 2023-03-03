@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QGIS Unit tests for QgsTileMatrix
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -14,16 +13,16 @@ import qgis  # NOQA
 from qgis.PyQt.QtCore import QSize
 from qgis.PyQt.QtXml import QDomDocument
 from qgis.core import (
-    QgsTileXYZ,
-    QgsTileRange,
-    QgsTileMatrix,
+    Qgis,
     QgsCoordinateReferenceSystem,
     QgsPointXY,
-    QgsTileMatrixSet,
-    QgsVectorTileMatrixSet,
     QgsReadWriteContext,
-    Qgis,
     QgsRectangle,
+    QgsTileMatrix,
+    QgsTileMatrixSet,
+    QgsTileRange,
+    QgsTileXYZ,
+    QgsVectorTileMatrixSet,
 )
 from qgis.testing import start_app, unittest
 

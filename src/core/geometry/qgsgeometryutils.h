@@ -455,7 +455,7 @@ class CORE_EXPORT QgsGeometryUtils
      * Returns a LinearRing { uint32 numPoints; Point points[numPoints]; }
      * \note not available in Python bindings
      */
-    static void pointsToWKB( QgsWkbPtr &wkb, const QgsPointSequence &points, bool is3D, bool isMeasure ) SIP_SKIP;
+    static void pointsToWKB( QgsWkbPtr &wkb, const QgsPointSequence &points, bool is3D, bool isMeasure, QgsAbstractGeometry::WkbFlags flags ) SIP_SKIP;
 
     /**
      * Returns a WKT coordinate list
@@ -547,7 +547,7 @@ class CORE_EXPORT QgsGeometryUtils
      * Parses a WKT block of the format "TYPE( contents )" and returns a pair of geometry type to contents ("Pair(wkbType, "contents")")
      * \note not available in Python bindings
      */
-    static QPair<QgsWkbTypes::Type, QString> wktReadBlock( const QString &wkt ) SIP_SKIP;
+    static QPair<Qgis::WkbType, QString> wktReadBlock( const QString &wkt ) SIP_SKIP;
 
     /**
      * Parses a WKT string and returns of list of blocks contained in the WKT.

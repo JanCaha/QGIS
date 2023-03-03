@@ -25,7 +25,6 @@
 #include "qgsexception.h"
 #include "qgsfeedback.h"
 #include "qgsmessagelog.h"
-#include "qgssettings.h"
 #include "qgsvectorlayer.h"
 
 #include "odbc/PreparedStatement.h"
@@ -70,7 +69,7 @@ QgsHanaProviderConnection::QgsHanaProviderConnection( const QString &name )
 {
   mProviderKey = QStringLiteral( "hana" );
   QgsHanaSettings settings( name, true );
-  setUri( settings.toDataSourceUri().uri() );
+  setUri( settings.toDataSourceUri().uri( false ) );
   setCapabilities();
 }
 
@@ -181,7 +180,7 @@ void QgsHanaProviderConnection::setCapabilities()
 void QgsHanaProviderConnection::createVectorTable( const QString &schema,
     const QString &name,
     const QgsFields &fields,
-    QgsWkbTypes::Type wkbType,
+    Qgis::WkbType wkbType,
     const QgsCoordinateReferenceSystem &srs,
     bool overwrite,
     const QMap<QString,
@@ -193,7 +192,7 @@ void QgsHanaProviderConnection::createVectorTable( const QString &schema,
   newUri.setSchema( schema );
   newUri.setTable( name );
   // Set geometry column if it's not aspatial
-  if ( wkbType != QgsWkbTypes::Type::Unknown &&  wkbType != QgsWkbTypes::Type::NoGeometry )
+  if ( wkbType != Qgis::WkbType::Unknown &&  wkbType != Qgis::WkbType::NoGeometry )
   {
     newUri.setGeometryColumn( options->value( QStringLiteral( "geometryColumn" ), QStringLiteral( "geom" ) ).toString() );
   }

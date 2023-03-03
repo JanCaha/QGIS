@@ -18,26 +18,19 @@
 
 #include "qgsapplication.h"
 #include "qgsfields.h"
-#include "qgsfeature.h"
-#include "qgsfeatureiterator.h"
-#include "qgsgeometry.h"
 
 #include "qgslogger.h"
 #include "qgsmessagelog.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsvectorfilewriter.h"
-#include "qgsrenderer.h"
-#include "qgssymbollayer.h"
-#include "qgsvectordataprovider.h"
-#include "qgsvectorlayer.h"
-#include "qgslocalec.h"
-#include "qgsexception.h"
 #include "qgssettings.h"
-#include "qgsgeometryengine.h"
+#include "qgssymbol.h"
+#include "qgssymbollayer.h"
+#include "qgslocalec.h"
+#include "qgsvectorlayer.h"
 #include "qgsproviderregistry.h"
 #include "qgsexpressioncontextutils.h"
 #include "qgsreadwritelocker.h"
-#include "qgssymbol.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -79,7 +72,7 @@ QgsVectorFileWriter::QgsVectorFileWriter(
   const QString &vectorFileName,
   const QString &fileEncoding,
   const QgsFields &fields,
-  QgsWkbTypes::Type geometryType,
+  Qgis::WkbType geometryType,
   const QgsCoordinateReferenceSystem &srs,
   const QString &driverName,
   const QStringList &datasourceOptions,
@@ -105,7 +98,7 @@ QgsVectorFileWriter::QgsVectorFileWriter(
   const QString &vectorFileName,
   const QString &fileEncoding,
   const QgsFields &fields,
-  QgsWkbTypes::Type geometryType,
+  Qgis::WkbType geometryType,
   const QgsCoordinateReferenceSystem &srs,
   const QString &driverName,
   const QStringList &datasourceOptions,
@@ -133,7 +126,7 @@ QgsVectorFileWriter::QgsVectorFileWriter(
 QgsVectorFileWriter *QgsVectorFileWriter::create(
   const QString &fileName,
   const QgsFields &fields,
-  QgsWkbTypes::Type geometryType,
+  Qgis::WkbType geometryType,
   const QgsCoordinateReferenceSystem &srs,
   const QgsCoordinateTransformContext &transformContext,
   const QgsVectorFileWriter::SaveVectorOptions &options,
@@ -164,13 +157,17 @@ bool QgsVectorFileWriter::supportsFeatureStyles( const QString &driverName )
   if ( !driverMetadata )
     return false;
 
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+  return CSLFetchBoolean( driverMetadata, GDAL_DCAP_FEATURE_STYLES_WRITE, false );
+#else
   return CSLFetchBoolean( driverMetadata, GDAL_DCAP_FEATURE_STYLES, false );
+#endif
 }
 
 void QgsVectorFileWriter::init( QString vectorFileName,
                                 QString fileEncoding,
                                 const QgsFields &fields,
-                                QgsWkbTypes::Type geometryType,
+                                Qgis::WkbType geometryType,
                                 QgsCoordinateReferenceSystem srs,
                                 const QString &driverName,
                                 QStringList datasourceOptions,
@@ -470,7 +467,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
         // See logic in GDAL ogr/ogrsf_frmts/gpx/ogrgpxdatasource.cpp ICreateLayer()
         switch ( QgsWkbTypes::flatType( geometryType ) )
         {
-          case QgsWkbTypes::Point:
+          case Qgis::WkbType::Point:
           {
             if ( !EQUAL( layerName.toUtf8().constData(), "track_points" ) &&
                  !EQUAL( layerName.toUtf8().constData(), "route_points" ) )
@@ -480,7 +477,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
           }
           break;
 
-          case QgsWkbTypes::LineString:
+          case Qgis::WkbType::LineString:
           {
             const char *pszForceGPXTrack
               = CSLFetchNameValue( options, "FORCE_GPX_TRACK" );
@@ -492,7 +489,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
           }
           break;
 
-          case QgsWkbTypes::MultiLineString:
+          case Qgis::WkbType::MultiLineString:
           {
             const char *pszForceGPXRoute
               = CSLFetchNameValue( options, "FORCE_GPX_ROUTE" );
@@ -905,7 +902,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
   }
 }
 
-OGRGeometryH QgsVectorFileWriter::createEmptyGeometry( QgsWkbTypes::Type wkbType )
+OGRGeometryH QgsVectorFileWriter::createEmptyGeometry( Qgis::WkbType wkbType )
 {
   return OGR_G_CreateGeometry( ogrTypeFromWkbType( wkbType ) );
 }
@@ -919,6 +916,57 @@ class QgsVectorFileWriterMetadataContainer
     {
       QMap<QString, QgsVectorFileWriter::Option *> datasetOptions;
       QMap<QString, QgsVectorFileWriter::Option *> layerOptions;
+
+      // Arrow
+      datasetOptions.clear();
+      layerOptions.clear();
+
+      layerOptions.insert( QStringLiteral( "COMPRESSION" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Compression method." ),
+                             QStringList()
+                             << QStringLiteral( "UNCOMPRESSED" )
+                             << QStringLiteral( "ZSTD" )
+                             << QStringLiteral( "LZ4" ),
+                             QStringLiteral( "LZ4" ), // Default value
+                             false // Allow None
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_ENCODING" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Geometry encoding." ),
+                             QStringList()
+                             << QStringLiteral( "GEOARROW" )
+                             << QStringLiteral( "WKB" )
+                             << QStringLiteral( "WKT" ),
+                             QStringLiteral( "GEOARROW" ), // Default value
+                             false // Allow None
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "BATCH_SIZE" ), new QgsVectorFileWriter::IntOption(
+                             QObject::tr( "Maximum number of rows per batch." ),
+                             65536 // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "FID" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Name for the feature identifier column" ),
+                             QString()  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_NAME" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Name for the geometry column" ),
+                             QStringLiteral( "geometry" )  // Default value
+                           ) );
+
+      driverMetadata.insert( QStringLiteral( "Arrow" ),
+                             QgsVectorFileWriter::MetaData(
+                               QStringLiteral( "(Geo)Arrow" ),
+                               QObject::tr( "(Geo)Arrow" ),
+                               QStringLiteral( "*.arrow *.feather *.arrows *.ipc" ),
+                               QStringLiteral( "arrow" ),
+                               datasetOptions,
+                               layerOptions,
+                               QStringLiteral( "UTF-8" )
+                             )
+                           );
 
       // Arc/Info ASCII Coverage
       datasetOptions.clear();
@@ -2063,7 +2111,82 @@ class QgsVectorFileWriterMetadataContainer
                              )
                            );
 
-      // ESRI FileGDB
+      // ESRI OpenFileGDB
+      datasetOptions.clear();
+      layerOptions.clear();
+
+      layerOptions.insert( QStringLiteral( "FEATURE_DATASET" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "When this option is set, the new layer will be created inside the named "
+                                          "FeatureDataset folder. If the folder does not already exist, it will be created." ),
+                             QString()  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "LAYER_ALIAS" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Set layer name alias." ),
+                             QString()  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_NAME" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Set name of geometry column in new layer. Defaults to 'SHAPE'." ),
+                             QStringLiteral( "SHAPE" )  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_NULLABLE" ), new QgsVectorFileWriter::BoolOption(
+                             QObject::tr( "Whether the values of the geometry column can be NULL. Can be set to NO so that geometry is required. Default to 'YES'." ),
+                             true  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "FID" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Name of the OID column to create. Defaults to 'OBJECTID'." ),
+                             QStringLiteral( "OBJECTID" )  // Default value
+                           ) );
+
+      // TODO missing options -- requires double option type
+      // XYTOLERANCE
+      // ZTOLERANCE
+      // MTOLERANCE
+      // XORIGIN
+      // YORIGIN
+      // ZORIGIN
+      // MORIGIN
+      // XYSCALE
+      // ZSCALE
+      // ZORIGIN
+
+      layerOptions.insert( QStringLiteral( "COLUMN_TYPES" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "A list of strings of format field_name=fgdb_field_type (separated by comma) to force the FileGDB column type of fields to be created." ),
+                             QString( )  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "DOCUMENTATION" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "XML documentation for the layer." ),
+                             QString( )  // Default value
+                           ) );
+      layerOptions.insert( QStringLiteral( "CONFIGURATION_KEYWORD" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Customize how data is stored. By default text in UTF-8 and data up to 1TB." ),
+      {QStringLiteral( "DEFAULTS" ), QStringLiteral( "MAX_FILE_SIZE_4GB" ), QStringLiteral( "MAX_FILE_SIZE_256TB" )},
+      QStringLiteral( "DEFAULTS" ), // Default value
+      false // Allow None
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "CREATE_SHAPE_AREA_AND_LENGTH_FIELDS" ), new QgsVectorFileWriter::BoolOption(
+                             QObject::tr( " Defaults to NO (through CreateLayer() API). When this option is set, a Shape_Area and Shape_Length special fields will be created for polygonal layers (Shape_Length only for linear layers). These fields will automatically be populated with the feature’s area or length whenever a new feature is added to the dataset or an existing feature is amended. When using ogr2ogr with a source layer that has Shape_Area/Shape_Length special fields, and this option is not explicitly specified, it will be automatically set, so that the resulting FileGeodatabase has those fields properly tagged." ),
+                             false  // Default value
+                           ) );
+
+      driverMetadata.insert( QStringLiteral( "OpenFileGDB" ),
+                             QgsVectorFileWriter::MetaData(
+                               QStringLiteral( "ESRI File Geodatabase" ),
+                               QObject::tr( "ESRI File Geodatabase" ),
+                               QStringLiteral( "*.gdb" ),
+                               QStringLiteral( "gdb" ),
+                               datasetOptions,
+                               layerOptions,
+                               QStringLiteral( "UTF-8" )
+                             )
+                           );
+
+      // ESRI FileGDB (using ESRI FileGDB API SDK)
       datasetOptions.clear();
       layerOptions.clear();
 
@@ -2169,6 +2292,65 @@ class QgsVectorFileWriterMetadataContainer
                                QObject::tr( "Open Document Spreadsheet [ODS]" ),
                                QStringLiteral( "*.ods" ),
                                QStringLiteral( "ods" ),
+                               datasetOptions,
+                               layerOptions,
+                               QStringLiteral( "UTF-8" )
+                             )
+                           );
+
+      // Parquet
+      datasetOptions.clear();
+      layerOptions.clear();
+
+      layerOptions.insert( QStringLiteral( "COMPRESSION" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Compression method." ),
+                             QStringList()
+                             << QStringLiteral( "UNCOMPRESSED" )
+                             << QStringLiteral( "SNAPPY" ),
+                             QStringLiteral( "SNAPPY" ), // Default value
+                             false // Allow None
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_ENCODING" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Geometry encoding." ),
+                             QStringList()
+                             << QStringLiteral( "WKB" )
+                             << QStringLiteral( "WKT" )
+                             << QStringLiteral( "GEOARROW" ),
+                             QStringLiteral( "WKB" ), // Default value
+                             false // Allow None
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "ROW_GROUP_SIZE" ), new QgsVectorFileWriter::IntOption(
+                             QObject::tr( "Maximum number of rows per group." ),
+                             65536 // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "FID" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Name for the feature identifier column" ),
+                             QString()  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "GEOMETRY_NAME" ), new QgsVectorFileWriter::StringOption(
+                             QObject::tr( "Name for the geometry column" ),
+                             QStringLiteral( "geometry" )  // Default value
+                           ) );
+
+      layerOptions.insert( QStringLiteral( "EDGES" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Name of the coordinate system for the edges." ),
+                             QStringList()
+                             << QStringLiteral( "PLANAR" )
+                             << QStringLiteral( "SPHERICAL" ),
+                             QStringLiteral( "PLANAR" ), // Default value
+                             false // Allow None
+                           ) );
+
+      driverMetadata.insert( QStringLiteral( "Parquet" ),
+                             QgsVectorFileWriter::MetaData(
+                               QStringLiteral( "(Geo)Parquet" ),
+                               QObject::tr( "(Geo)Parquet" ),
+                               QStringLiteral( "*.parquet" ),
+                               QStringLiteral( "parquet" ),
                                datasetOptions,
                                layerOptions,
                                QStringLiteral( "UTF-8" )
@@ -2323,12 +2505,12 @@ QStringList QgsVectorFileWriter::defaultLayerOptions( const QString &driverName 
   return concatenateOptions( metadata.layerOptions );
 }
 
-OGRwkbGeometryType QgsVectorFileWriter::ogrTypeFromWkbType( QgsWkbTypes::Type type )
+OGRwkbGeometryType QgsVectorFileWriter::ogrTypeFromWkbType( Qgis::WkbType type )
 {
 
   OGRwkbGeometryType ogrType = static_cast<OGRwkbGeometryType>( type );
 
-  if ( type >= QgsWkbTypes::PointZ && type <= QgsWkbTypes::GeometryCollectionZ )
+  if ( type >= Qgis::WkbType::PointZ && type <= Qgis::WkbType::GeometryCollectionZ )
   {
     ogrType = static_cast<OGRwkbGeometryType>( QgsWkbTypes::to25D( type ) );
   }
@@ -2347,7 +2529,7 @@ QString QgsVectorFileWriter::errorMessage() const
 
 bool QgsVectorFileWriter::addFeature( QgsFeature &feature, QgsFeatureSink::Flags )
 {
-  return addFeatureWithStyle( feature, nullptr, QgsUnitTypes::DistanceMeters );
+  return addFeatureWithStyle( feature, nullptr, Qgis::DistanceUnit::Meters );
 }
 
 bool QgsVectorFileWriter::addFeatures( QgsFeatureList &features, QgsFeatureSink::Flags )
@@ -2356,7 +2538,7 @@ bool QgsVectorFileWriter::addFeatures( QgsFeatureList &features, QgsFeatureSink:
   bool result = true;
   for ( ; fIt != features.end(); ++fIt )
   {
-    result = result && addFeatureWithStyle( *fIt, nullptr, QgsUnitTypes::DistanceMeters );
+    result = result && addFeatureWithStyle( *fIt, nullptr, Qgis::DistanceUnit::Meters );
   }
   return result;
 }
@@ -2366,7 +2548,7 @@ QString QgsVectorFileWriter::lastError() const
   return mErrorMessage;
 }
 
-bool QgsVectorFileWriter::addFeatureWithStyle( QgsFeature &feature, QgsFeatureRenderer *renderer, QgsUnitTypes::DistanceUnit outputUnit )
+bool QgsVectorFileWriter::addFeatureWithStyle( QgsFeature &feature, QgsFeatureRenderer *renderer, Qgis::DistanceUnit outputUnit )
 {
   // create the feature
   gdal::ogr_feature_unique_ptr poFeature = createFeature( feature );
@@ -2517,14 +2699,17 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
         }
         else
         {
-          OGR_F_SetFieldDateTime( poFeature.get(), ogrField,
-                                  attrValue.toDateTime().date().year(),
-                                  attrValue.toDateTime().date().month(),
-                                  attrValue.toDateTime().date().day(),
-                                  attrValue.toDateTime().time().hour(),
-                                  attrValue.toDateTime().time().minute(),
-                                  attrValue.toDateTime().time().second(),
-                                  0 );
+          const QDateTime dt = attrValue.toDateTime();
+          const QDate date = dt.date();
+          const QTime time = dt.time();
+          OGR_F_SetFieldDateTimeEx( poFeature.get(), ogrField,
+                                    date.year(),
+                                    date.month(),
+                                    date.day(),
+                                    time.hour(),
+                                    time.minute(),
+                                    static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                    QgsOgrUtils::OGRTZFlagFromQt( dt ) );
         }
         break;
       case QVariant::Time:
@@ -2534,12 +2719,13 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
         }
         else
         {
-          OGR_F_SetFieldDateTime( poFeature.get(), ogrField,
-                                  0, 0, 0,
-                                  attrValue.toTime().hour(),
-                                  attrValue.toTime().minute(),
-                                  attrValue.toTime().second(),
-                                  0 );
+          const QTime time = attrValue.toTime();
+          OGR_F_SetFieldDateTimeEx( poFeature.get(), ogrField,
+                                    0, 0, 0,
+                                    time.hour(),
+                                    time.minute(),
+                                    static_cast<float>( time.second() + static_cast< double >( time.msec() ) / 1000 ),
+                                    0 );
         }
         break;
 
@@ -2742,7 +2928,7 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
     }
   }
 
-  if ( mWkbType != QgsWkbTypes::NoGeometry )
+  if ( mWkbType != Qgis::WkbType::NoGeometry )
   {
     if ( feature.hasGeometry() )
     {
@@ -2775,16 +2961,16 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
 
         // If requested WKB type is 25D and geometry WKB type is 3D,
         // we must force the use of 25D.
-        if ( mWkbType >= QgsWkbTypes::Point25D && mWkbType <= QgsWkbTypes::MultiPolygon25D )
+        if ( mWkbType >= Qgis::WkbType::Point25D && mWkbType <= Qgis::WkbType::MultiPolygon25D )
         {
           //ND: I suspect there's a bug here, in that this is NOT converting the geometry's WKB type,
           //so the exported WKB has a different type to what the OGRGeometry is expecting.
           //possibly this is handled already in OGR, but it should be fixed regardless by actually converting
           //geom to the correct WKB type
-          QgsWkbTypes::Type wkbType = geom.wkbType();
-          if ( wkbType >= QgsWkbTypes::PointZ && wkbType <= QgsWkbTypes::MultiPolygonZ )
+          Qgis::WkbType wkbType = geom.wkbType();
+          if ( wkbType >= Qgis::WkbType::PointZ && wkbType <= Qgis::WkbType::MultiPolygonZ )
           {
-            QgsWkbTypes::Type wkbType25d = static_cast<QgsWkbTypes::Type>( geom.wkbType() - QgsWkbTypes::PointZ + QgsWkbTypes::Point25D );
+            Qgis::WkbType wkbType25d = static_cast<Qgis::WkbType>( static_cast< quint32>( geom.wkbType() ) - static_cast< quint32>( Qgis::WkbType::PointZ ) + static_cast<quint32>( Qgis::WkbType::Point25D ) );
             mGeom2 = createEmptyGeometry( wkbType25d );
           }
         }
@@ -2798,9 +2984,19 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
         // add m/z values if not present in the input wkb type -- this is needed for formats which determine
         // geometry type based on features, e.g. geojson
         if ( QgsWkbTypes::hasZ( mWkbType ) && !QgsWkbTypes::hasZ( geom.wkbType() ) )
-          geom.get()->addZValue( 0 );
+        {
+          if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+            geom.get()->addZValue( std::numeric_limits<double>::quiet_NaN() );
+          else
+            geom.get()->addZValue( 0 );
+        }
         if ( QgsWkbTypes::hasM( mWkbType ) && !QgsWkbTypes::hasM( geom.wkbType() ) )
-          geom.get()->addMValue( 0 );
+        {
+          if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+            geom.get()->addMValue( std::numeric_limits<double>::quiet_NaN() );
+          else
+            geom.get()->addMValue( 0 );
+        }
 
         if ( !mGeom2 )
         {
@@ -2824,7 +3020,11 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
           return nullptr;
         }
 
-        QByteArray wkb( geom.asWkb() );
+        QgsAbstractGeometry::WkbFlags wkbFlags;
+        if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+          wkbFlags |= QgsAbstractGeometry::FlagExportNanAsDoubleMin;
+
+        QByteArray wkb( geom.asWkb( wkbFlags ) );
         OGRErr err = OGR_G_ImportFromWkb( mGeom2, reinterpret_cast<unsigned char *>( const_cast<char *>( wkb.constData() ) ), wkb.length() );
         if ( err != OGRERR_NONE )
         {
@@ -2840,7 +3040,11 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
       }
       else // wkb type matches
       {
-        QByteArray wkb( geom.asWkb( QgsAbstractGeometry::FlagExportTrianglesAsPolygons ) );
+        QgsAbstractGeometry::WkbFlags wkbFlags = QgsAbstractGeometry::FlagExportTrianglesAsPolygons;
+        if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+          wkbFlags |= QgsAbstractGeometry::FlagExportNanAsDoubleMin;
+
+        QByteArray wkb( geom.asWkb( wkbFlags ) );
         OGRGeometryH ogrGeom = createEmptyGeometry( mWkbType );
         OGRErr err = OGR_G_ImportFromWkb( ogrGeom, reinterpret_cast<unsigned char *>( const_cast<char *>( wkb.constData() ) ), wkb.length() );
         if ( err != OGRERR_NONE )
@@ -2919,7 +3123,7 @@ QgsVectorFileWriter::writeAsVectorFormat( QgsVectorLayer *layer,
     SymbologyExport symbologyExport,
     double symbologyScale,
     const QgsRectangle *filterExtent,
-    QgsWkbTypes::Type overrideGeometryType,
+    Qgis::WkbType overrideGeometryType,
     bool forceMulti,
     bool includeZ,
     const QgsAttributeList &attributes,
@@ -2966,7 +3170,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::writeAsVectorFormat( QgsVe
     SymbologyExport symbologyExport,
     double symbologyScale,
     const QgsRectangle *filterExtent,
-    QgsWkbTypes::Type overrideGeometryType,
+    Qgis::WkbType overrideGeometryType,
     bool forceMulti,
     bool includeZ,
     const QgsAttributeList &attributes,
@@ -3050,7 +3254,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::prepareWriteAsVectorFormat
   }
 
   details.destWkbType = details.sourceWkbType;
-  if ( options.overrideGeometryType != QgsWkbTypes::Unknown )
+  if ( options.overrideGeometryType != Qgis::WkbType::Unknown )
   {
     details.destWkbType = QgsWkbTypes::flatType( options.overrideGeometryType );
     if ( QgsWkbTypes::hasZ( options.overrideGeometryType ) || options.includeZ )
@@ -3159,7 +3363,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::writeAsVectorFormat( Prepa
 
 QgsVectorFileWriter::WriterError QgsVectorFileWriter::writeAsVectorFormatV2( PreparedWriterDetails &details, const QString &fileName, const QgsCoordinateTransformContext &transformContext, const QgsVectorFileWriter::SaveVectorOptions &options, QString *newFilename, QString *newLayer, QString *errorMessage )
 {
-  QgsWkbTypes::Type destWkbType = details.destWkbType;
+  Qgis::WkbType destWkbType = details.destWkbType;
 
   int lastProgressReport = 0;
   long long total = details.featureCount;
@@ -3269,7 +3473,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::writeAsVectorFormatV2( Pre
   int n = 0, errors = 0;
 
   //unit type
-  QgsUnitTypes::DistanceUnit mapUnits = details.sourceCrs.mapUnits();
+  Qgis::DistanceUnit mapUnits = details.sourceCrs.mapUnits();
   if ( options.ct.isValid() )
   {
     mapUnits = options.ct.destinationCrs().mapUnits();
@@ -3793,7 +3997,7 @@ void QgsVectorFileWriter::createSymbolLayerTable( QgsVectorLayer *vl,  const Qgs
   }
 
   //unit type
-  QgsUnitTypes::DistanceUnit mapUnits = vl->crs().mapUnits();
+  Qgis::DistanceUnit mapUnits = vl->crs().mapUnits();
   if ( ct.isValid() )
   {
     mapUnits = ct.destinationCrs().mapUnits();
@@ -3835,7 +4039,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::exportFeaturesSymbolLevels
   QHash< QgsSymbol *, QList<QgsFeature> > features;
 
   //unit type
-  QgsUnitTypes::DistanceUnit mapUnits = details.sourceCrs.mapUnits();
+  Qgis::DistanceUnit mapUnits = details.sourceCrs.mapUnits();
   if ( ct.isValid() )
   {
     mapUnits = ct.destinationCrs().mapUnits();
@@ -3960,16 +4164,16 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::exportFeaturesSymbolLevels
   return ( nErrors > 0 ) ? QgsVectorFileWriter::ErrFeatureWriteFailed : QgsVectorFileWriter::NoError;
 }
 
-double QgsVectorFileWriter::mmScaleFactor( double scale, QgsUnitTypes::RenderUnit symbolUnits, QgsUnitTypes::DistanceUnit mapUnits )
+double QgsVectorFileWriter::mmScaleFactor( double scale, Qgis::RenderUnit symbolUnits, Qgis::DistanceUnit mapUnits )
 {
-  if ( symbolUnits == QgsUnitTypes::RenderMillimeters )
+  if ( symbolUnits == Qgis::RenderUnit::Millimeters )
   {
     return 1.0;
   }
   else
   {
     //conversion factor map units -> mm
-    if ( mapUnits == QgsUnitTypes::DistanceMeters )
+    if ( mapUnits == Qgis::DistanceUnit::Meters )
     {
       return 1000 / scale;
     }
@@ -3978,15 +4182,15 @@ double QgsVectorFileWriter::mmScaleFactor( double scale, QgsUnitTypes::RenderUni
   return 1.0; //todo: map units
 }
 
-double QgsVectorFileWriter::mapUnitScaleFactor( double scale, QgsUnitTypes::RenderUnit symbolUnits, QgsUnitTypes::DistanceUnit mapUnits )
+double QgsVectorFileWriter::mapUnitScaleFactor( double scale, Qgis::RenderUnit symbolUnits, Qgis::DistanceUnit mapUnits )
 {
-  if ( symbolUnits == QgsUnitTypes::RenderMapUnits )
+  if ( symbolUnits == Qgis::RenderUnit::MapUnits )
   {
     return 1.0;
   }
   else
   {
-    if ( symbolUnits == QgsUnitTypes::RenderMillimeters && mapUnits == QgsUnitTypes::DistanceMeters )
+    if ( symbolUnits == Qgis::RenderUnit::Millimeters && mapUnits == Qgis::DistanceUnit::Meters )
     {
       return scale / 1000;
     }

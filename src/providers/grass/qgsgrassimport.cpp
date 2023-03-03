@@ -22,11 +22,11 @@
 #include "qgsfeature.h"
 #include "qgsfeatureiterator.h"
 #include "qgsgeometry.h"
-#include "qgsproviderregistry.h"
 #include "qgsrasterdataprovider.h"
 #include "qgsrasteriterator.h"
-
 #include "qgsgrassimport.h"
+
+#include <QFileInfo>
 
 extern "C"
 {
@@ -245,16 +245,16 @@ bool QgsGrassRasterImport::import()
   for ( int band = 1; band <= provider->bandCount(); band++ )
   {
     QgsDebugMsg( QString( "band = %1" ).arg( band ) );
-    int colorInterpretation = provider->colorInterpretation( band );
-    if ( colorInterpretation == QgsRaster::RedBand )
+    Qgis::RasterColorInterpretation colorInterpretation = provider->colorInterpretation( band );
+    if ( colorInterpretation == Qgis::RasterColorInterpretation::RedBand )
     {
       redBand = band;
     }
-    else if ( colorInterpretation == QgsRaster::GreenBand )
+    else if ( colorInterpretation == Qgis::RasterColorInterpretation::GreenBand )
     {
       greenBand = band;
     }
-    else if ( colorInterpretation == QgsRaster::BlueBand )
+    else if ( colorInterpretation == Qgis::RasterColorInterpretation::BlueBand )
     {
       blueBand = band;
     }
@@ -267,6 +267,7 @@ bool QgsGrassRasterImport::import()
     {
       case Qgis::DataType::Byte:
       case Qgis::DataType::UInt16:
+      case Qgis::DataType::Int8:
       case Qgis::DataType::Int16:
       case Qgis::DataType::UInt32:
       case Qgis::DataType::Int32:
@@ -593,8 +594,8 @@ bool QgsGrassVectorImport::import()
   QDataStream outStream( mProcess );
   mProcess->setReadChannel( QProcess::StandardOutput );
 
-  QgsWkbTypes::Type wkbType = mProvider->wkbType();
-  bool isPolygon = QgsWkbTypes::singleType( QgsWkbTypes::flatType( wkbType ) ) == QgsWkbTypes::Polygon;
+  Qgis::WkbType wkbType = mProvider->wkbType();
+  bool isPolygon = QgsWkbTypes::singleType( QgsWkbTypes::flatType( wkbType ) ) == Qgis::WkbType::Polygon;
   outStream << ( qint32 )wkbType;
 
   outStream << mProvider->fields();

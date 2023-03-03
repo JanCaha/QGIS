@@ -201,7 +201,7 @@ QVariant QgsProviderSublayerModelSublayerNode::data( int role, int column ) cons
         {
           switch ( mSublayer.type() )
           {
-            case QgsMapLayerType::VectorLayer:
+            case Qgis::LayerType::Vector:
             {
               QString count;
               if ( mSublayer.featureCount() == static_cast< long long >( Qgis::FeatureCountState::Uncounted )
@@ -220,13 +220,13 @@ QVariant QgsProviderSublayerModelSublayerNode::data( int role, int column ) cons
                          count );
             }
 
-            case QgsMapLayerType::RasterLayer:
-            case QgsMapLayerType::PluginLayer:
-            case QgsMapLayerType::MeshLayer:
-            case QgsMapLayerType::VectorTileLayer:
-            case QgsMapLayerType::AnnotationLayer:
-            case QgsMapLayerType::PointCloudLayer:
-            case QgsMapLayerType::GroupLayer:
+            case Qgis::LayerType::Raster:
+            case Qgis::LayerType::Plugin:
+            case Qgis::LayerType::Mesh:
+            case Qgis::LayerType::VectorTile:
+            case Qgis::LayerType::Annotation:
+            case Qgis::LayerType::PointCloud:
+            case Qgis::LayerType::Group:
               return mSublayer.description();
           }
           break;
@@ -240,8 +240,8 @@ QVariant QgsProviderSublayerModelSublayerNode::data( int role, int column ) cons
     case Qt::DecorationRole:
     {
       if ( column == 0 )
-        return mSublayer.type() == QgsMapLayerType::VectorLayer
-               ? ( mSublayer.wkbType() != QgsWkbTypes::Unknown ? QgsIconUtils::iconForWkbType( mSublayer.wkbType() ) : QVariant() )
+        return mSublayer.type() == Qgis::LayerType::Vector
+               ? ( mSublayer.wkbType() != Qgis::WkbType::Unknown ? QgsIconUtils::iconForWkbType( mSublayer.wkbType() ) : QVariant() )
                : QgsIconUtils::iconForLayerType( mSublayer.type() );
       else
         return QVariant();
@@ -272,7 +272,7 @@ QVariant QgsProviderSublayerModelSublayerNode::data( int role, int column ) cons
       return mSublayer.featureCount();
 
     case static_cast< int >( QgsProviderSublayerModel::Role::WkbType ):
-      return mSublayer.wkbType();
+      return static_cast< quint32>( mSublayer.wkbType() );
 
     case static_cast< int >( QgsProviderSublayerModel::Role::GeometryColumnName ):
       return mSublayer.geometryColumnName();
@@ -656,19 +656,24 @@ bool QgsProviderSublayerProxyModel::filterAcceptsRow( int source_row, const QMod
   if ( !mIncludeSystemTables && static_cast< Qgis::SublayerFlags >( sourceModel()->data( sourceIndex, static_cast< int >( QgsProviderSublayerModel::Role::Flags ) ).toInt() ) & Qgis::SublayerFlag::SystemTable )
     return false;
 
+  if ( !mIncludeEmptyLayers && sourceModel()->data( sourceIndex, static_cast< int >( QgsProviderSublayerModel::Role::FeatureCount ) ) == 0 )
+    return false;
+
   if ( mFilterString.trimmed().isEmpty() )
     return true;
 
   if ( sourceModel()->data( sourceIndex, static_cast< int >( QgsProviderSublayerModel::Role::Name ) ).toString().contains( mFilterString, Qt::CaseInsensitive ) )
     return true;
 
-  if ( sourceModel()->data( sourceIndex, static_cast< int >( QgsProviderSublayerModel::Role::Description ) ).toString().contains( mFilterString, Qt::CaseInsensitive ) )
+  // check against the Description column's display role as it might be different from QgsProviderSublayerModel::Role::Description
+  const QModelIndex descriptionColumnIndex = sourceModel()->index( source_row, 1, source_parent );
+  if ( sourceModel()->data( descriptionColumnIndex, static_cast< int >( Qt::DisplayRole ) ).toString().contains( mFilterString, Qt::CaseInsensitive ) )
     return true;
 
   const QVariant wkbTypeVariant =  sourceModel()->data( sourceIndex, static_cast< int >( QgsProviderSublayerModel::Role::WkbType ) );
   if ( wkbTypeVariant.isValid() )
   {
-    const QgsWkbTypes::Type wkbType = static_cast< QgsWkbTypes::Type >( wkbTypeVariant.toInt() );
+    const Qgis::WkbType wkbType = static_cast< Qgis::WkbType >( wkbTypeVariant.toUInt() );
     if ( QgsWkbTypes::displayString( wkbType ).contains( mFilterString, Qt::CaseInsensitive ) )
       return true;
   }
@@ -700,6 +705,17 @@ bool QgsProviderSublayerProxyModel::includeSystemTables() const
 void QgsProviderSublayerProxyModel::setIncludeSystemTables( bool include )
 {
   mIncludeSystemTables = include;
+  invalidateFilter();
+}
+
+bool QgsProviderSublayerProxyModel::includeEmptyLayers() const
+{
+  return mIncludeEmptyLayers;
+}
+
+void QgsProviderSublayerProxyModel::setIncludeEmptyLayers( bool include )
+{
+  mIncludeEmptyLayers = include;
   invalidateFilter();
 }
 

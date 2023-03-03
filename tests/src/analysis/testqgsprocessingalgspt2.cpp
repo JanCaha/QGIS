@@ -117,6 +117,7 @@ class TestQgsProcessingAlgsPt2: public QObject
 
     void splitVectorLayer();
     void buffer();
+    void splitWithLines();
 
   private:
 
@@ -568,7 +569,7 @@ void TestQgsProcessingAlgsPt2::exportMeshVertices()
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( resultLayer );
   QVERIFY( resultLayer->isValid() );
-  QVERIFY( resultLayer->geometryType() == QgsWkbTypes::PointGeometry );
+  QVERIFY( resultLayer->geometryType() == Qgis::GeometryType::Point );
   QCOMPARE( resultLayer->featureCount(), 5l );
   QCOMPARE( resultLayer->fields().count(), 5 );
   QCOMPARE( resultLayer->fields().at( 0 ).name(), QStringLiteral( "VertexScalarDataset" ) );
@@ -650,7 +651,7 @@ void TestQgsProcessingAlgsPt2::exportMeshFaces()
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( resultLayer );
   QVERIFY( resultLayer->isValid() );
-  QVERIFY( resultLayer->geometryType() == QgsWkbTypes::PolygonGeometry );
+  QVERIFY( resultLayer->geometryType() == Qgis::GeometryType::Polygon );
   QCOMPARE( resultLayer->featureCount(), 2l );
   QCOMPARE( resultLayer->fields().count(), 5 );
   QCOMPARE( resultLayer->fields().at( 0 ).name(), QStringLiteral( "FaceScalarDataset" ) );
@@ -711,7 +712,7 @@ void TestQgsProcessingAlgsPt2::exportMeshEdges()
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( resultLayer );
   QVERIFY( resultLayer->isValid() );
-  QVERIFY( resultLayer->geometryType() == QgsWkbTypes::LineGeometry );
+  QVERIFY( resultLayer->geometryType() == Qgis::GeometryType::Line );
   QCOMPARE( resultLayer->featureCount(), 3l );
   QCOMPARE( resultLayer->fields().count(), 5 );
   QCOMPARE( resultLayer->fields().at( 0 ).name(), QStringLiteral( "EdgeScalarDataset" ) );
@@ -786,7 +787,7 @@ void TestQgsProcessingAlgsPt2::exportMeshOnGrid()
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( resultLayer );
   QVERIFY( resultLayer->isValid() );
-  QVERIFY( resultLayer->geometryType() == QgsWkbTypes::PointGeometry );
+  QVERIFY( resultLayer->geometryType() == Qgis::GeometryType::Point );
   QCOMPARE( resultLayer->featureCount(), 205l );
   QCOMPARE( resultLayer->fields().count(), 21 );
   QStringList fieldsName;
@@ -1406,7 +1407,7 @@ void TestQgsProcessingAlgsPt2::convertGpsData()
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT_LAYER" ) ).toString() ) );
   QVERIFY( resultLayer );
   QCOMPARE( resultLayer->providerType(), QStringLiteral( "gpx" ) );
-  QCOMPARE( resultLayer->wkbType(), QgsWkbTypes::LineString );
+  QCOMPARE( resultLayer->wkbType(), Qgis::WkbType::LineString );
   QCOMPARE( resultLayer->featureCount(), 1LL );
 
   // algorithm should also run when given the description for a format, not the format name
@@ -1417,7 +1418,7 @@ void TestQgsProcessingAlgsPt2::convertGpsData()
   resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT_LAYER" ) ).toString() ) );
   QVERIFY( resultLayer );
   QCOMPARE( resultLayer->providerType(), QStringLiteral( "gpx" ) );
-  QCOMPARE( resultLayer->wkbType(), QgsWkbTypes::LineString );
+  QCOMPARE( resultLayer->wkbType(), Qgis::WkbType::LineString );
   QCOMPARE( resultLayer->featureCount(), 1LL );
 
   // try with a format which doesn't exist
@@ -1690,7 +1691,7 @@ void TestQgsProcessingAlgsPt2::extractLabels()
 
   QgsVectorLayer *resultLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( resultLayer );
-  QCOMPARE( resultLayer->wkbType(), QgsWkbTypes::Point );
+  QCOMPARE( resultLayer->wkbType(), Qgis::WkbType::Point );
   QCOMPARE( resultLayer->featureCount(), 17 );
 
   QgsFeature feature = resultLayer->getFeature( 1 );
@@ -1781,7 +1782,7 @@ void TestQgsProcessingAlgsPt2::buffer()
   QVERIFY( !results.value( QStringLiteral( "OUTPUT" ) ).toString().isEmpty() );
   QgsVectorLayer *bufferedLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( bufferedLayer->isValid() );
-  QCOMPARE( bufferedLayer->wkbType(), QgsWkbTypes::MultiPolygon );
+  QCOMPARE( bufferedLayer->wkbType(), Qgis::WkbType::MultiPolygon );
   QCOMPARE( bufferedLayer->featureCount(), layer->featureCount() );
 
   // buffering empty layer with dissolve should produce an empty layer
@@ -1794,8 +1795,94 @@ void TestQgsProcessingAlgsPt2::buffer()
   QVERIFY( !results.value( QStringLiteral( "OUTPUT" ) ).toString().isEmpty() );
   bufferedLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
   QVERIFY( bufferedLayer->isValid() );
-  QCOMPARE( bufferedLayer->wkbType(), QgsWkbTypes::MultiPolygon );
+  QCOMPARE( bufferedLayer->wkbType(), Qgis::WkbType::MultiPolygon );
   QCOMPARE( bufferedLayer->featureCount(), layer->featureCount() );
+}
+
+void TestQgsProcessingAlgsPt2::splitWithLines()
+{
+  QgsFeature l1_1, l1_2, l2_1, l2_2, p1_1, p1_2, p2_1, p2_2;
+  QgsVectorLayer *lineLayer1 = new QgsVectorLayer( QStringLiteral( "MultiLineString?crs=epsg:4326" ), QStringLiteral( "l1" ), QStringLiteral( "memory" ) );
+  QVERIFY( lineLayer1->isValid() );
+  l1_1.setGeometry( QgsGeometry::fromWkt( "MultiLineString ((19 40, 26 40),(20 39, 25 39))" ) );
+  l1_2.setGeometry( QgsGeometry::fromWkt( "MultiLineString ((19 35, 26 35))" ) );
+  lineLayer1->dataProvider()->addFeature( l1_1 );
+  lineLayer1->dataProvider()->addFeature( l1_2 );
+  QgsVectorLayer *lineLayer2 = new QgsVectorLayer( QStringLiteral( "MultiLineString?crs=epsg:4326" ), QStringLiteral( "l2" ), QStringLiteral( "memory" ) );
+  QVERIFY( lineLayer2->isValid() );
+  l2_1.setGeometry( QgsGeometry::fromWkt( "MultiLineString ((20 42, 20 34, 23 42))" ) );
+  l2_2.setGeometry( QgsGeometry::fromWkt( "MultiLineString ((21 42, 21 34),(23 42, 23 34, 25 42))" ) );
+  lineLayer2->dataProvider()->addFeature( l2_1 );
+  lineLayer2->dataProvider()->addFeature( l2_2 );
+  QgsVectorLayer *polygonLayer1 = new QgsVectorLayer( QStringLiteral( "MultiPolygon?crs=epsg:4326" ), QStringLiteral( "p1" ), QStringLiteral( "memory" ) );
+  QVERIFY( polygonLayer1->isValid() );
+  p1_1.setGeometry( QgsGeometry::fromWkt( "MultiPolygon (((25 41, 25 38, 18 38, 18 41, 25 41),(19 39, 24 39, 24 40, 19 40, 19 39)))" ) );
+  p1_2.setGeometry( QgsGeometry::fromWkt( "MultiPolygon (((18 37, 21 37, 21 35, 18 35, 18 37),(19.5 36.5, 19.5 35.5, 20.5 35.5, 20.5 36.5, 19.5 36.5)),((22 37, 25 37, 25 35, 22 35, 22 37),(24 36, 24 35.5, 24.5 35.5, 24.5 36, 24 36),(23.5 35.5, 23.5 36.5, 22.5 36.5, 22.5 35.5, 23.5 35.5)))" ) );
+  polygonLayer1->dataProvider()->addFeature( p1_1 );
+  polygonLayer1->dataProvider()->addFeature( p1_2 );
+  QgsVectorLayer *polygonLayer2 = new QgsVectorLayer( QStringLiteral( "MultiPolygon?crs=epsg:4326" ), QStringLiteral( "p2" ), QStringLiteral( "memory" ) );
+  QVERIFY( polygonLayer2->isValid() );
+  p2_1.setGeometry( QgsGeometry::fromWkt( "MultiPolygon (((23 42, 20 34, 20 42, 23 42),(20.5 38.5, 21 38.5, 21.5 40.5, 20.5 40.5, 20.5 38.5)))" ) );
+  p2_2.setGeometry( QgsGeometry::fromWkt( "MultiPolygon (((23 34, 23 42, 25 42, 23 34),(24 40.5, 23.5 40.5, 23.5 39.5, 24 40.5)),((19.5 34.5, 17.5 34.5, 17.5 42, 18.5 42, 19.5 34.5),(18.5 37.5, 18 37.5, 18.5 36.5, 18.5 37.5)))" ) );
+  polygonLayer2->dataProvider()->addFeature( p2_1 );
+  polygonLayer2->dataProvider()->addFeature( p2_2 );
+
+  std::unique_ptr< QgsProcessingAlgorithm > alg( QgsApplication::processingRegistry()->createAlgorithmById( QStringLiteral( "native:splitwithlines" ) ) );
+  QVERIFY( alg != nullptr );
+
+  // Split lineLayer1 with lineLayer2
+  QVariantMap parameters;
+  parameters.insert( QStringLiteral( "INPUT" ), QVariant::fromValue( lineLayer1 ) );
+  parameters.insert( QStringLiteral( "LINES" ), QVariant::fromValue( lineLayer2 ) );
+  parameters.insert( QStringLiteral( "OUTPUT" ), QStringLiteral( "memory:" ) );
+
+  bool ok = false;
+  std::unique_ptr< QgsProcessingContext > context = std::make_unique< QgsProcessingContext >();
+  QgsProcessingFeedback feedback;
+  QVariantMap results;
+  results = alg->run( parameters, *context, &feedback, &ok );
+  QVERIFY( ok );
+
+  QgsVectorLayer *splitLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
+  QVERIFY( splitLayer->isValid() );
+  QCOMPARE( splitLayer->wkbType(), Qgis::WkbType::MultiLineString );
+  QCOMPARE( splitLayer->featureCount(), 17 );
+
+  // Split polygonLayer1 with lineLayer2
+  parameters.insert( QStringLiteral( "INPUT" ), QVariant::fromValue( polygonLayer1 ) );
+  parameters.insert( QStringLiteral( "LINES" ), QVariant::fromValue( lineLayer2 ) );
+
+  results = alg->run( parameters, *context, &feedback, &ok );
+  QVERIFY( ok );
+
+  splitLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
+  QVERIFY( splitLayer->isValid() );
+  QCOMPARE( splitLayer->wkbType(), Qgis::WkbType::MultiPolygon );
+  QCOMPARE( splitLayer->featureCount(), 16 );
+
+  // Split lineLayer1 with polygonLayer2
+  parameters.insert( QStringLiteral( "INPUT" ), QVariant::fromValue( lineLayer1 ) );
+  parameters.insert( QStringLiteral( "LINES" ), QVariant::fromValue( polygonLayer2 ) );
+
+  results = alg->run( parameters, *context, &feedback, &ok );
+  QVERIFY( ok );
+
+  splitLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
+  QVERIFY( splitLayer->isValid() );
+  QCOMPARE( splitLayer->wkbType(), Qgis::WkbType::MultiLineString );
+  QCOMPARE( splitLayer->featureCount(), 21 );
+
+  // Split polygonLayer1 with polygonLayer2
+  parameters.insert( QStringLiteral( "INPUT" ), QVariant::fromValue( polygonLayer1 ) );
+  parameters.insert( QStringLiteral( "LINES" ), QVariant::fromValue( polygonLayer2 ) );
+
+  results = alg->run( parameters, *context, &feedback, &ok );
+  QVERIFY( ok );
+
+  splitLayer = qobject_cast< QgsVectorLayer * >( context->getMapLayer( results.value( QStringLiteral( "OUTPUT" ) ).toString() ) );
+  QVERIFY( splitLayer->isValid() );
+  QCOMPARE( splitLayer->wkbType(), Qgis::WkbType::MultiPolygon );
+  QCOMPARE( splitLayer->featureCount(), 20 );
 }
 
 bool TestQgsProcessingAlgsPt2::imageCheck( const QString &testName, const QString &renderedImage )

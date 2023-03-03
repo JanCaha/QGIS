@@ -56,8 +56,8 @@ void QgsMapToolShowHideLabels::canvasPressEvent( QgsMapMouseEvent *e )
     return;
 
   int showCol;
-  if ( !labelCanShowHide( vlayer, showCol )
-       || !diagramCanShowHide( vlayer, showCol ) )
+  if ( ( vlayer->labelsEnabled() && !labelCanShowHide( vlayer, showCol ) )
+       || ( vlayer->diagramsEnabled() && !diagramCanShowHide( vlayer, showCol ) ) )
   {
     if ( !vlayer->auxiliaryLayer() )
     {
@@ -70,7 +70,7 @@ void QgsMapToolShowHideLabels::canvasPressEvent( QgsMapMouseEvent *e )
   mSelectRect.setRect( 0, 0, 0, 0 );
   mSelectRect.setTopLeft( e->pos() );
   mSelectRect.setBottomRight( e->pos() );
-  mRubberBand = new QgsRubberBand( mCanvas, QgsWkbTypes::PolygonGeometry );
+  mRubberBand = new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon );
 }
 
 void QgsMapToolShowHideLabels::canvasMoveEvent( QgsMapMouseEvent *e )
@@ -123,7 +123,7 @@ void QgsMapToolShowHideLabels::canvasReleaseEvent( QgsMapMouseEvent *e )
 
     showHideLabels( e );
 
-    mRubberBand->reset( QgsWkbTypes::PolygonGeometry );
+    mRubberBand->reset( Qgis::GeometryType::Polygon );
     delete mRubberBand;
     mRubberBand = nullptr;
   }

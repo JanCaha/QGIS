@@ -15,24 +15,16 @@
  ***************************************************************************/
 
 #include "qgsmaptooldigitizefeature.h"
-
 #include "qgsadvanceddigitizingdockwidget.h"
-#include "qgsapplication.h"
-#include "qgsattributedialog.h"
-#include "qgscurvepolygon.h"
-#include "qgsexception.h"
 #include "qgsfields.h"
 #include "qgsgeometry.h"
-#include "qgslinestring.h"
-#include "qgslogger.h"
 #include "qgsmapcanvas.h"
 #include "qgsmapmouseevent.h"
-#include "qgsmultipoint.h"
-#include "qgspolygon.h"
 #include "qgsproject.h"
 #include "qgssettingsregistrycore.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
+#include "qgssettingsentryimpl.h"
 
 #include <QSettings>
 
@@ -77,14 +69,14 @@ void QgsMapToolDigitizeFeature::layerGeometryCaptured( const QgsGeometry &geomet
 
   if ( vlayer->isSpatial() )
   {
-    const QgsWkbTypes::Type layerWKBType = vlayer->wkbType();
+    const Qgis::WkbType layerWKBType = vlayer->wkbType();
 
     QgsGeometry layerGeometry;
 
     if ( mCheckGeometryType )
     {
-      double defaultZ = QgsSettingsRegistryCore::settingsDigitizingDefaultZValue.value();
-      double defaultM = QgsSettingsRegistryCore::settingsDigitizingDefaultMValue.value();
+      double defaultZ = QgsSettingsRegistryCore::settingsDigitizingDefaultZValue->value();
+      double defaultM = QgsSettingsRegistryCore::settingsDigitizingDefaultMValue->value();
       QVector<QgsGeometry> layerGeometries = geometry.coerceToType( layerWKBType, defaultZ, defaultM );
       if ( layerGeometries.count() > 0 )
         layerGeometry = layerGeometries.at( 0 );
@@ -112,7 +104,7 @@ void QgsMapToolDigitizeFeature::activate()
   if ( !vlayer )
     vlayer = currentVectorLayer();
 
-  if ( vlayer && vlayer->geometryType() == QgsWkbTypes::NullGeometry )
+  if ( vlayer && vlayer->geometryType() == Qgis::GeometryType::Null )
   {
     layerGeometryCaptured( QgsGeometry() );
     return;
@@ -187,21 +179,21 @@ void QgsMapToolDigitizeFeature::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
   }
 
   //check we only use this tool for point/multipoint layers
-  if ( mode() == CapturePoint && vlayer->geometryType() != QgsWkbTypes::PointGeometry && mCheckGeometryType )
+  if ( mode() == CapturePoint && vlayer->geometryType() != Qgis::GeometryType::Point && mCheckGeometryType )
   {
     emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture point' tool on this vector layer" ), Qgis::MessageLevel::Warning );
     return;
   }
 
   //check we only use the line tool for line/multiline layers
-  if ( mode() == CaptureLine && vlayer->geometryType() != QgsWkbTypes::LineGeometry && mCheckGeometryType )
+  if ( mode() == CaptureLine && vlayer->geometryType() != Qgis::GeometryType::Line && mCheckGeometryType )
   {
     emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture line' tool on this vector layer" ), Qgis::MessageLevel::Warning );
     return;
   }
 
   //check we only use the polygon tool for polygon/multipolygon layers
-  if ( mode() == CapturePolygon && vlayer->geometryType() != QgsWkbTypes::PolygonGeometry && mCheckGeometryType )
+  if ( mode() == CapturePolygon && vlayer->geometryType() != Qgis::GeometryType::Polygon && mCheckGeometryType )
   {
     emit messageEmitted( tr( "Wrong editing tool, cannot apply the 'capture polygon' tool on this vector layer" ), Qgis::MessageLevel::Warning );
     return;

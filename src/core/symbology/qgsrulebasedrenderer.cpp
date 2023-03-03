@@ -521,6 +521,11 @@ bool QgsRuleBasedRenderer::Rule::startRender( QgsRenderContext &context, const Q
   return true;
 }
 
+bool QgsRuleBasedRenderer::Rule::hasActiveChildren() const
+{
+  return !mActiveChildren.empty();
+}
+
 QSet<int> QgsRuleBasedRenderer::Rule::collectZLevels()
 {
   QSet<int> symbolZLevelsSet;
@@ -685,15 +690,22 @@ QSet<QString> QgsRuleBasedRenderer::Rule::legendKeysForFeature( const QgsFeature
     bool validKey = false;
     if ( rule->isElse() )
     {
-      RuleList lst = rulesForFeature( feature, context, false );
-      lst.removeOne( rule );
+      if ( rule->children().isEmpty() )
+      {
+        RuleList lst = rulesForFeature( feature, context, false );
+        lst.removeOne( rule );
 
-      if ( lst.empty() )
+        if ( lst.empty() )
+        {
+          validKey = true;
+        }
+      }
+      else
       {
         validKey = true;
       }
     }
-    else if ( !rule->isElse( ) && rule->willRenderFeature( feature, context ) )
+    else if ( rule->willRenderFeature( feature, context ) )
     {
       validKey = true;
     }
@@ -742,7 +754,7 @@ void QgsRuleBasedRenderer::Rule::stopRender( QgsRenderContext &context )
   mSymbolNormZLevels.clear();
 }
 
-QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::create( QDomElement &ruleElem, QgsSymbolMap &symbolMap )
+QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::create( QDomElement &ruleElem, QgsSymbolMap &symbolMap, bool reuseId )
 {
   QString symbolIdx = ruleElem.attribute( QStringLiteral( "symbol" ) );
   QgsSymbol *symbol = nullptr;
@@ -763,7 +775,11 @@ QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::create( QDomElement &rul
   QString description = ruleElem.attribute( QStringLiteral( "description" ) );
   int scaleMinDenom = ruleElem.attribute( QStringLiteral( "scalemindenom" ), QStringLiteral( "0" ) ).toInt();
   int scaleMaxDenom = ruleElem.attribute( QStringLiteral( "scalemaxdenom" ), QStringLiteral( "0" ) ).toInt();
-  QString ruleKey = ruleElem.attribute( QStringLiteral( "key" ) );
+  QString ruleKey;
+  if ( reuseId )
+    ruleKey = ruleElem.attribute( QStringLiteral( "key" ) );
+  else
+    ruleKey = QUuid::createUuid().toString();
   Rule *rule = new Rule( symbol, scaleMinDenom, scaleMaxDenom, filterExp, label, description );
 
   if ( !ruleKey.isEmpty() )
@@ -800,7 +816,7 @@ QgsRuleBasedRenderer::RuleList QgsRuleBasedRenderer::Rule::descendants() const
   return l;
 }
 
-QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::createFromSld( QDomElement &ruleElem, QgsWkbTypes::GeometryType geomType )
+QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::createFromSld( QDomElement &ruleElem, Qgis::GeometryType geomType )
 {
   if ( ruleElem.localName() != QLatin1String( "Rule" ) )
   {
@@ -864,6 +880,11 @@ QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::createFromSld( QDomEleme
         delete filter;
       }
     }
+    else if ( childElem.localName() == QLatin1String( "ElseFilter" ) )
+    {
+      filterExp = QLatin1String( "ELSE" );
+
+    }
     else if ( childElem.localName() == QLatin1String( "MinScaleDenominator" ) )
     {
       bool ok;
@@ -893,20 +914,20 @@ QgsRuleBasedRenderer::Rule *QgsRuleBasedRenderer::Rule::createFromSld( QDomEleme
   {
     switch ( geomType )
     {
-      case QgsWkbTypes::LineGeometry:
+      case Qgis::GeometryType::Line:
         symbol = new QgsLineSymbol( layers );
         break;
 
-      case QgsWkbTypes::PolygonGeometry:
+      case Qgis::GeometryType::Polygon:
         symbol = new QgsFillSymbol( layers );
         break;
 
-      case QgsWkbTypes::PointGeometry:
+      case Qgis::GeometryType::Point:
         symbol = new QgsMarkerSymbol( layers );
         break;
 
       default:
-        QgsDebugMsg( QStringLiteral( "invalid geometry type: found %1" ).arg( geomType ) );
+        QgsDebugMsg( QStringLiteral( "invalid geometry type: found %1" ).arg( qgsEnumValueToKey( geomType ) ) );
         return nullptr;
     }
   }
@@ -983,6 +1004,11 @@ void QgsRuleBasedRenderer::startRender( QgsRenderContext &context, const QgsFiel
   }
 
   mRootRule->setNormZLevels( zLevelsToNormLevels );
+}
+
+bool QgsRuleBasedRenderer::canSkipRender()
+{
+  return !mRootRule->hasActiveChildren();
 }
 
 void QgsRuleBasedRenderer::stopRender( QgsRenderContext &context )
@@ -1133,7 +1159,7 @@ QString QgsRuleBasedRenderer::legendKeyToExpression( const QString &key, QgsVect
       const QList<QgsRuleBasedRenderer::Rule *> siblings = rule->parent()->children();
       for ( Rule *sibling : siblings )
       {
-        if ( sibling == rule )
+        if ( sibling == rule || sibling->isElse() )
           continue;
 
         const QString siblingExpression = ruleToExpression( sibling );
@@ -1234,7 +1260,7 @@ QgsFeatureRenderer *QgsRuleBasedRenderer::create( QDomElement &element, const Qg
   return r;
 }
 
-QgsFeatureRenderer *QgsRuleBasedRenderer::createFromSld( QDomElement &element, QgsWkbTypes::GeometryType geomType )
+QgsFeatureRenderer *QgsRuleBasedRenderer::createFromSld( QDomElement &element, Qgis::GeometryType geomType )
 {
   // retrieve child rules
   Rule *root = nullptr;

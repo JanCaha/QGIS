@@ -311,7 +311,7 @@ QVariantMap QgsProcessingModelAlgorithm::processAlgorithm( const QVariantMap &pa
   }
 
   if ( !broken.empty() )
-    throw QgsProcessingException( QCoreApplication::translate( "QgsProcessingModelAlgorithm", "Cannot run model, the following algorithms are not available on this system: %1" ).arg( broken.values().join( QLatin1String( ", " ) ) ) );
+    throw QgsProcessingException( QCoreApplication::translate( "QgsProcessingModelAlgorithm", "Cannot run model, the following algorithms are not available on this system: %1" ).arg( qgsSetJoin( broken, QLatin1String( ", " ) ) ) );
 
   QElapsedTimer totalTime;
   totalTime.start();
@@ -1439,7 +1439,7 @@ void QgsProcessingModelAlgorithm::updateDestinationParameters()
       // add some metadata so we can easily link this parameter back to the child source
       param->metadata().insert( QStringLiteral( "_modelChildId" ), outputIt->childId() );
       param->metadata().insert( QStringLiteral( "_modelChildOutputName" ), outputIt->name() );
-      param->metadata().insert( QStringLiteral( "_modelChildProvider" ), childIt->algorithm()->provider()->id() );
+      param->metadata().insert( QStringLiteral( "_modelChildProvider" ), childIt->algorithm()->provider() ? childIt->algorithm()->provider()->id() : QString() );
 
       param->setDescription( outputIt->description() );
       param->setDefaultValue( outputIt->defaultValue() );

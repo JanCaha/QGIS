@@ -44,6 +44,8 @@
 #include "qgsproject.h"
 #include "qgsprojectstylesettings.h"
 #include "qgsfileutils.h"
+#include "qgssettingsentryimpl.h"
+
 
 #include <QAction>
 #include <QFile>
@@ -60,6 +62,8 @@
 
 #include "qgsapplication.h"
 #include "qgslogger.h"
+
+const QgsSettingsEntryString *QgsStyleManagerDialog::settingLastStyleDatabaseFolder = new QgsSettingsEntryString( QStringLiteral( "last-style-database-folder" ), sTtreeStyleManager, QString(), QStringLiteral( "Last used folder for style databases" ) );
 
 //
 // QgsCheckableStyleModel
@@ -363,15 +367,15 @@ void QgsStyleManagerDialog::init()
   mMenuBtnAddItemAll->addAction( item );
   mMenuBtnAddItemAll->addSeparator();
   item = new QAction( QgsApplication::getThemeIcon( QStringLiteral( "labelingSingle.svg" ) ), tr( "Point Label Settings…" ), this );
-  connect( item, &QAction::triggered, this, [ = ]( bool ) { addLabelSettings( QgsWkbTypes::PointGeometry ); } );
+  connect( item, &QAction::triggered, this, [ = ]( bool ) { addLabelSettings( Qgis::GeometryType::Point ); } );
   mMenuBtnAddItemAll->addAction( item );
   mMenuBtnAddItemLabelSettings->addAction( item );
   item = new QAction( QgsApplication::getThemeIcon( QStringLiteral( "labelingSingle.svg" ) ), tr( "Line Label Settings…" ), this );
-  connect( item, &QAction::triggered, this, [ = ]( bool ) {  addLabelSettings( QgsWkbTypes::LineGeometry ); } );
+  connect( item, &QAction::triggered, this, [ = ]( bool ) {  addLabelSettings( Qgis::GeometryType::Line ); } );
   mMenuBtnAddItemAll->addAction( item );
   mMenuBtnAddItemLabelSettings->addAction( item );
   item = new QAction( QgsApplication::getThemeIcon( QStringLiteral( "labelingSingle.svg" ) ), tr( "Polygon Label Settings…" ), this );
-  connect( item, &QAction::triggered, this, [ = ]( bool ) {  addLabelSettings( QgsWkbTypes::PolygonGeometry ); } );
+  connect( item, &QAction::triggered, this, [ = ]( bool ) {  addLabelSettings( Qgis::GeometryType::Polygon ); } );
   mMenuBtnAddItemAll->addAction( item );
   mMenuBtnAddItemLabelSettings->addAction( item );
 
@@ -1868,7 +1872,7 @@ bool QgsStyleManagerDialog::editTextFormat()
   return true;
 }
 
-bool QgsStyleManagerDialog::addLabelSettings( QgsWkbTypes::GeometryType type )
+bool QgsStyleManagerDialog::addLabelSettings( Qgis::GeometryType type )
 {
   QgsPalLayerSettings settings;
   QgsLabelSettingsDialog settingsDlg( settings, nullptr, nullptr, this, type );
@@ -1946,7 +1950,7 @@ bool QgsStyleManagerDialog::editLabelSettings()
     return false;
 
   QgsPalLayerSettings settings = mStyle->labelSettings( formatName );
-  QgsWkbTypes::GeometryType geomType = settings.layerType;
+  Qgis::GeometryType geomType = settings.layerType;
 
   // let the user edit the settings and update list when done
   QgsLabelSettingsDialog dlg( settings, nullptr, nullptr, this, geomType );
@@ -2161,7 +2165,7 @@ bool QgsStyleManagerDialog::editSymbol3D()
 
 void QgsStyleManagerDialog::addStyleDatabase( bool createNew )
 {
-  QString initialFolder = QgsStyleManagerDialog::settingLastStyleDatabaseFolder.value();
+  QString initialFolder = QgsStyleManagerDialog::settingLastStyleDatabaseFolder->value();
   if ( initialFolder.isEmpty() )
     initialFolder = QDir::homePath();
 
@@ -2178,7 +2182,7 @@ void QgsStyleManagerDialog::addStyleDatabase( bool createNew )
                            tr( "Style databases" ) + " (*.db *.xml)" );
   if ( ! databasePath.isEmpty() )
   {
-    QgsStyleManagerDialog::settingLastStyleDatabaseFolder.setValue( QFileInfo( databasePath ).path() );
+    QgsStyleManagerDialog::settingLastStyleDatabaseFolder->setValue( QFileInfo( databasePath ).path() );
 
     if ( createNew )
     {
@@ -2418,8 +2422,6 @@ void QgsStyleManagerDialog::populateGroups()
 
 void QgsStyleManagerDialog::groupChanged( const QModelIndex &index )
 {
-  QStringList groupSymbols;
-
   const QString category = index.data( Qt::UserRole + 1 ).toString();
   sPreviousTag = category;
 
@@ -3009,4 +3011,3 @@ void QgsStyleManagerDialog::showHelp()
 {
   QgsHelp::openHelp( QStringLiteral( "style_library/style_manager.html" ) );
 }
-

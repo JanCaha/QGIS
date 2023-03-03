@@ -73,6 +73,8 @@
 #include "qgslayoutlabelwidget.h"
 #include "qgslabelingresults.h"
 #include "qgsscreenhelper.h"
+#include "qgsshortcutsmanager.h"
+#include "qgsconfigureshortcutsdialog.h"
 #include "ui_defaults.h"
 
 #include <QShortcut>
@@ -993,6 +995,12 @@ QgsLayoutDesignerDialog::QgsLayoutDesignerDialog( QWidget *parent, Qt::WindowFla
   std::sort( actions.begin(), actions.end(), cmpByText_ );
   mToolbarMenu->insertActions( nullptr, actions );
 
+  // Create the shortcuts manager
+  mShortcutsManager = new QgsShortcutsManager( this, "LayoutDesigner/shortcuts/" );
+  mShortcutsManager->registerAllChildren( this );
+  mShortcutsDialog = new QgsConfigureShortcutsDialog( this, mShortcutsManager ) ;
+  connect( mActionKeyboardShortcuts, &QAction::triggered, mShortcutsDialog, &QDialog::show );
+
   restoreWindowState();
 
   //listen out to status bar updates from the view
@@ -1124,6 +1132,13 @@ std::unique_ptr<QgsLayoutDesignerInterface::ExportResults> QgsLayoutDesignerDial
 {
   return mLastExportResults ? std::make_unique< QgsLayoutDesignerInterface::ExportResults>( *mLastExportResults ) : nullptr;
 }
+
+
+QgsShortcutsManager *QgsLayoutDesignerDialog::shortcutsManager()
+{
+  return mShortcutsManager;
+}
+
 
 QgsLayout *QgsLayoutDesignerDialog::currentLayout()
 {
@@ -1801,7 +1816,7 @@ void QgsLayoutDesignerDialog::updateStatusZoom()
     return;
 
   double zoomLevel = 0;
-  if ( currentLayout()->units() == QgsUnitTypes::LayoutPixels )
+  if ( currentLayout()->units() == Qgis::LayoutUnit::Pixels )
   {
     zoomLevel = mView->transform().m11() * 100;
   }
@@ -1814,7 +1829,7 @@ void QgsLayoutDesignerDialog::updateStatusZoom()
 
     //pixel width for 1mm on screen
     double scale100 = dpi / 25.4;
-    scale100 = currentLayout()->convertFromLayoutUnits( scale100, QgsUnitTypes::LayoutMillimeters ).length();
+    scale100 = currentLayout()->convertFromLayoutUnits( scale100, Qgis::LayoutUnit::Millimeters ).length();
     //current zoomLevel
     zoomLevel = mView->transform().m11() * 100 / scale100;
   }
@@ -4220,19 +4235,19 @@ void QgsLayoutDesignerDialog::showForceVectorWarning()
 bool QgsLayoutDesignerDialog::showFileSizeWarning()
 {
   // Image size
-  double oneInchInLayoutUnits = mLayout->convertToLayoutUnits( QgsLayoutMeasurement( 1, QgsUnitTypes::LayoutInches ) );
+  double oneInchInLayoutUnits = mLayout->convertToLayoutUnits( QgsLayoutMeasurement( 1, Qgis::LayoutUnit::Inches ) );
   QSizeF maxPageSize = mLayout->pageCollection()->maximumPageSize();
-  int width = static_cast< int >( mLayout->renderContext().dpi() * maxPageSize.width() / oneInchInLayoutUnits );
-  int height = static_cast< int >( mLayout->renderContext().dpi() * maxPageSize.height() / oneInchInLayoutUnits );
-  int memuse = width * height * 3 / 1000000;  // pixmap + image
-  QgsDebugMsg( QStringLiteral( "Image %1x%2" ).arg( width ).arg( height ) );
-  QgsDebugMsg( QStringLiteral( "memuse = %1" ).arg( memuse ) );
+  const int width = static_cast< int >( mLayout->renderContext().dpi() * maxPageSize.width() / oneInchInLayoutUnits );
+  const int height = static_cast< int >( mLayout->renderContext().dpi() * maxPageSize.height() / oneInchInLayoutUnits );
+  const std::size_t memuse = static_cast< std::size_t >( width ) * height * 3;  // pixmap + image
+  QgsDebugMsgLevel( QStringLiteral( "Image %1x%2" ).arg( width ).arg( height ), 2 );
+  QgsDebugMsgLevel( QStringLiteral( "memuse = %1" ).arg( memuse ), 2 );
 
-  if ( memuse > 400 )   // about 4500x4500
+  if ( memuse > 400000000 )   // about 4500x4500
   {
     int answer = QMessageBox::warning( this, tr( "Export Layout" ),
-                                       tr( "To create an image of %1x%2 requires about %3 MB of memory. Proceed?" )
-                                       .arg( width ).arg( height ).arg( memuse ),
+                                       tr( "To create an image of %1x%2 requires about %3 of memory. Proceed?" )
+                                       .arg( width ).arg( height ).arg( QgsFileUtils::representFileSize( static_cast< qint64 >( memuse ) ) ),
                                        QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok );
 
     raise();

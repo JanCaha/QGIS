@@ -28,10 +28,10 @@ class QgsTransformSettingsDialog : public QDialog, private Ui::QgsTransformSetti
 
   public:
 
-    static const inline QgsSettingsEntryString settingLastDestinationFolder = QgsSettingsEntryString( QStringLiteral( "last-destination-folder" ), QgsSettings::Prefix::APP_GEOREFERENCER, QString(), QObject::tr( "Last used folder for georeferencer destination files" ) );
-    static const inline QgsSettingsEntryString settingLastPdfFolder = QgsSettingsEntryString( QStringLiteral( "last-pdf-folder" ), QgsSettings::Prefix::APP_GEOREFERENCER, QString(), QObject::tr( "Last used folder for georeferencer PDF report files" ) );
+    static const QgsSettingsEntryString *settingLastDestinationFolder;
+    static const QgsSettingsEntryString *settingLastPdfFolder;
 
-    QgsTransformSettingsDialog( QgsMapLayerType type, const QString &source, const QString &output, QWidget *parent = nullptr );
+    QgsTransformSettingsDialog( Qgis::LayerType type, const QString &source, const QString &output, QWidget *parent = nullptr );
 
     /**
      * Sets the selected target \a crs.
@@ -159,7 +159,7 @@ class QgsTransformSettingsDialog : public QDialog, private Ui::QgsTransformSetti
   private:
     QString generateModifiedFileName( const QString &filename );
 
-    QgsMapLayerType mType = QgsMapLayerType::RasterLayer;
+    Qgis::LayerType mType = Qgis::LayerType::Raster;
     QString mSourceFile;
 };
 

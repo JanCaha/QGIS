@@ -14,7 +14,6 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsnewvectortabledialog.h"
-#include "qgsvectorlayer.h"
 #include "qgslogger.h"
 #include "qgsgui.h"
 #include "qgsapplication.h"
@@ -107,6 +106,8 @@ QgsNewVectorTableDialog::QgsNewVectorTableDialog( QgsAbstractDatabaseProviderCon
     mSpatialIndexLabel->hide();
   }
 
+  mIllegalFieldNames = mConnection->illegalFieldNames();
+
   // Initial load of table names
   updateTableNames( mSchemaCbo->currentText() );
 
@@ -144,28 +145,28 @@ QgsNewVectorTableDialog::QgsNewVectorTableDialog( QgsAbstractDatabaseProviderCon
   const bool hasSinglePart { conn->geometryColumnCapabilities().testFlag( QgsAbstractDatabaseProviderConnection::GeometryColumnCapability::SinglePart ) };
   Q_NOWARN_DEPRECATED_POP
 
-  const auto addGeomItem = [this]( QgsWkbTypes::Type type )
+  const auto addGeomItem = [this]( Qgis::WkbType type )
   {
-    mGeomTypeCbo->addItem( QgsIconUtils::iconForWkbType( type ), QgsWkbTypes::translatedDisplayString( type ), type );
+    mGeomTypeCbo->addItem( QgsIconUtils::iconForWkbType( type ), QgsWkbTypes::translatedDisplayString( type ), static_cast< quint32>( type ) );
   };
 
-  mGeomTypeCbo->addItem( QgsApplication::getThemeIcon( QStringLiteral( "mIconTableLayer.svg" ) ), tr( "No Geometry" ), QgsWkbTypes::Type::NoGeometry );
+  mGeomTypeCbo->addItem( QgsApplication::getThemeIcon( QStringLiteral( "mIconTableLayer.svg" ) ), tr( "No Geometry" ), static_cast< quint32>( Qgis::WkbType::NoGeometry ) );
   if ( hasSinglePart || conn->geometryColumnCapabilities().testFlag( QgsAbstractDatabaseProviderConnection::GeometryColumnCapability::SinglePoint ) )
-    addGeomItem( QgsWkbTypes::Type::Point );
-  addGeomItem( QgsWkbTypes::Type::MultiPoint );
+    addGeomItem( Qgis::WkbType::Point );
+  addGeomItem( Qgis::WkbType::MultiPoint );
   if ( hasSinglePart || conn->geometryColumnCapabilities().testFlag( QgsAbstractDatabaseProviderConnection::GeometryColumnCapability::SingleLineString ) )
-    addGeomItem( QgsWkbTypes::Type::LineString );
-  addGeomItem( QgsWkbTypes::Type::MultiLineString );
+    addGeomItem( Qgis::WkbType::LineString );
+  addGeomItem( Qgis::WkbType::MultiLineString );
   if ( hasSinglePart || conn->geometryColumnCapabilities().testFlag( QgsAbstractDatabaseProviderConnection::GeometryColumnCapability::SinglePolygon ) )
-    addGeomItem( QgsWkbTypes::Type::Polygon );
-  addGeomItem( QgsWkbTypes::Type::MultiPolygon );
+    addGeomItem( Qgis::WkbType::Polygon );
+  addGeomItem( Qgis::WkbType::MultiPolygon );
 
   if ( conn->geometryColumnCapabilities().testFlag( QgsAbstractDatabaseProviderConnection::GeometryColumnCapability::Curves ) )
   {
-    addGeomItem( QgsWkbTypes::Type::CompoundCurve );
-    addGeomItem( QgsWkbTypes::Type::CurvePolygon );
-    addGeomItem( QgsWkbTypes::Type::MultiCurve );
-    addGeomItem( QgsWkbTypes::Type::MultiSurface );
+    addGeomItem( Qgis::WkbType::CompoundCurve );
+    addGeomItem( Qgis::WkbType::CurvePolygon );
+    addGeomItem( Qgis::WkbType::MultiCurve );
+    addGeomItem( Qgis::WkbType::MultiSurface );
   }
 
   mGeomTypeCbo->setCurrentIndex( 0 );
@@ -281,9 +282,9 @@ void QgsNewVectorTableDialog::setTableName( const QString &name )
   mTableName->setText( name );
 }
 
-void QgsNewVectorTableDialog::setGeometryType( QgsWkbTypes::Type type )
+void QgsNewVectorTableDialog::setGeometryType( Qgis::WkbType type )
 {
-  mGeomTypeCbo->setCurrentIndex( mGeomTypeCbo->findData( type ) );
+  mGeomTypeCbo->setCurrentIndex( mGeomTypeCbo->findData( static_cast< quint32>( type ) ) );
 }
 
 void QgsNewVectorTableDialog::setCrs( const QgsCoordinateReferenceSystem &crs )
@@ -316,9 +317,9 @@ QgsFields QgsNewVectorTableDialog::fields() const
   return mFieldModel ? mFieldModel->fields() : QgsFields();
 }
 
-QgsWkbTypes::Type QgsNewVectorTableDialog::geometryType() const
+Qgis::WkbType QgsNewVectorTableDialog::geometryType() const
 {
-  QgsWkbTypes::Type type { static_cast<QgsWkbTypes::Type>( mGeomTypeCbo->currentData( ).toInt() ) };
+  Qgis::WkbType type { static_cast<Qgis::WkbType>( mGeomTypeCbo->currentData( ).toInt() ) };
   if ( mHasMChk->isChecked() )
   {
     type = QgsWkbTypes::addM( type );
@@ -370,27 +371,46 @@ void QgsNewVectorTableDialog::validate()
   mValidationErrors.clear();
 
   const bool isSpatial { mGeomTypeCbo->currentIndex() > 0 };
-  if ( mTableNames.contains( mTableName->text(), Qt::CaseSensitivity::CaseInsensitive ) )
+  if ( mTableName->text().trimmed().isEmpty() )
   {
-    mValidationErrors.push_back( tr( "Table <b>%1</b> already exists!" ).arg( mTableName->text() ) );
+    mValidationErrors.push_back( tr( "Table name cannot be empty" ) );
+  }
+  else if ( mTableNames.contains( mTableName->text(), Qt::CaseSensitivity::CaseInsensitive ) )
+  {
+    mValidationErrors.push_back( tr( "Table <b>%1</b> already exists" ).arg( mTableName->text() ) );
   }
   // Check for field names and geom col name
   if ( isSpatial && fields().names().contains( mGeomColumn->text(), Qt::CaseSensitivity::CaseInsensitive ) )
   {
-    mValidationErrors.push_back( tr( "Geometry column name <b>%1</b> cannot be equal to an existing field name!" ).arg( mGeomColumn->text() ) );
+    mValidationErrors.push_back( tr( "Geometry column name <b>%1</b> cannot be equal to an existing field name" ).arg( mGeomColumn->text() ) );
   }
   // No geometry and no fields? No party!
   if ( ! isSpatial && fields().count() == 0 )
   {
-    mValidationErrors.push_back( tr( "The table has no geometry column and no fields!" ) );
+    mValidationErrors.push_back( tr( "The table has no geometry column and no fields" ) );
   }
   // Check if precision is <= length
-  const auto cFields { fields() };
-  for ( const auto &f : cFields )
+  const QgsFields cFields { fields() };
+  for ( const QgsField &f : cFields )
   {
     if ( f.isNumeric() && f.length() >= 0 && f.precision() >= 0 && f.precision() > f.length() )
     {
-      mValidationErrors.push_back( tr( "Field <b>%1</b>: precision cannot be greater than length!" ).arg( f.name() ) );
+      mValidationErrors.push_back( tr( "Field <b>%1</b>: precision cannot be greater than length" ).arg( f.name() ) );
+    }
+
+    if ( f.name().trimmed().isEmpty() )
+    {
+      mValidationErrors.push_back( tr( "Field name cannot be empty" ) );
+    }
+    else
+    {
+      for ( const QString &illegalName : std::as_const( mIllegalFieldNames ) )
+      {
+        if ( f.name().compare( illegalName, Qt::CaseInsensitive ) == 0 )
+        {
+          mValidationErrors.push_back( tr( "<b>%1</b> is an illegal field name for this format and cannot be used" ).arg( f.name() ) );
+        }
+      }
     }
   }
 

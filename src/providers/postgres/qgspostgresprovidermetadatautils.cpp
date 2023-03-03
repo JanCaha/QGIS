@@ -15,9 +15,12 @@
  ***************************************************************************/
 
 #include "qgspostgresprovidermetadatautils.h"
-#include "qgspostgresproviderconnection.h"
 #include "qgscoordinatetransform.h"
+#include "qgslogger.h"
+#include "qgspostgresconn.h"
+#include "qgsfeedback.h"
 
+#include <QTextStream>
 
 QList<QgsLayerMetadataProviderResult> QgsPostgresProviderMetadataUtils::searchLayerMetadata( const QgsMetadataSearchContext &searchContext, const QString &uri, const QString &searchString, const QgsRectangle &geographicExtent, QgsFeedback *feedback )
 {
@@ -109,12 +112,12 @@ QList<QgsLayerMetadataProviderResult> QgsPostgresProviderMetadataUtils::searchLa
       if ( layerType == QLatin1String( "raster" ) )
       {
         result.setDataProviderName( QStringLiteral( "postgresraster" ) );
-        result.setLayerType( QgsMapLayerType::RasterLayer );
+        result.setLayerType( Qgis::LayerType::Raster );
       }
       else if ( layerType == QLatin1String( "vector" ) )
       {
         result.setDataProviderName( QStringLiteral( "postgres" ) );
-        result.setLayerType( QgsMapLayerType::VectorLayer );
+        result.setLayerType( Qgis::LayerType::Vector );
       }
       else
       {
@@ -132,17 +135,17 @@ QList<QgsLayerMetadataProviderResult> QgsPostgresProviderMetadataUtils::searchLa
   return results;
 }
 
-bool QgsPostgresProviderMetadataUtils::saveLayerMetadata( const QgsMapLayerType &layerType, const QString &uri, const QgsLayerMetadata &metadata, QString &errorMessage )
+bool QgsPostgresProviderMetadataUtils::saveLayerMetadata( const Qgis::LayerType &layerType, const QString &uri, const QgsLayerMetadata &metadata, QString &errorMessage )
 {
   QgsDataSourceUri dsUri( uri );
 
   QString layerTypeString;
 
-  if ( layerType == QgsMapLayerType::VectorLayer )
+  if ( layerType == Qgis::LayerType::Vector )
   {
     layerTypeString = QStringLiteral( "vector" );
   }
-  else if ( layerType == QgsMapLayerType::RasterLayer )
+  else if ( layerType == Qgis::LayerType::Raster )
   {
     layerTypeString = QStringLiteral( "raster" );
   }

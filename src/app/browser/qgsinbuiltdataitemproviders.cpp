@@ -60,6 +60,7 @@
 #include "qgsmessageoutput.h"
 #include "qgsrelationshipsitem.h"
 #include "qgsprovidersqlquerybuilder.h"
+#include "qgsdbrelationshipwidget.h"
 
 #include <QFileInfo>
 #include <QMenu>
@@ -971,8 +972,8 @@ void QgsLayerItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *men
     return;
 
   QgsLayerItem *layerItem = qobject_cast<QgsLayerItem *>( item );
-  if ( layerItem && ( layerItem->mapLayerType() == QgsMapLayerType::VectorLayer ||
-                      layerItem->mapLayerType() == QgsMapLayerType::RasterLayer ) )
+  if ( layerItem && ( layerItem->mapLayerType() == Qgis::LayerType::Vector ||
+                      layerItem->mapLayerType() == Qgis::LayerType::Raster ) )
   {
     QMenu *exportMenu = new QMenu( tr( "Export Layer" ), menu );
 
@@ -998,7 +999,7 @@ void QgsLayerItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *men
     {
       switch ( layerItem->mapLayerType() )
       {
-        case QgsMapLayerType::VectorLayer:
+        case Qgis::LayerType::Vector:
         {
           const QgsVectorLayer::LayerOptions options { QgsProject::instance()->transformContext() };
           std::unique_ptr<QgsVectorLayer> layer( new QgsVectorLayer( layerItem->uri(), layerItem->name(), layerItem->providerKey(), options ) );
@@ -1009,7 +1010,7 @@ void QgsLayerItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *men
           break;
         }
 
-        case QgsMapLayerType::RasterLayer:
+        case Qgis::LayerType::Raster:
         {
           std::unique_ptr<QgsRasterLayer> layer( new QgsRasterLayer( layerItem->uri(), layerItem->name(), layerItem->providerKey() ) );
           if ( layer && layer->isValid() )
@@ -1019,12 +1020,12 @@ void QgsLayerItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *men
           break;
         }
 
-        case QgsMapLayerType::PluginLayer:
-        case QgsMapLayerType::AnnotationLayer:
-        case QgsMapLayerType::MeshLayer:
-        case QgsMapLayerType::VectorTileLayer:
-        case QgsMapLayerType::PointCloudLayer:
-        case QgsMapLayerType::GroupLayer:
+        case Qgis::LayerType::Plugin:
+        case Qgis::LayerType::Annotation:
+        case Qgis::LayerType::Mesh:
+        case Qgis::LayerType::VectorTile:
+        case Qgis::LayerType::PointCloud:
+        case Qgis::LayerType::Group:
           break;
       }
     } );
@@ -1300,13 +1301,15 @@ void QgsFieldsItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *me
       {
         QAction *addColumnAction = new QAction( tr( "Add New Field…" ), menu );
         QPointer<QgsDataItem>itemPtr { item };
+        const QSet< QString > illegalFieldNames = conn->illegalFieldNames();
 
-        connect( addColumnAction, &QAction::triggered, fieldsItem, [ md, fieldsItem, context, itemPtr, menu ]
+        connect( addColumnAction, &QAction::triggered, fieldsItem, [ md, fieldsItem, context, itemPtr, menu, illegalFieldNames ]
         {
           std::unique_ptr<QgsVectorLayer> layer { fieldsItem->layer() };
           if ( layer )
           {
             QgsAddAttrDialog dialog( layer.get(), menu );
+            dialog.setIllegalFieldNames( illegalFieldNames );
             if ( dialog.exec() == QDialog::Accepted )
             {
               std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn2 { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( fieldsItem->connectionUri(), {} ) ) };
@@ -1627,10 +1630,10 @@ void QgsDatabaseItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *
           const QString tableName { dlg.tableName() };
           const QString schemaName { dlg.schemaName() };
           const QString geometryColumn { dlg.geometryColumnName() };
-          const QgsWkbTypes::Type geometryType { dlg.geometryType() };
+          const Qgis::WkbType geometryType { dlg.geometryType() };
           const bool createSpatialIndex = dlg.createSpatialIndex() &&
-                                          geometryType != QgsWkbTypes::NoGeometry &&
-                                          geometryType != QgsWkbTypes::Unknown;
+                                          geometryType != Qgis::WkbType::NoGeometry &&
+                                          geometryType != Qgis::WkbType::Unknown;
           const QgsCoordinateReferenceSystem crs { dlg.crs( ) };
           // This flag tells to the provider that field types do not need conversion
           // also prevents  GDAL to create a spatial index by default for GPKG, we are
@@ -1987,7 +1990,6 @@ void QgsFieldDomainItemGuiProvider::populateContextMenu( QgsDataItem *item, QMen
     if ( md )
     {
       std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
-
       if ( conn && conn->capabilities().testFlag( QgsAbstractDatabaseProviderConnection::Capability::AddFieldDomain ) )
       {
         QMenu *createFieldDomainMenu = new QMenu( tr( "New Field Domain" ), menu );
@@ -2120,6 +2122,9 @@ QString QgsFieldDomainDetailsWidget::htmlMetadata( QgsFieldDomain *domain, const
       break;
     case Qgis::FieldDomainSplitPolicy::GeometryRatio:
       metadata +=  tr( "Use geometry ratio" );
+      break;
+    case Qgis::FieldDomainSplitPolicy::UnsetField:
+      metadata +=  tr( "Unset field" );
       break;
   }
   metadata += QLatin1String( "</td></tr>\n" );
@@ -2279,6 +2284,161 @@ QString QgsRelationshipItemGuiProvider::name()
   return QStringLiteral( "relationship_item" );
 }
 
+void QgsRelationshipItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *menu, const QList<QgsDataItem *> &, QgsDataItemGuiContext context )
+{
+  if ( QgsRelationshipItem *relationshipItem = qobject_cast< QgsRelationshipItem * >( item ) )
+  {
+    if ( QgsRelationshipsItem *relationshipsItem = qobject_cast< QgsRelationshipsItem * >( relationshipItem->parent() ) )
+    {
+      const QString providerKey = relationshipsItem->providerKey();
+      const QString connectionUri = relationshipsItem->connectionUri();
+      const QgsWeakRelation relation = relationshipItem->relation();
+
+      // Check if relationship operations are supported
+      if ( QgsProviderMetadata *md = QgsProviderRegistry::instance()->providerMetadata( providerKey ) )
+      {
+        std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+        if ( conn && conn->capabilities().testFlag( QgsAbstractDatabaseProviderConnection::Capability::UpdateRelationship ) )
+        {
+          QAction *editRelationshipAction = new QAction( tr( "Edit Relationship…" ), menu );
+
+          QPointer< QgsDataItem > itemWeakPointer( item );
+
+          connect( editRelationshipAction, &QAction::triggered, this, [ = ]
+          {
+            std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+
+            QgsDbRelationDialog dialog( conn.release(), QgisApp::instance() );
+            dialog.setWindowTitle( tr( "Edit Relationship" ) );
+            dialog.setRelationship( relation );
+            if ( dialog.exec() )
+            {
+              QgsWeakRelation relation = dialog.relationship();
+              std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+              try
+              {
+                conn->updateRelationship( relation );
+                notify( QObject::tr( "Relationship Updated" ), QObject::tr( "Relationship '%1' was updated successfully." ).arg( relation.name() ), context, Qgis::MessageLevel::Success );
+                if ( itemWeakPointer )
+                {
+                  itemWeakPointer->refresh();
+                }
+              }
+              catch ( QgsProviderConnectionException &ex )
+              {
+                notify( QObject::tr( "Relationship Update Error" ), QObject::tr( "Error updating relationship '%1': %2" ).arg( relation.name(), ex.what() ), context, Qgis::MessageLevel::Critical );
+              }
+            }
+          } );
+
+          menu->addAction( editRelationshipAction );
+        }
+        if ( conn && conn->capabilities().testFlag( QgsAbstractDatabaseProviderConnection::Capability::DeleteRelationship ) )
+        {
+          QAction *deleteRelationshipAction = new QAction( tr( "Delete Relationship…" ), menu );
+
+          QPointer< QgsDataItem > itemWeakPointer( item );
+
+          connect( deleteRelationshipAction, &QAction::triggered, this, [ = ]
+          {
+            if ( QMessageBox::question( nullptr, tr( "Delete Relationship" ),
+                                        tr( "Are you sure you want to delete the %1 relationship?" ).arg( relation.name() ),
+                                        QMessageBox::Yes | QMessageBox::No ) == QMessageBox::Yes )
+            {
+              std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+              try
+              {
+                conn->deleteRelationship( relation );
+                notify( QObject::tr( "Relationship Deleted" ), QObject::tr( "Relationship '%1' was deleted successfully." ).arg( relation.name() ), context, Qgis::MessageLevel::Success );
+                if ( itemWeakPointer )
+                {
+                  itemWeakPointer->parent()->refresh();
+                }
+              }
+              catch ( QgsProviderConnectionException &ex )
+              {
+                notify( QObject::tr( "Relationship Deletion Error" ), QObject::tr( "Error deleting relationship '%1': %2" ).arg( relation.name(), ex.what() ), context, Qgis::MessageLevel::Critical );
+              }
+            }
+          } );
+
+          menu->addAction( deleteRelationshipAction );
+        }
+      }
+    }
+  }
+  else if ( qobject_cast< QgsRelationshipsItem * >( item )
+            || qobject_cast< QgsGeoPackageCollectionItem * >( item )
+            || qobject_cast< QgsFileDataCollectionItem * >( item ) )
+  {
+    QString providerKey;
+    QString connectionUri;
+    if ( QgsRelationshipsItem *relationshipsItem = qobject_cast< QgsRelationshipsItem * >( item ) )
+    {
+      providerKey = relationshipsItem->providerKey();
+      connectionUri = relationshipsItem->connectionUri();
+    }
+    else if ( QgsGeoPackageCollectionItem *gpkgItem = qobject_cast< QgsGeoPackageCollectionItem * >( item ) )
+    {
+      providerKey = QStringLiteral( "ogr" );
+      connectionUri = gpkgItem->path().remove( QStringLiteral( "gpkg:/" ) );
+    }
+    else if ( QgsFileDataCollectionItem *fileItem = qobject_cast< QgsFileDataCollectionItem * >( item ) )
+    {
+      providerKey = QStringLiteral( "ogr" );
+      connectionUri = fileItem->path();
+    }
+
+    // Check if relationship creation is supported
+    QgsProviderMetadata *md { QgsProviderRegistry::instance()->providerMetadata( providerKey ) };
+    if ( md )
+    {
+      std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+
+      if ( conn && conn->capabilities().testFlag( QgsAbstractDatabaseProviderConnection::Capability::AddRelationship ) )
+      {
+        QAction *createRelationshipAction = new QAction( tr( "New Relationship…" ), menu );
+
+        QPointer< QgsDataItem > itemWeakPointer( item );
+
+        connect( createRelationshipAction, &QAction::triggered, this, [ = ]
+        {
+          std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+
+          if ( conn->tables().isEmpty() )
+          {
+            notify( QString(), QObject::tr( "Relationships cannot be created in an empty database" ), context, Qgis::MessageLevel::Warning );
+            return;
+          }
+
+          QgsDbRelationDialog dialog( conn.release(), QgisApp::instance() );
+          dialog.setWindowTitle( tr( "New Relationship" ) );
+          if ( dialog.exec() )
+          {
+            QgsWeakRelation relation = dialog.relationship();
+            std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( connectionUri, {} ) ) };
+            try
+            {
+              conn->addRelationship( relation );
+              notify( QObject::tr( "New Relationship Created" ), QObject::tr( "Relationship '%1' was created successfully." ).arg( relation.name() ), context, Qgis::MessageLevel::Success );
+              if ( itemWeakPointer )
+              {
+                itemWeakPointer->refresh();
+              }
+            }
+            catch ( QgsProviderConnectionException &ex )
+            {
+              notify( QObject::tr( "Relationship Creation Error" ), QObject::tr( "Error creating new relationship '%1': %2" ).arg( relation.name(), ex.what() ), context, Qgis::MessageLevel::Critical );
+            }
+          }
+        } );
+
+        menu->addAction( createRelationshipAction );
+      }
+    }
+  }
+}
+
 QWidget *QgsRelationshipItemGuiProvider::createParamWidget( QgsDataItem *item, QgsDataItemGuiContext )
 {
   if ( QgsRelationshipItem *relationshipItem = qobject_cast< QgsRelationshipItem * >( item ) )
@@ -2325,7 +2485,7 @@ QString QgsRelationshipDetailsWidget::htmlMetadata( const QgsWeakRelation &relat
 
   if ( relation.cardinality() != Qgis::RelationshipCardinality::ManyToMany )
   {
-    metadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Tables" ) + QStringLiteral( "</td><td>" ) + relation.referencedLayerName()
+    metadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Tables" ) + QStringLiteral( "</td><td>" )
                 + QStringLiteral( "%1 → %2" ).arg( relation.referencedLayerName(),
                     relation.referencingLayerName() ) + QStringLiteral( "</td></tr>\n" );
 
@@ -2344,7 +2504,7 @@ QString QgsRelationshipDetailsWidget::htmlMetadata( const QgsWeakRelation &relat
   }
   else
   {
-    metadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Tables" ) + QStringLiteral( "</td><td>" ) + relation.referencedLayerName()
+    metadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Tables" ) + QStringLiteral( "</td><td>" )
                 + QStringLiteral( "%1 → %2 → %3" ).arg( relation.referencedLayerName(),
                     relation.mappingTableName(),
                     relation.referencingLayerName() ) + QStringLiteral( "</td></tr>\n" );

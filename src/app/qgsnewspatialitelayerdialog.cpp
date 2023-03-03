@@ -29,12 +29,10 @@
 #include "qgscoordinatereferencesystem.h"
 #include "qgsfileutils.h"
 #include "qgsprojectionselectiondialog.h"
-#include "qgsproviderconnectionmodel.h"
 #include "qgsprovidermetadata.h"
 #include "qgsproviderregistry.h"
 #include "qgsspatialiteutils.h"
 #include "qgslogger.h"
-#include "qgssettings.h"
 #include "qgsgui.h"
 #include "qgsiconutils.h"
 #include "qgsvariantutils.h"
@@ -52,18 +50,18 @@ QgsNewSpatialiteLayerDialog::QgsNewSpatialiteLayerDialog( QWidget *parent, Qt::W
   setupUi( this );
   QgsGui::enableAutoGeometryRestore( this );
 
-  const auto addGeomItem = [this]( QgsWkbTypes::Type type, const QString & sqlType )
+  const auto addGeomItem = [this]( Qgis::WkbType type, const QString & sqlType )
   {
     mGeometryTypeBox->addItem( QgsIconUtils::iconForWkbType( type ), QgsWkbTypes::translatedDisplayString( type ), sqlType );
   };
 
-  addGeomItem( QgsWkbTypes::NoGeometry, QString() );
-  addGeomItem( QgsWkbTypes::Point, QStringLiteral( "POINT" ) );
-  addGeomItem( QgsWkbTypes::LineString, QStringLiteral( "LINESTRING" ) );
-  addGeomItem( QgsWkbTypes::Polygon, QStringLiteral( "POLYGON" ) );
-  addGeomItem( QgsWkbTypes::MultiPoint, QStringLiteral( "MULTIPOINT" ) );
-  addGeomItem( QgsWkbTypes::MultiLineString, QStringLiteral( "MULTILINESTRING" ) );
-  addGeomItem( QgsWkbTypes::MultiPolygon, QStringLiteral( "MULTIPOLYGON" ) );
+  addGeomItem( Qgis::WkbType::NoGeometry, QString() );
+  addGeomItem( Qgis::WkbType::Point, QStringLiteral( "POINT" ) );
+  addGeomItem( Qgis::WkbType::LineString, QStringLiteral( "LINESTRING" ) );
+  addGeomItem( Qgis::WkbType::Polygon, QStringLiteral( "POLYGON" ) );
+  addGeomItem( Qgis::WkbType::MultiPoint, QStringLiteral( "MULTIPOINT" ) );
+  addGeomItem( Qgis::WkbType::MultiLineString, QStringLiteral( "MULTILINESTRING" ) );
+  addGeomItem( Qgis::WkbType::MultiPolygon, QStringLiteral( "MULTIPOLYGON" ) );
   mGeometryTypeBox->setCurrentIndex( -1 );
 
   pbnFindSRID->setEnabled( false );
@@ -336,6 +334,33 @@ void QgsNewSpatialiteLayerDialog::buttonBox_rejected()
 
 bool QgsNewSpatialiteLayerDialog::apply()
 {
+  if ( !mNameEdit->text().trimmed().isEmpty() )
+  {
+    const QString currentFieldName = mNameEdit->text();
+    bool currentFound = false;
+    QTreeWidgetItemIterator it( mAttributeView );
+    while ( *it )
+    {
+      QTreeWidgetItem *item = *it;
+      if ( item->text( 0 ) == currentFieldName )
+      {
+        currentFound = true;
+        break;
+      }
+      ++it;
+    }
+
+    if ( !currentFound )
+    {
+      if ( QMessageBox::question( this, windowTitle(),
+                                  tr( "The field “%1” has not been added to the fields list. Are you sure you want to proceed and discard this field?" ).arg( currentFieldName ),
+                                  QMessageBox::Ok | QMessageBox::Cancel ) != QMessageBox::Ok )
+      {
+        return false;
+      }
+    }
+  }
+
   const QgsDataSourceUri dbUri = mDatabaseComboBox->currentConnectionUri();
   const QString dbPath = dbUri.database();
 

@@ -29,6 +29,7 @@
 #include "qgslayoutitempage.h"
 #include "qgsimageoperation.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgslayoutrendercontext.h"
 
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
@@ -57,7 +58,7 @@ QgsLayoutItem::QgsLayoutItem( QgsLayout *layout, bool manageZValue )
   setCacheMode( QGraphicsItem::DeviceCoordinateCache );
 
   //record initial position
-  const QgsUnitTypes::LayoutUnit initialUnits = layout ? layout->units() : QgsUnitTypes::LayoutMillimeters;
+  const Qgis::LayoutUnit initialUnits = layout ? layout->units() : Qgis::LayoutUnit::Millimeters;
   mItemPosition = QgsLayoutPoint( scenePos().x(), scenePos().y(), initialUnits );
   mItemSize = QgsLayoutSize( rect().width(), rect().height(), initialUnits );
 
@@ -124,6 +125,11 @@ QString QgsLayoutItem::displayName() const
 int QgsLayoutItem::type() const
 {
   return QgsLayoutItemRegistry::LayoutItem;
+}
+
+QIcon QgsLayoutItem::icon() const
+{
+  return QgsApplication::getThemeIcon( QStringLiteral( "/mLayoutItem.svg" ) );
 }
 
 QgsLayoutItem::Flags QgsLayoutItem::itemFlags() const
@@ -314,7 +320,7 @@ void QgsLayoutItem::paint( QPainter *painter, const QStyleOptionGraphicsItem *it
     }
     else
     {
-      const double layoutUnitsToPixels = mLayout ? mLayout->convertFromLayoutUnits( 1, QgsUnitTypes::LayoutPixels ).length() : destinationDpi / 25.4;
+      const double layoutUnitsToPixels = mLayout ? mLayout->convertFromLayoutUnits( 1, Qgis::LayoutUnit::Pixels ).length() : destinationDpi / 25.4;
       widthInPixels = boundingRect().width() * layoutUnitsToPixels;
       heightInPixels = boundingRect().height() * layoutUnitsToPixels;
     }
@@ -674,7 +680,7 @@ bool QgsLayoutItem::writeXml( QDomElement &parentElement, QDomDocument &doc, con
   element.appendChild( bgColorElem );
 
   //blend mode
-  element.setAttribute( QStringLiteral( "blendMode" ), QgsPainting::getBlendModeEnum( mBlendMode ) );
+  element.setAttribute( QStringLiteral( "blendMode" ), static_cast< int >( QgsPainting::getBlendModeEnum( mBlendMode ) ) );
 
   //opacity
   element.setAttribute( QStringLiteral( "opacity" ), QString::number( mOpacity ) );
@@ -798,7 +804,7 @@ bool QgsLayoutItem::readXml( const QDomElement &element, const QDomDocument &doc
   }
 
   //blend mode
-  setBlendMode( QgsPainting::getCompositionMode( static_cast< QgsPainting::BlendMode >( element.attribute( QStringLiteral( "blendMode" ), QStringLiteral( "0" ) ).toUInt() ) ) );
+  setBlendMode( QgsPainting::getCompositionMode( static_cast< Qgis::BlendMode >( element.attribute( QStringLiteral( "blendMode" ), QStringLiteral( "0" ) ).toUInt() ) ) );
 
   //opacity
   if ( element.hasAttribute( QStringLiteral( "opacity" ) ) )

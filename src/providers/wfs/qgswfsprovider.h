@@ -26,10 +26,7 @@
 #include "qgsogcutils.h"
 #include "qgsvectordataprovider.h"
 #include "qgswfscapabilities.h"
-#include "qgswfsfeatureiterator.h"
-#include "qgswfsdatasourceuri.h"
-
-#include "qgsprovidermetadata.h"
+#include "qgsbackgroundcachedfeatureiterator.h"
 
 class QgsRectangle;
 class QgsWFSSharedData;
@@ -80,7 +77,7 @@ class QgsWFSProvider final: public QgsVectorDataProvider
 
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request = QgsFeatureRequest() ) const override;
 
-    QgsWkbTypes::Type wkbType() const override;
+    Qgis::WkbType wkbType() const override;
     long long featureCount() const override;
 
     QgsFields fields() const override;
@@ -128,6 +125,18 @@ class QgsWFSProvider final: public QgsVectorDataProvider
     std::shared_ptr<QgsWFSSharedData> sharedData() const { return mShared; }
 
     void handlePostCloneOperations( QgsVectorDataProvider *source ) override;
+
+    static QgsWfsCapabilities::Capabilities getCachedCapabilities( const QString &uri );
+    static QString buildFilterByGeometryType( const QgsWfsCapabilities::Capabilities &caps,
+        const QString &geometryElement,
+        const QString &function );
+    static QString buildIsNullGeometryFilter( const QgsWfsCapabilities::Capabilities &caps,
+        const QString &geometryElement );
+    static QString buildGeometryCollectionFilter( const QgsWfsCapabilities::Capabilities &caps,
+        const QString &geometryElement );
+
+    //! Perform an initial GetFeature request with a 1-feature limit.
+    void issueInitialGetFeature();
 
   private slots:
 
@@ -190,7 +199,7 @@ class QgsWFSProvider final: public QgsVectorDataProvider
      * the geometry attribute and the thematic attributes with their types.
     */
     bool describeFeatureType( QString &geometryAttribute,
-                              QgsFields &fields, QgsWkbTypes::Type &geomType );
+                              QgsFields &fields, Qgis::WkbType &geomType );
 
     /**
      * For a given typename, reads the name of the geometry attribute, the
@@ -199,7 +208,7 @@ class QgsWFSProvider final: public QgsVectorDataProvider
     bool readAttributesFromSchema( QDomDocument &schemaDoc,
                                    const QString &prefixedTypename,
                                    QString &geometryAttribute,
-                                   QgsFields &fields, QgsWkbTypes::Type &geomType, QString &errorMsg );
+                                   QgsFields &fields, Qgis::WkbType &geomType, QString &errorMsg );
 
     //helper methods for WFS-T
 
@@ -222,22 +231,11 @@ class QgsWFSProvider final: public QgsVectorDataProvider
     //! Records provider error
     void handleException( const QDomDocument &serverResponse );
     //! Converts DescribeFeatureType schema geometry property type to WKBType
-    QgsWkbTypes::Type geomTypeFromPropertyType( const QString &attName, const QString &propType );
+    Qgis::WkbType geomTypeFromPropertyType( const QString &attName, const QString &propType );
     //! Convert the value to its appropriate XML representation
     QString convertToXML( const QVariant &value );
 
     bool processSQL( const QString &sqlString, QString &errorMsg, QString &warningMsg );
-};
-
-class QgsWfsProviderMetadata final: public QgsProviderMetadata
-{
-    Q_OBJECT
-  public:
-    QgsWfsProviderMetadata();
-    QIcon icon() const override;
-    QList<QgsDataItemProvider *> dataItemProviders() const override;
-    QgsWFSProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() ) override;
-    QList< QgsMapLayerType > supportedLayerTypes() const override;
 };
 
 

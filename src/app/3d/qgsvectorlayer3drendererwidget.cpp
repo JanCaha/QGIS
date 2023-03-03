@@ -15,7 +15,6 @@
 
 #include "qgsvectorlayer3drendererwidget.h"
 
-#include "qgs3dutils.h"
 #include "qgsrulebased3drenderer.h"
 #include "qgsrulebased3drendererwidget.h"
 #include "qgssymbol3dwidget.h"
@@ -24,7 +23,6 @@
 #include "qgsvectorlayer3drenderer.h"
 #include "qgsapplication.h"
 #include "qgs3dsymbolregistry.h"
-#include "qgsabstractmaterialsettings.h"
 #include "qgsvscrollarea.h"
 
 #include <QBoxLayout>
@@ -84,6 +82,7 @@ QgsVectorLayer3DRendererWidget::QgsVectorLayer3DRendererWidget( QgsMapLayer *lay
   : QgsMapLayerConfigWidget( layer, canvas, parent )
 {
   setPanelTitle( tr( "3D View" ) );
+  setObjectName( QStringLiteral( "mOptsPage_3DView" ) );
 
   QVBoxLayout *layout = new QVBoxLayout( this );
   layout->setContentsMargins( 0, 0, 0, 0 );
@@ -113,6 +112,8 @@ QgsVectorLayer3DRendererWidget::QgsVectorLayer3DRendererWidget( QgsMapLayer *lay
   connect( widgetRuleBasedRenderer, &QgsRuleBased3DRendererWidget::widgetChanged, this, &QgsVectorLayer3DRendererWidget::widgetChanged );
   connect( widgetRuleBasedRenderer, &QgsRuleBased3DRendererWidget::showPanel, this, &QgsPanelWidget::openPanel );
   connect( widgetBaseProperties, &QgsVectorLayer3DPropertiesWidget::changed, this, &QgsVectorLayer3DRendererWidget::widgetChanged );
+
+  setProperty( "helpPage", QStringLiteral( "working_with_vector/vector_properties.html#d-view-properties" ) );
 
   syncToLayer( layer );
 }
@@ -229,7 +230,7 @@ bool QgsVectorLayer3DRendererWidgetFactory::supportLayerPropertiesDialog() const
 
 bool QgsVectorLayer3DRendererWidgetFactory::supportsLayer( QgsMapLayer *layer ) const
 {
-  return layer->type() == QgsMapLayerType::VectorLayer;
+  return layer->type() == Qgis::LayerType::Vector;
 }
 
 QString QgsVectorLayer3DRendererWidgetFactory::layerPropertiesPagePositionHint() const

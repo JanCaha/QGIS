@@ -29,15 +29,12 @@
 #include "qgsreadwritelocker.h"
 #include "qgsvariantutils.h"
 
-const QString QgsAfsProvider::AFS_PROVIDER_KEY = QStringLiteral( "arcgisfeatureserver" );
-const QString QgsAfsProvider::AFS_PROVIDER_DESCRIPTION = QStringLiteral( "ArcGIS Feature Service data provider" );
-
 
 QgsAfsProvider::QgsAfsProvider( const QString &uri, const ProviderOptions &options, QgsDataProvider::ReadFlags flags )
   : QgsVectorDataProvider( uri, options, flags )
 {
   mSharedData.reset( new QgsAfsSharedData( QgsDataSourceUri( uri ) ) );
-  mSharedData->mGeometryType = QgsWkbTypes::Unknown;
+  mSharedData->mGeometryType = Qgis::WkbType::Unknown;
 
   const QString authcfg = mSharedData->mDataSource.authConfigId();
 
@@ -221,12 +218,12 @@ QgsAfsProvider::QgsAfsProvider( const QString &uri, const ProviderOptions &optio
   const bool hasM = layerData[QStringLiteral( "hasM" )].toBool();
   const bool hasZ = layerData[QStringLiteral( "hasZ" )].toBool();
   mSharedData->mGeometryType = QgsArcGisRestUtils::convertGeometryType( layerData[QStringLiteral( "geometryType" )].toString() );
-  if ( mSharedData->mGeometryType == QgsWkbTypes::Unknown )
+  if ( mSharedData->mGeometryType == Qgis::WkbType::Unknown )
   {
     if ( layerData.value( QStringLiteral( "serviceDataType" ) ).toString().startsWith( QLatin1String( "esriImageService" ) ) )
     {
       // it's possible to connect to ImageServers as a feature service, to view tile boundaries
-      mSharedData->mGeometryType = QgsWkbTypes::Polygon;
+      mSharedData->mGeometryType = Qgis::WkbType::Polygon;
     }
     else
     {
@@ -317,7 +314,7 @@ QgsFeatureIterator QgsAfsProvider::getFeatures( const QgsFeatureRequest &request
   return new QgsAfsFeatureIterator( new QgsAfsFeatureSource( mSharedData ), true, request );
 }
 
-QgsWkbTypes::Type QgsAfsProvider::wkbType() const
+Qgis::WkbType QgsAfsProvider::wkbType() const
 {
   return mSharedData->mGeometryType;
 }
@@ -807,9 +804,9 @@ QgsAfsProvider *QgsAfsProviderMetadata::createProvider( const QString &uri, cons
   return new QgsAfsProvider( uri, options, flags );
 }
 
-QList<QgsMapLayerType> QgsAfsProviderMetadata::supportedLayerTypes() const
+QList<Qgis::LayerType> QgsAfsProviderMetadata::supportedLayerTypes() const
 {
-  return { QgsMapLayerType::VectorLayer };
+  return { Qgis::LayerType::Vector };
 }
 
 

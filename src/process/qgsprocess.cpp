@@ -29,6 +29,7 @@
 #include "processing/models/qgsprocessingmodelalgorithm.h"
 #include "qgsproject.h"
 #include "qgsgeos.h"
+#include "qgsunittypes.h"
 #include "qgsjsonutils.h"
 
 #if defined(Q_OS_UNIX) && !defined(Q_OS_ANDROID)
@@ -349,8 +350,8 @@ int QgsProcessingExec::run( const QStringList &constArgs )
 
     // build parameter map
     QString ellipsoid;
-    QgsUnitTypes::DistanceUnit distanceUnit = QgsUnitTypes::DistanceUnknownUnit;
-    QgsUnitTypes::AreaUnit areaUnit = QgsUnitTypes::AreaUnknownUnit;
+    Qgis::DistanceUnit distanceUnit = Qgis::DistanceUnit::Unknown;
+    Qgis::AreaUnit areaUnit = Qgis::AreaUnit::Unknown;
     QString projectPath;
     QVariantMap params;
 
@@ -855,7 +856,8 @@ int QgsProcessingExec::showAlgorithmHelp( const QString &inputId, bool useJson )
     addAlgorithmInformation( algorithmDetails, alg );
     json.insert( QStringLiteral( "algorithm_details" ), algorithmDetails );
     QVariantMap providerJson;
-    addProviderInformation( providerJson, alg->provider() );
+    if ( alg->provider() )
+      addProviderInformation( providerJson, alg->provider() );
     json.insert( QStringLiteral( "provider_details" ), providerJson );
   }
 
@@ -998,12 +1000,21 @@ int QgsProcessingExec::showAlgorithmHelp( const QString &inputId, bool useJson )
   return 0;
 }
 
-int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &params, const QString &ellipsoid, QgsUnitTypes::DistanceUnit distanceUnit, QgsUnitTypes::AreaUnit areaUnit, QgsProcessingContext::LogLevel logLevel, bool useJson, const QString &projectPath )
+int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &inputs, const QString &ellipsoid, Qgis::DistanceUnit distanceUnit, Qgis::AreaUnit areaUnit, QgsProcessingContext::LogLevel logLevel, bool useJson, const QString &projectPath )
 {
   QVariantMap json;
   if ( useJson )
   {
     addVersionInformation( json );
+  }
+
+  bool ok = false;
+  QString error;
+  const QVariantMap params = QgsProcessingUtils::preprocessQgisProcessParameters( inputs, ok, error );
+  if ( !ok )
+  {
+    std::cerr << error.toLocal8Bit().constData();
+    return 1;
   }
 
   QString id = inputId;
@@ -1086,16 +1097,15 @@ int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &param
     }
   }
 
-  std::unique_ptr< QgsProject > project;
+  QgsProject *project = nullptr;
   if ( !projectPath.isEmpty() )
   {
-    project = std::make_unique< QgsProject >();
+    project = QgsProject::instance();
     if ( !project->read( projectPath ) )
     {
       std::cerr << QStringLiteral( "Could not load the QGIS project \"%1\"\n" ).arg( projectPath ).toLocal8Bit().constData();
       return 1;
     }
-    QgsProject::setInstance( project.get() );
     json.insert( QStringLiteral( "project_path" ), projectPath );
   }
 
@@ -1106,7 +1116,7 @@ int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &param
     std::cout << "----------------\n\n";
   }
   QVariantMap inputsJson;
-  for ( auto it = params.constBegin(); it != params.constEnd(); ++it )
+  for ( auto it = inputs.constBegin(); it != inputs.constEnd(); ++it )
   {
     if ( !useJson )
       std::cout << it.key().toLocal8Bit().constData() << ":\t" << it.value().toString().toLocal8Bit().constData() << '\n';
@@ -1125,14 +1135,14 @@ int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &param
     else
       json.insert( QStringLiteral( "ellipsoid" ), ellipsoid );
   }
-  if ( distanceUnit != QgsUnitTypes::DistanceUnknownUnit )
+  if ( distanceUnit != Qgis::DistanceUnit::Unknown )
   {
     if ( !useJson )
       std::cout << "Using distance unit:\t" << QgsUnitTypes::toString( distanceUnit ).toLocal8Bit().constData() << '\n';
     else
       json.insert( QStringLiteral( "distance_unit" ), QgsUnitTypes::toString( distanceUnit ) );
   }
-  if ( areaUnit != QgsUnitTypes::AreaUnknownUnit )
+  if ( areaUnit != Qgis::AreaUnit::Unknown )
   {
     if ( !useJson )
       std::cout << "Using area unit:\t" << QgsUnitTypes::toString( areaUnit ).toLocal8Bit().constData() << '\n';
@@ -1145,7 +1155,8 @@ int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &param
   context.setEllipsoid( ellipsoid );
   context.setDistanceUnit( distanceUnit );
   context.setAreaUnit( areaUnit );
-  context.setProject( project.get() );
+  if ( project )
+    context.setProject( project );
   context.setLogLevel( logLevel );
 
   const QgsProcessingParameterDefinitions defs = alg->parameterDefinitions();
@@ -1200,7 +1211,7 @@ int QgsProcessingExec::execute( const QString &inputId, const QVariantMap &param
   } );
 #endif
 
-  bool ok = false;
+  ok = false;
   if ( !useJson )
     std::cout << "\n";
 
