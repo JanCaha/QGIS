@@ -13,7 +13,6 @@
  *                                                                         *
  ***************************************************************************/
 
-
 #include "qgsrstatsconsole.h"
 #include "qgsrstatsrunner.h"
 #include "qgisapp.h"
@@ -28,19 +27,39 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QSplitter>
+#include <QFileDialog>
 
 QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
-  : QWidget( parent )
-  , mRunner( runner )
+  : QWidget( parent ), mRunner( runner )
 {
   QToolBar *toolBar = new QToolBar( this );
   toolBar->setIconSize( QgisApp::instance()->iconSize( true ) );
 
-  mDockableWidgetHelper = new QgsDockableWidgetHelper( true, tr( "R Stats Console" ), this, QgisApp::instance(), Qt::BottomDockWidgetArea,  QStringList(), true );
+  mDockableWidgetHelper = new QgsDockableWidgetHelper( true, tr( "R Stats Console" ), this, QgisApp::instance(), Qt::BottomDockWidgetArea, QStringList(), true );
   mDockableWidgetHelper->setDockObjectName( QStringLiteral( "RStatsConsole" ) );
   QToolButton *toggleButton = mDockableWidgetHelper->createDockUndockToolButton();
   toggleButton->setToolTip( tr( "Dock R Stats Console" ) );
   toolBar->addWidget( toggleButton );
+
+  mReadRScript = new QAction( QgsApplication::getThemeIcon( QStringLiteral( "/mActionFileOpen.svg" ) ), tr( "Run Script" ), this );
+  toolBar->addAction( mReadRScript );
+
+  connect( mReadRScript, &QAction::triggered, this, [ = ]()
+  {
+    QString fileName = QFileDialog::getOpenFileName( this,
+                       tr( "Open Script" ), "/home", tr( "R Files (*.R *.r)" ) );
+    QFile inputFile( fileName );
+    if ( inputFile.open( QIODevice::ReadOnly ) )
+    {
+      QTextStream in( &inputFile );
+      while ( !in.atEnd() )
+      {
+        QString line = in.readLine();
+        mRunner->execCommand( line );
+      }
+      inputFile.close();
+    }
+  } );
 
   QVBoxLayout *vl = new QVBoxLayout();
   vl->setContentsMargins( 0, 0, 0, 0 );
@@ -53,18 +72,21 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
 
   mOutput = new QgsCodeEditorR( nullptr, QgsCodeEditor::Mode::OutputDisplay );
   splitter->addWidget( mOutput );
-  mInputEdit = new QgsCodeEditorR( nullptr, QgsCodeEditor::Mode::CommandInput );
-  mInputEdit->setInterpreter( mRunner );
-  mInputEdit->setHistoryFilePath( QgsApplication::qgisSettingsDirPath() + QStringLiteral( "/r_console_history.txt" ) );
-
+  mInputEdit = new QgsInteractiveRWidget();
+  mInputEdit->setFont( QgsCodeEditor::getMonospaceFont() );
   splitter->addWidget( mInputEdit );
 
   vl->addWidget( splitter );
 
-  connect( mRunner, &QgsRStatsRunner::commandStarted, this, [ = ]( const QString & command )
+  connect( mInputEdit, &QgsInteractiveRWidget::runCommand, this, [ = ]( const QString & command )
   {
+    if ( mRunner->busy() )
+      return;
+
+    mInputEdit->clear();
     mOutput->append( ( mOutput->text().isEmpty() ? QString() : QString( '\n' ) ) + QStringLiteral( "> " ) + command );
     mOutput->moveCursorToEnd();
+    mRunner->execCommand( command );
   } );
 
   connect( mRunner, &QgsRStatsRunner::errorOccurred, this, [ = ]( const QString & error )
@@ -90,7 +112,7 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
 
   connect( mRunner, &QgsRStatsRunner::busyChanged, this, [ = ]( bool busy )
   {
-    //mInputEdit->setEnabled( !busy );
+    // mInputEdit->setEnabled( !busy );
   } );
 
   setLayout( vl );
@@ -100,8 +122,54 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
 
 QgsRStatsConsole::~QgsRStatsConsole()
 {
-  mInputEdit->writeHistoryFile();
-
   delete mDockableWidgetHelper;
 }
 
+QgsInteractiveRWidget::QgsInteractiveRWidget( QWidget *parent )
+  : QgsCodeEditorR( parent, QgsCodeEditor::Mode::CommandInput )
+{
+  displayPrompt( false );
+
+  QgsInteractiveRWidget::initializeLexer();
+}
+
+void QgsInteractiveRWidget::clear()
+{
+  QgsCodeEditorR::clear();
+  displayPrompt( false );
+}
+
+void QgsInteractiveRWidget::keyPressEvent( QKeyEvent *event )
+{
+  switch ( event->key() )
+  {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+      emit runCommand( text() );
+
+      break;
+
+    default:
+      QgsCodeEditorR::keyPressEvent( event );
+  }
+}
+
+void QgsInteractiveRWidget::initializeLexer()
+{
+  QgsCodeEditorR::initializeLexer();
+
+  setCaretLineVisible( false );
+  setLineNumbersVisible( false ); // NO linenumbers for the input line
+  // Margin 1 is used for the '>' prompt (console input)
+  setMarginLineNumbers( 1, true );
+  setMarginWidth( 1, "00" );
+  setMarginType( 1, QsciScintilla::MarginType::TextMarginRightJustified );
+  setMarginsBackgroundColor( color( QgsCodeEditorColorScheme::ColorRole::Background ) );
+  setEdgeMode( QsciScintilla::EdgeNone );
+}
+
+void QgsInteractiveRWidget::displayPrompt( bool more )
+{
+  const QString prompt = !more ? ">" : "+";
+  SendScintilla( QsciScintilla::SCI_MARGINSETTEXT, static_cast<uintptr_t>( 0 ), prompt.toUtf8().constData() );
+}

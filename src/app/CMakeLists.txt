@@ -446,8 +446,12 @@ if(WITH_R)
     ${CMAKE_SOURCE_DIR}/external/r_inside/src/RcppExports.cpp
     ${CMAKE_SOURCE_DIR}/external/r_inside/src/compiler.cpp
 
-    rstats/qgsrstatsrunner.cpp
+    rstats/qgsrstatsapplicationwrapper.cpp
     rstats/qgsrstatsconsole.cpp
+    rstats/qgsrstatsfunctions.cpp
+    rstats/qgsrstatsmaplayerwrapper.cpp
+    rstats/qgsrstatsrunner.cpp
+    rstats/qgsrstatssession.cpp
   )
 endif()
 

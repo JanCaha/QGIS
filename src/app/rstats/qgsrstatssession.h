@@ -1,0 +1,74 @@
+#ifndef QGSRSTATSSESSION_H
+#define QGSRSTATSSESSION_H
+
+#include <QObject>
+#include <QThread>
+
+#include "Callbacks.h"
+
+#include "qgisapp.h"
+
+class RInside;
+class QVariant;
+class QString;
+
+
+class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
+{
+    Q_OBJECT
+  public:
+
+    QgsRStatsSession();
+    ~QgsRStatsSession() override;
+
+    void execCommandNR( const QString &command );
+
+    void WriteConsole( const std::string &line, int type ) override;;
+
+    bool has_WriteConsole() override;;
+
+    void ShowMessage( const char *message ) override;
+
+    bool has_ShowMessage() override;
+
+    bool busy() const { return mBusy; }
+
+    /**
+     * Converts a SEXP object to a string.
+     */
+    static QString sexpToString( const SEXP exp );
+
+    /**
+     * Converts a SEXP object to a QVariant.
+     */
+    static QVariant sexpToVariant( const SEXP exp );
+
+    /**
+     * Converts a variant to a SEXP.
+     */
+    static SEXP variantToSexp( const QVariant &variant );
+
+  public slots:
+
+    void execCommand( const QString &command );
+
+    void showStartupMessage();
+
+  signals:
+
+    void busyChanged( bool busy );
+
+    void consoleMessage( const QString &message, int type );
+    void showMessage( const QString &message );
+    void errorOccurred( const QString &error );
+    void commandFinished( const QVariant &result );
+
+  private:
+    void execCommandPrivate( const QString &command, QString &error, QVariant *res = nullptr, QString *output = nullptr );
+
+    std::unique_ptr< RInside > mRSession;
+    bool mBusy = false;
+    bool mEncounteredErrorMessageType = false;
+};
+
+#endif // QGSRSTATSSESSION_H

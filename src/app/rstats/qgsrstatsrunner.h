@@ -25,76 +25,13 @@
 
 #include "qgis_app.h"
 
+#include "qgsrstatssession.h"
 
 class RInside;
 class QVariant;
 class QString;
 
-#include "qgscodeeditor.h"
-
-
-class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
-{
-    Q_OBJECT
-  public:
-
-    QgsRStatsSession();
-    ~QgsRStatsSession() override;
-
-    void execCommandNR( const QString &command );
-
-    void WriteConsole( const std::string &line, int type ) override;;
-
-    bool has_WriteConsole() override;;
-
-    void ShowMessage( const char *message ) override;
-
-    bool has_ShowMessage() override;
-
-    bool busy() const { return mBusy; }
-
-    /**
-     * Converts a SEXP object to a string.
-     */
-    static QString sexpToString( const SEXP exp );
-
-    /**
-     * Converts a SEXP object to a QVariant.
-     */
-    static QVariant sexpToVariant( const SEXP exp );
-
-    /**
-     * Converts a variant to a SEXP.
-     */
-    static SEXP variantToSexp( const QVariant &variant );
-
-  public slots:
-
-    void execCommand( const QString &command );
-
-    void showStartupMessage();
-
-  signals:
-
-    void busyChanged( bool busy );
-
-    void consoleMessage( const QString &message, int type );
-    void showMessage( const QString &message );
-    void errorOccurred( const QString &error );
-    void commandFinished( const QVariant &result );
-
-  private:
-    void execCommandPrivate( const QString &command, QString &error, QVariant *res = nullptr, QString *output = nullptr );
-
-    std::unique_ptr< RInside > mRSession;
-    bool mBusy = false;
-    bool mEncounteredErrorMessageType = false;
-
-
-};
-
-
-class QgsRStatsRunner: public QObject, public QgsCodeInterpreter
+class QgsRStatsRunner: public QObject
 {
     Q_OBJECT
   public:
@@ -102,10 +39,9 @@ class QgsRStatsRunner: public QObject, public QgsCodeInterpreter
     QgsRStatsRunner();
     ~QgsRStatsRunner();
 
+    void execCommand( const QString &command );
     bool busy() const;
     void showStartupMessage();
-
-    QString promptForState( int state ) const override;
 
   signals:
 
@@ -113,12 +49,7 @@ class QgsRStatsRunner: public QObject, public QgsCodeInterpreter
     void showMessage( const QString &message );
     void errorOccurred( const QString &error );
     void busyChanged( bool busy );
-    void commandStarted( const QString &command );
     void commandFinished( const QVariant &result );
-
-  protected:
-
-    int execCommandImpl( const QString &command ) override;
 
   private:
 

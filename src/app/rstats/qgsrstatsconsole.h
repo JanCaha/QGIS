@@ -26,6 +26,28 @@ class QLineEdit;
 class QTextBrowser;
 class QgsDockableWidgetHelper;
 
+class QgsInteractiveRWidget : public QgsCodeEditorR
+{
+    Q_OBJECT
+  public:
+
+    QgsInteractiveRWidget( QWidget *parent = nullptr );
+
+    void clear() override;
+
+  signals:
+
+    void runCommand( const QString &command );
+
+  protected:
+
+    void keyPressEvent( QKeyEvent *event ) override;
+
+    void initializeLexer() override;
+    void displayPrompt( bool more = false );
+
+};
+
 class QgsRStatsConsole: public QWidget
 {
   public:
@@ -35,9 +57,10 @@ class QgsRStatsConsole: public QWidget
   private:
 
     QgsRStatsRunner *mRunner = nullptr;
-    QgsCodeEditorR *mInputEdit = nullptr;
+    QgsInteractiveRWidget *mInputEdit = nullptr;
     QgsCodeEditorR *mOutput = nullptr;
     QgsDockableWidgetHelper *mDockableWidgetHelper = nullptr;
+    QAction *mReadRScript = nullptr;
 
 };
 
