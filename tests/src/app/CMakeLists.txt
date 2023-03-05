@@ -7,7 +7,6 @@ include_directories(
 )
 
 
-
 set(TESTS
   testqgisapp.cpp
   testqgsappbrowserproviders.cpp
@@ -55,6 +54,11 @@ endif()
 
 if (WITH_BINDINGS)
   set(TESTS ${TESTS} testqgisapppython.cpp)
+endif()
+
+if (WITH_R)
+  add_compile_definitions(RINSIDE_CALLBACKS=1)
+  set(TESTS ${TESTS} testqgsrstats.cpp)
 endif()
 
 foreach(TESTSRC ${TESTS})

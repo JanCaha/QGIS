@@ -421,6 +421,36 @@ if (POSTGRES_FOUND)
   endif()
 endif()
 
+if(WITH_R)
+  add_compile_definitions(RINSIDE_CALLBACKS=1)
+  exec_program(Rscript
+    ARGS ${CMAKE_SOURCE_DIR}/external/r_inside/src/tools/RInsideAutoloads.r
+    OUTPUT_VARIABLE R_INSIDE_AUTOLOADS
+  )
+  file(WRITE
+    ${CMAKE_SOURCE_DIR}/external/r_inside/inst/include/RInsideAutoloads.h "${R_INSIDE_AUTOLOADS}"
+  )
+
+  exec_program(Rscript
+    ARGS ${CMAKE_SOURCE_DIR}/external/r_inside/src/tools/RInsideEnvVars.r
+    OUTPUT_VARIABLE R_INSIDE_ENV_VARS )
+  file(WRITE
+    ${CMAKE_SOURCE_DIR}/external/r_inside/inst/include/RInsideEnvVars.h "${R_INSIDE_ENV_VARS}"
+  )
+
+  set(QGIS_APP_SRCS
+    ${QGIS_APP_SRCS}
+    ${CMAKE_SOURCE_DIR}/external/r_inside/src/MemBuf.cpp
+    ${CMAKE_SOURCE_DIR}/external/r_inside/src/RInside.cpp
+    ${CMAKE_SOURCE_DIR}/external/r_inside/src/RInside_C.cpp
+    ${CMAKE_SOURCE_DIR}/external/r_inside/src/RcppExports.cpp
+    ${CMAKE_SOURCE_DIR}/external/r_inside/src/compiler.cpp
+
+    rstats/qgsrstatsrunner.cpp
+    rstats/qgsrstatsconsole.cpp
+  )
+endif()
+
 # Test data dir for QgsAppScreenShots
 add_definitions(-DTEST_DATA_DIR="${TEST_DATA_DIR}")
 
@@ -662,6 +692,18 @@ endif()
 
 if (WITH_PDAL)
   target_link_libraries(qgis_app ${PDAL_LIBRARIES})
+endif()
+
+if (WITH_R)
+  target_include_directories(qgis_app SYSTEM PUBLIC
+    ${CMAKE_SOURCE_DIR}/external/r_inside/inst/include
+    ${R_INCLUDE_DIR}
+    ${RCpp_INCLUDE_DIR}
+  )
+  target_link_libraries(qgis_app
+    ${R_LIB}
+    Rcpp
+  )
 endif()
 
 if(MSVC)
