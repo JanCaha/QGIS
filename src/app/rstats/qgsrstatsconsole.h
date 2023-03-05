@@ -61,7 +61,7 @@ class QgsRStatsConsole: public QWidget
     QgsCodeEditorR *mOutput = nullptr;
     QgsDockableWidgetHelper *mDockableWidgetHelper = nullptr;
     QAction *mReadRScript = nullptr;
-
+    QAction *mEmptyRMemory = nullptr;
 };
 
 #endif // QGSRSTATSCONSOLE_H

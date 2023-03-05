@@ -433,3 +433,14 @@ bool QgsRStatsSession::has_ShowMessage()
 {
   return true;
 }
+
+void QgsRStatsSession::emptyRMemory()
+{
+    QString error;
+    execCommandPrivate( QStringLiteral( "rm(list = ls())" ), error );
+
+    if ( !error.isEmpty() )
+    {
+        QgsDebugMsg( error );
+    }
+}

@@ -61,6 +61,10 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
     }
   } );
 
+  mEmptyRMemory = new QAction( tr( "Empty R Memory" ), this );
+  toolBar->addAction( mEmptyRMemory );
+  connect( mEmptyRMemory, &QAction::triggered, this, [=]() { mRunner->emptyRMemory(); } );
+
   QVBoxLayout *vl = new QVBoxLayout();
   vl->setContentsMargins( 0, 0, 0, 0 );
   vl->addWidget( toolBar );

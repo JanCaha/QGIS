@@ -48,6 +48,11 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
      */
     static SEXP variantToSexp( const QVariant &variant );
 
+    /**
+     * Empty R memory, remove all objects and stored variables, but leave packages loaded.
+     */
+    void emptyRMemory();
+
   public slots:
 
     void execCommand( const QString &command );
