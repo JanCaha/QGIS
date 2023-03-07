@@ -42,8 +42,28 @@ void QgsRStatsSession::prepareQgisApplicationWrapper()
   mRSession->assign( wr, ".QGISPrivate" );
   mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$..QGISPrivate" );
   mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), "$.QgsMapLayerWrapper" );
+  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), "names.QgsMapLayerWrapper" );
+}
 
-  prepareQGISObject();
+void QgsRStatsSession::preparePrintFunctions(){
+    QString error;
+    execCommandPrivate( QStringLiteral( R"""(
+      print.QgsMapLayerWrapper<-function(x){print('QgsMapLayer')}
+    )"""), error);
+
+    if ( !error.isEmpty() )
+    {
+      QgsDebugMsg( error );
+    }
+
+    execCommandPrivate( QStringLiteral( R"""(
+      print.QGIS<-function(x){print('QGIS')}
+    )"""), error);
+
+    if ( !error.isEmpty() )
+    {
+      QgsDebugMsg( error );
+    }
 }
 
 QgsRStatsSession::QgsRStatsSession()
@@ -59,6 +79,8 @@ QgsRStatsSession::QgsRStatsSession()
   execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
 
   prepareQgisApplicationWrapper();
+  prepareQGISObject();
+  preparePrintFunctions();
 }
 
 void QgsRStatsSession::showStartupMessage()

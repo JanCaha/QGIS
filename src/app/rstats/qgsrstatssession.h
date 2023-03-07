@@ -73,6 +73,7 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
 
     void prepareQgisApplicationWrapper();
     void prepareQGISObject();
+    void preparePrintFunctions();
 
     std::unique_ptr< RInside > mRSession;
     bool mBusy = false;
