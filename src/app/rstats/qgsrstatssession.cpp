@@ -6,6 +6,46 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsfunctions.h"
 
+void QgsRStatsSession::prepareQGISObject()
+{
+
+  QString error;
+  execCommandPrivate( QStringLiteral( R"""(
+    QGIS <- list(
+      versionInt=function() { .QGISPrivate$versionInt },
+      mapLayerByName=function(name) { .QGISPrivate$mapLayerByName(name) },
+      activeLayer=function() { .QGISPrivate$activeLayer },
+      toDataFrame=function(layer, selectedOnly=FALSE) { .QGISPrivate$toDataFrame(layer, selectedOnly) },
+      toNumericVector=function(layer, field, selectedOnly=FALSE) { .QGISPrivate$toNumericVector(layer, field, selectedOnly) },
+      toSf=function(layer) { .QGISPrivate$toSf(layer) },
+      toRaster=function(layer) {.QGISPrivate$toRaster(layer)},
+      toTerra=function(layer) {.QGISPrivate$toTerra(layer)},
+      toStars=function(layer) {.QGISPrivate$toStars(layer)},
+      isVectorLayer=function(layer) { .QGISPrivate$isVectorLayer(layer) },
+      isRasterLayer=function(layer) { .QGISPrivate$isRasterLayer(layer) },
+      dfToQGIS=function(df) { .QGISPrivate$dfToQGIS(df) }
+    )
+    class(QGIS) <- "QGIS"
+    )""" ),
+                      error );
+
+  if ( !error.isEmpty() )
+  {
+    QgsDebugMsg( error );
+  }
+}
+
+void QgsRStatsSession::prepareQgisApplicationWrapper()
+{
+  Rcpp::XPtr<QgsRstatsApplicationWrapper> wr( new QgsRstatsApplicationWrapper() );
+  wr.attr( "class" ) = ".QGISPrivate";
+  mRSession->assign( wr, ".QGISPrivate" );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$..QGISPrivate" );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), "$.QgsMapLayerWrapper" );
+
+  prepareQGISObject();
+}
+
 QgsRStatsSession::QgsRStatsSession()
 {
   mRSession = std::make_unique<RInside>( 0, nullptr, true, false, true );
@@ -18,35 +58,7 @@ QgsRStatsSession::QgsRStatsSession()
   }
   execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
 
-  Rcpp::XPtr<QgsRstatsApplicationWrapper> wr( new QgsRstatsApplicationWrapper() );
-  wr.attr( "class" ) = ".QGISPrivate";
-  mRSession->assign( wr, ".QGISPrivate" );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$..QGISPrivate" );
-
-  QString error;
-  execCommandPrivate( QStringLiteral( R"""(
-  QGIS <- list(
-    versionInt=function() { .QGISPrivate$versionInt },
-    mapLayerByName=function(name) { .QGISPrivate$mapLayerByName(name) },
-    activeLayer=function() { .QGISPrivate$activeLayer },
-    toDataFrame=function(layer, selectedOnly=FALSE) { .QGISPrivate$toDataFrame(layer, selectedOnly) },
-    toNumericVector=function(layer, field, selectedOnly=FALSE) { .QGISPrivate$toNumericVector(layer, field, selectedOnly) },
-    toSf=function(layer) { .QGISPrivate$toSf(layer) },
-    toRaster=function(layer) {.QGISPrivate$toRaster(layer)},
-    toTerra=function(layer) {.QGISPrivate$toTerra(layer)},
-    toStars=function(layer) {.QGISPrivate$toStars(layer)},
-    isVectorLayer=function(layer) { .QGISPrivate$isVectorLayer(layer) },
-    isRasterLayer=function(layer) { .QGISPrivate$isRasterLayer(layer) },
-    dfToQGIS=function(df) { .QGISPrivate$dfToQGIS(df) }
-  )
-  class(QGIS) <- "QGIS"
-  )""" ),
-                      error );
-
-  if ( !error.isEmpty() )
-  {
-    QgsDebugMsg( error );
-  }
+  prepareQgisApplicationWrapper();
 }
 
 void QgsRStatsSession::showStartupMessage()
@@ -436,11 +448,11 @@ bool QgsRStatsSession::has_ShowMessage()
 
 void QgsRStatsSession::emptyRMemory()
 {
-    QString error;
-    execCommandPrivate( QStringLiteral( "rm(list = ls())" ), error );
+  QString error;
+  execCommandPrivate( QStringLiteral( "rm(list = ls())" ), error );
 
-    if ( !error.isEmpty() )
-    {
-        QgsDebugMsg( error );
-    }
+  if ( !error.isEmpty() )
+  {
+    QgsDebugMsg( error );
+  }
 }

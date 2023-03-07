@@ -71,6 +71,9 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
   private:
     void execCommandPrivate( const QString &command, QString &error, QVariant *res = nullptr, QString *output = nullptr );
 
+    void prepareQgisApplicationWrapper();
+    void prepareQGISObject();
+
     std::unique_ptr< RInside > mRSession;
     bool mBusy = false;
     bool mEncounteredErrorMessageType = false;
