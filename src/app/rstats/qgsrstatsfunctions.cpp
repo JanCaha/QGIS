@@ -13,6 +13,18 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsmaplayerwrapper.h"
 
+SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name )
+{
+  if ( name == "id" )
+  {
+    return Rcpp::wrap( obj->id() );
+  }
+  else
+  {
+    return NULL;
+  }
+}
+
 // The function which is called when running QGIS$...
 SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name )
 {
@@ -336,16 +348,4 @@ SEXP QgRstatsFunctions::isVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 SEXP QgRstatsFunctions::isRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
   return obj->isRasterLayer();
-}
-
-SEXP QgRstatsFunctions::MapLayerWrapperDollar( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name )
-{
-  if ( name == "id" )
-  {
-    return Rcpp::wrap( obj->id() );
-  }
-  else
-  {
-    return NULL;
-  }
 }
