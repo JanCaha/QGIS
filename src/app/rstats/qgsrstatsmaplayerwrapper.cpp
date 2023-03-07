@@ -22,8 +22,11 @@ std::string QgsRstatsMapLayerWrapper::id() const
   return mLayerId.toStdString();
 }
 
-long long QgsRstatsMapLayerWrapper::featureCount() const
+SEXP QgsRstatsMapLayerWrapper::featureCount() const
 {
+  if (isRasterLayer())
+      return R_NilValue;
+
   long long res = -1;
   auto countOnMainThread = [&res, this]
   {
@@ -39,7 +42,8 @@ long long QgsRstatsMapLayerWrapper::featureCount() const
   };
 
   QMetaObject::invokeMethod( qApp, countOnMainThread, Qt::BlockingQueuedConnection );
-  return res;
+
+  return Rcpp::wrap(res);
 }
 
 Rcpp::DataFrame QgsRstatsMapLayerWrapper::toDataFrame( bool selectedOnly ) const
@@ -329,7 +333,7 @@ SEXP QgsRstatsMapLayerWrapper::toSf()
   return st_read( path.toStdString(), layerName.toStdString() );
 }
 
-Rcpp::LogicalVector QgsRstatsMapLayerWrapper::isVectorLayer()
+bool QgsRstatsMapLayerWrapper::isVectorLayer() const
 {
   bool prepared;
   bool isVectorLayer = false;
@@ -356,7 +360,7 @@ Rcpp::LogicalVector QgsRstatsMapLayerWrapper::isVectorLayer()
   return isVectorLayer;
 }
 
-Rcpp::LogicalVector QgsRstatsMapLayerWrapper::isRasterLayer()
+bool QgsRstatsMapLayerWrapper::isRasterLayer() const
 {
   bool prepared;
   bool isRasterLayer = false;
@@ -437,7 +441,7 @@ QgsVectorLayer *QgsRstatsMapLayerWrapper::vectorLayer() const
 
 SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
 {
-  if ( !this->isRasterLayer()( 0 ) )
+  if ( !this->isRasterLayer() )
     return R_NilValue;
 
   bool prepared = false;
@@ -483,4 +487,14 @@ SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
     default:
       return Rcpp::wrap( rasterPath.toStdString() );
   }
+}
+
+Rcpp::CharacterVector QgsRstatsMapLayerWrapper::functions()
+{
+  Rcpp::CharacterVector ret;
+  ret.push_back( "id" );
+  ret.push_back( "featureCount" );
+  ret.push_back( "toDataFrame" );
+  ret.push_back( "toNumericVector" );
+  return ret;
 }

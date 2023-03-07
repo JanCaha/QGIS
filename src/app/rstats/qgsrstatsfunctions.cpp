@@ -1,5 +1,7 @@
 #include "qgsrstatsfunctions.h"
 
+#include <Rdefines.h>
+
 #include <QThread>
 #include <QVariant>
 #include <QString>
@@ -18,6 +20,14 @@ SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj
   if ( name == "id" )
   {
     return Rcpp::wrap( obj->id() );
+  }
+  else if( name == "featureCount")
+  {
+      return obj->featureCount();
+  }
+  else if( name == "toDataFrame")
+  {
+      return Rcpp::InternalFunction ( &toDataFrame );
   }
   else
   {
@@ -88,27 +98,6 @@ SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std
   {
     return NULL;
   }
-}
-
-// The function listing the elements of QGIS
-Rcpp::CharacterVector QgRstatsFunctions::Names( Rcpp::XPtr<QgsRstatsApplicationWrapper> )
-{
-  Rcpp::CharacterVector ret;
-  ret.push_back( "versionInt" );
-  ret.push_back( "activeLayer" );
-  ret.push_back( "layerId" );
-  ret.push_back( "featureCount" );
-  ret.push_back( "mapLayerByName" );
-  ret.push_back( "toDataFrame" );
-  ret.push_back( "toNumericVector" );
-  ret.push_back( "toSf" );
-  ret.push_back( "toRaster" );
-  ret.push_back( "toTerra" );
-  ret.push_back( "toStars" );
-  ret.push_back( "isVectorLayer" );
-  ret.push_back( "isRasterLayer" );
-  ret.push_back( "dfToQGIS" );
-  return ret;
 }
 
 SEXP QgRstatsFunctions::dfToQGIS( SEXP data )
@@ -342,10 +331,10 @@ SEXP QgRstatsFunctions::toStars( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 
 SEXP QgRstatsFunctions::isVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
-  return obj->isVectorLayer();
+  return Rcpp::wrap( obj->isVectorLayer() );
 }
 
 SEXP QgRstatsFunctions::isRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
-  return obj->isRasterLayer();
+  return Rcpp::wrap( obj->isRasterLayer() );
 }

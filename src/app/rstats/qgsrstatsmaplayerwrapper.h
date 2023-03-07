@@ -22,7 +22,7 @@ class QgsRstatsMapLayerWrapper
 
     std::string id() const;
 
-    long long featureCount() const;
+    SEXP featureCount() const;
 
     Rcpp::DataFrame toDataFrame( bool selectedOnly ) const;
 
@@ -30,9 +30,9 @@ class QgsRstatsMapLayerWrapper
 
     SEXP toSf();
 
-    Rcpp::LogicalVector isVectorLayer();
+    bool isVectorLayer() const;
 
-    Rcpp::LogicalVector isRasterLayer();
+    bool isRasterLayer() const;
 
     SEXP toRaster();
 
@@ -43,6 +43,8 @@ class QgsRstatsMapLayerWrapper
     QgsRasterLayer *rasterLayer() const;
 
     QgsVectorLayer *vectorLayer() const;
+
+    static Rcpp::CharacterVector functions();
 
   private:
     QString mLayerId;

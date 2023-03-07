@@ -11,7 +11,6 @@ class QgRstatsFunctions
 {
   public:
     static SEXP Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name );
-    static Rcpp::CharacterVector Names( Rcpp::XPtr<QgsRstatsApplicationWrapper> );
 
     static SEXP DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name );
 
