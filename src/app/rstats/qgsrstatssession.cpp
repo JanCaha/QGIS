@@ -6,28 +6,11 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsfunctions.h"
 
+
 void QgsRStatsSession::prepareQGISObject()
 {
 
   QString error;
-  execCommandPrivate( QStringLiteral( R"""(
-    QGIS <- list(
-      versionInt=function() { .QGISPrivate$versionInt },
-      mapLayerByName=function(name) { .QGISPrivate$mapLayerByName(name) },
-      activeLayer=function() { .QGISPrivate$activeLayer },
-      toDataFrame=function(layer, selectedOnly=FALSE) { .QGISPrivate$toDataFrame(layer, selectedOnly) },
-      toNumericVector=function(layer, field, selectedOnly=FALSE) { .QGISPrivate$toNumericVector(layer, field, selectedOnly) },
-      toSf=function(layer) { .QGISPrivate$toSf(layer) },
-      toRaster=function(layer) {.QGISPrivate$toRaster(layer)},
-      toTerra=function(layer) {.QGISPrivate$toTerra(layer)},
-      toStars=function(layer) {.QGISPrivate$toStars(layer)},
-      isVectorLayer=function(layer) { .QGISPrivate$isVectorLayer(layer) },
-      isRasterLayer=function(layer) { .QGISPrivate$isRasterLayer(layer) },
-      dfToQGIS=function(df) { .QGISPrivate$dfToQGIS(df) }
-    )
-    class(QGIS) <- "QGIS"
-    )""" ),
-                      error );
 
   if ( !error.isEmpty() )
   {
@@ -37,33 +20,40 @@ void QgsRStatsSession::prepareQGISObject()
 
 void QgsRStatsSession::prepareQgisApplicationWrapper()
 {
-  Rcpp::XPtr<QgsRstatsApplicationWrapper> wr( new QgsRstatsApplicationWrapper() );
-  wr.attr( "class" ) = ".QGISPrivate";
-  mRSession->assign( wr, ".QGISPrivate" );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$..QGISPrivate" );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), "$.QgsMapLayerWrapper" );
-  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), "names.QgsMapLayerWrapper" );
+  Rcpp::XPtr<QgsRstatsApplicationWrapper> qgiswrapper( new QgsRstatsApplicationWrapper() );
+  qgiswrapper.attr( "class" ) = "QGIS";
+  mRSession->assign( qgiswrapper, "QGIS" );
 }
 
-void QgsRStatsSession::preparePrintFunctions(){
-    QString error;
-    execCommandPrivate( QStringLiteral( R"""(
+void QgsRStatsSession::preparePrintFunctions()
+{
+  QString error;
+  execCommandPrivate( QStringLiteral( R"""(
       print.QgsMapLayerWrapper<-function(x){print('QgsMapLayer')}
-    )"""), error);
+    )""" ), error );
 
-    if ( !error.isEmpty() )
-    {
-      QgsDebugMsg( error );
-    }
+  if ( !error.isEmpty() )
+  {
+    QgsDebugMsg( error );
+  }
 
-    execCommandPrivate( QStringLiteral( R"""(
+  execCommandPrivate( QStringLiteral( R"""(
       print.QGIS<-function(x){print('QGIS')}
-    )"""), error);
+    )""" ), error );
 
-    if ( !error.isEmpty() )
-    {
-      QgsDebugMsg( error );
-    }
+  if ( !error.isEmpty() )
+  {
+    QgsDebugMsg( error );
+  }
+}
+
+void QgsRStatsSession::prepareConvertFunctions()
+{
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$.QGIS" );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), "$.QgsMapLayerWrapper" );
+  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsApplicationWrapper::functions ), "names.QGIS" );
+  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), "names.QgsMapLayerWrapper" );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::asDataFrame ), "as.data.frame.QgsMapLayerWrapper" );
 }
 
 QgsRStatsSession::QgsRStatsSession()
@@ -79,8 +69,9 @@ QgsRStatsSession::QgsRStatsSession()
   execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
 
   prepareQgisApplicationWrapper();
-  prepareQGISObject();
   preparePrintFunctions();
+  prepareConvertFunctions();
+  prepareQGISObject();
 }
 
 void QgsRStatsSession::showStartupMessage()
