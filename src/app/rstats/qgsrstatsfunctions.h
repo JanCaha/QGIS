@@ -11,29 +11,20 @@ class QgRstatsFunctions
 {
   public:
     static SEXP Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name );
-
     static SEXP DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name );
 
-    static SEXP mapLayerByName( std::string name );
+    static SEXP mapLayerByName( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name );
+    static SEXP printQgsMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
+    static SEXP dfToLayer( SEXP data );
 
-    static SEXP isVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
-    static SEXP isRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
+    static SEXP readAsSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
 
-    static SEXP dfToQGIS( SEXP data );
-
-    static SEXP mapLayerId( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
-    static SEXP featureCount( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
-
-    static SEXP toDataFrame( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, bool selectedOnly );
+    static SEXP asDataFrame( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, bool selectedOnly );
     static SEXP toNumericVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, const std::string &field, bool selectedOnly );
-    static SEXP toSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
 
     static SEXP toRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
     static SEXP toTerra( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
     static SEXP toStars( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
-
-    static SEXP MapLayerWrapperDollar( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name );
-
 };
 
 #endif // QGRSSTATSFUNCTIONS_H

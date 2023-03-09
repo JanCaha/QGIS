@@ -1,5 +1,7 @@
 #include "qgsrstatsfunctions.h"
 
+#include <functional>
+
 #include <Rdefines.h>
 
 #include <QThread>
@@ -15,25 +17,45 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsmaplayerwrapper.h"
 
+
 SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name )
 {
   if ( name == "id" )
   {
     return Rcpp::wrap( obj->id() );
   }
-  else if( name == "featureCount")
+  else if ( name == "featureCount" )
   {
-      return obj->featureCount();
+    return obj->featureCount();
   }
-  else if( name == "toDataFrame")
+  else if ( name == "asDataFrame" )
   {
-      return Rcpp::InternalFunction ( &toDataFrame );
+    return Rcpp::InternalFunction( &asDataFrame );
+  }
+  else if ( name == "readAsSf" )
+  {
+    std::function<SEXP()> func = std::bind( &readAsSf, obj );
+    return Rcpp::InternalFunction( func );
+  }
+  else if ( name == "isVectorLayer" )
+  {
+    return Rcpp::wrap( obj->isVectorLayer() );
+  }
+  else if ( name == "isRasterLayer" )
+  {
+    return Rcpp::wrap( obj->isRasterLayer() );
   }
   else
   {
     return NULL;
   }
 }
+
+SEXP QgRstatsFunctions::readAsSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
+{
+  return obj->readAsSf();
+}
+
 
 // The function which is called when running QGIS$...
 SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name )
@@ -46,53 +68,18 @@ SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std
   {
     return obj->activeLayer();
   }
+  else if ( name == "mapLayers" )
+  {
+    return obj->mapLayers();
+  }
   else if ( name == "mapLayerByName" )
   {
-    return Rcpp::InternalFunction( &mapLayerByName );
+    std::function<SEXP( std::string )> func = std::bind( &mapLayerByName, obj, std::placeholders::_1 );
+    return Rcpp::InternalFunction( func );
   }
-  else if ( name == "layerId" )
+  else if ( name == "dfToLayer" )
   {
-    return Rcpp::InternalFunction( &mapLayerId );
-  }
-  else if ( name == "featureCount" )
-  {
-    return Rcpp::InternalFunction( &featureCount );
-  }
-  else if ( name == "toDataFrame" )
-  {
-    return Rcpp::InternalFunction( &toDataFrame );
-  }
-  else if ( name == "toNumericVector" )
-  {
-    return Rcpp::InternalFunction( &toNumericVector );
-  }
-  else if ( name == "toSf" )
-  {
-    return Rcpp::InternalFunction( &toSf );
-  }
-  else if ( name == "dfToQGIS" )
-  {
-    return Rcpp::InternalFunction( &dfToQGIS );
-  }
-  else if ( name == "isVectorLayer" )
-  {
-    return Rcpp::InternalFunction( &isVector );
-  }
-  else if ( name == "isRasterLayer" )
-  {
-    return Rcpp::InternalFunction( &isRaster );
-  }
-  else if ( name == "toRaster" )
-  {
-    return Rcpp::InternalFunction( &toRaster );
-  }
-  else if ( name == "toTerra" )
-  {
-    return Rcpp::InternalFunction( &toTerra );
-  }
-  else if ( name == "toStars" )
-  {
-    return Rcpp::InternalFunction( &toStars );
+    return Rcpp::InternalFunction( &dfToLayer );
   }
   else
   {
@@ -100,7 +87,7 @@ SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std
   }
 }
 
-SEXP QgRstatsFunctions::dfToQGIS( SEXP data )
+SEXP QgRstatsFunctions::dfToLayer( SEXP data )
 {
   if ( !Rcpp::is<Rcpp::DataFrame>( data ) )
     return Rcpp::wrap( false );
@@ -280,19 +267,10 @@ SEXP QgRstatsFunctions::dfToQGIS( SEXP data )
   return Rcpp::wrap( true );
 }
 
-SEXP QgRstatsFunctions::mapLayerId( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
-{
-  return Rcpp::wrap( obj->id() );
-}
 
-SEXP QgRstatsFunctions::featureCount( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
+SEXP QgRstatsFunctions::asDataFrame( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, bool selectedOnly )
 {
-  return Rcpp::wrap( obj->featureCount() );
-}
-
-SEXP QgRstatsFunctions::toDataFrame( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, bool selectedOnly )
-{
-  return obj->toDataFrame( selectedOnly );
+  return obj->asDataFrame( selectedOnly );
 }
 
 SEXP QgRstatsFunctions::toNumericVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, const std::string &field, bool selectedOnly )
@@ -300,18 +278,10 @@ SEXP QgRstatsFunctions::toNumericVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> ob
   return obj->toNumericVector( field, selectedOnly );
 }
 
-SEXP QgRstatsFunctions::toSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
-{
-  return obj->toSf();
-}
 
-SEXP QgRstatsFunctions::mapLayerByName( std::string name )
+SEXP QgRstatsFunctions::mapLayerByName( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name )
 {
-  QList<QgsMapLayer *> layers = QgsProject::instance()->mapLayersByName( QString::fromStdString( name ) );
-  if ( !layers.empty() )
-    return Rcpp::XPtr<QgsRstatsMapLayerWrapper>( new QgsRstatsMapLayerWrapper( layers.at( 0 ) ) );
-
-  return nullptr;
+  return obj->mapLayerByName( name );
 }
 
 SEXP QgRstatsFunctions::toRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
@@ -329,12 +299,8 @@ SEXP QgRstatsFunctions::toStars( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
   return obj->toStars();
 }
 
-SEXP QgRstatsFunctions::isVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
+SEXP QgRstatsFunctions::printQgsMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
-  return Rcpp::wrap( obj->isVectorLayer() );
-}
-
-SEXP QgRstatsFunctions::isRaster( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
-{
-  return Rcpp::wrap( obj->isRasterLayer() );
+  std::string res = "QgsMapLayerWrapper: " + obj->id();
+  return Rcpp::wrap( res );
 }
