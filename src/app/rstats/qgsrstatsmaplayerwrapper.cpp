@@ -13,8 +13,13 @@
 #include "qgsproviderregistry.h"
 
 QgsRstatsMapLayerWrapper::QgsRstatsMapLayerWrapper( const QgsMapLayer *layer )
-  : mLayerId( layer ? layer->id() : QString() )
 {
+  auto idOnMainThread = [&layer, this]
+  {
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "idOnMainThread", "idOnMainThread must be run on the main thread" );
+    mLayerId = layer ? layer->id() : QString();
+  };
+  QMetaObject::invokeMethod( qApp, idOnMainThread, Qt::BlockingQueuedConnection );
 }
 
 std::string QgsRstatsMapLayerWrapper::id() const
@@ -24,8 +29,8 @@ std::string QgsRstatsMapLayerWrapper::id() const
 
 SEXP QgsRstatsMapLayerWrapper::featureCount() const
 {
-  if (isRasterLayer())
-      return R_NilValue;
+  if ( isRasterLayer() )
+    return R_NilValue;
 
   long long res = -1;
   auto countOnMainThread = [&res, this]
@@ -43,10 +48,10 @@ SEXP QgsRstatsMapLayerWrapper::featureCount() const
 
   QMetaObject::invokeMethod( qApp, countOnMainThread, Qt::BlockingQueuedConnection );
 
-  return Rcpp::wrap(res);
+  return Rcpp::wrap( res );
 }
 
-Rcpp::DataFrame QgsRstatsMapLayerWrapper::toDataFrame( bool selectedOnly ) const
+Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
 {
   Rcpp::DataFrame result = Rcpp::DataFrame();
 
@@ -56,24 +61,28 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::toDataFrame( bool selectedOnly ) const
   std::unique_ptr<QgsVectorLayerFeatureSource> source;
   std::unique_ptr<QgsScopedProxyProgressTask> task;
   QgsFeatureIds selectedFeatureIds;
+
   auto prepareOnMainThread = [&prepared, &fields, &featureCount, &source, &task, selectedOnly, &selectedFeatureIds, this]
   {
     Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
 
     prepared = false;
 
-    if ( QgsVectorLayer *vlayer = vectorLayer() )
+    if ( QgsMapLayer *layer = QgsProject::instance()->mapLayer( mLayerId ) )
     {
-      fields = vlayer->fields();
-      source = std::make_unique<QgsVectorLayerFeatureSource>( vlayer );
-      if ( selectedOnly )
+      if ( QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer ) )
       {
-        selectedFeatureIds = vlayer->selectedFeatureIds();
-        featureCount = selectedFeatureIds.size();
-      }
-      else
-      {
-        featureCount = vlayer->featureCount();
+        fields = vlayer->fields();
+        source = std::make_unique<QgsVectorLayerFeatureSource>( vlayer );
+        if ( selectedOnly )
+        {
+          selectedFeatureIds = vlayer->selectedFeatureIds();
+          featureCount = selectedFeatureIds.size();
+        }
+        else
+        {
+          featureCount = vlayer->featureCount();
+        }
       }
     }
 
@@ -296,27 +305,33 @@ Rcpp::NumericVector QgsRstatsMapLayerWrapper::toNumericVector( const std::string
   return result;
 }
 
-SEXP QgsRstatsMapLayerWrapper::toSf()
+SEXP QgsRstatsMapLayerWrapper::readAsSf()
 {
+  if ( ! isVectorLayer() )
+  {
+    return R_NilValue;
+  }
+
   bool prepared = false;
   QString path;
   QString layerName;
+
   auto prepareOnMainThread = [&prepared, &path, &layerName, this]
   {
-    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toSf", "prepareOnMainThread must be run on the main thread" );
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "readAsSf", "prepareOnMainThread must be run on the main thread" );
 
     prepared = false;
     if ( QgsMapLayer *layer = QgsProject::instance()->mapLayer( mLayerId ) )
     {
       if ( QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer ) )
       {
-        if ( vlayer->dataProvider()->name() != QStringLiteral( "ogr" ) )
-          return;
-
-        const QVariantMap parts = QgsProviderRegistry::instance()->decodeUri( layer->dataProvider()->name(), layer->source() );
-        path = parts[QStringLiteral( "path" )].toString();
-        layerName = parts[QStringLiteral( "layerName" )].toString();
-        prepared = true;
+        if ( vlayer->dataProvider()->name() == QStringLiteral( "ogr" ) )
+        {
+          const QVariantMap parts = QgsProviderRegistry::instance()->decodeUri( layer->dataProvider()->name(), layer->source() );
+          path = parts[QStringLiteral( "path" )].toString();
+          layerName = parts[QStringLiteral( "layerName" )].toString();
+          prepared = true;
+        }
       }
     }
   };
@@ -328,7 +343,7 @@ SEXP QgsRstatsMapLayerWrapper::toSf()
   if ( path.isEmpty() )
     return R_NilValue;
 
-  Rcpp::Function st_read( "st_read" );
+  Rcpp::Function st_read( "st_read", Rcpp::Environment::namespace_env( "sf" ) );
 
   return st_read( path.toStdString(), layerName.toStdString() );
 }
@@ -347,6 +362,7 @@ bool QgsRstatsMapLayerWrapper::isVectorLayer() const
     {
       if ( QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer ) )
       {
+        Q_UNUSED( vlayer );
         isVectorLayer = true;
       }
     }
@@ -374,6 +390,7 @@ bool QgsRstatsMapLayerWrapper::isRasterLayer() const
     {
       if ( QgsRasterLayer *rlayer = qobject_cast<QgsRasterLayer *>( layer ) )
       {
+        Q_UNUSED( rlayer );
         isRasterLayer = true;
       }
     }
@@ -409,7 +426,21 @@ SEXP QgsRstatsMapLayerWrapper::toStars()
   return this->toRasterDataObject( RasterPackage::stars );
 }
 
-QgsMapLayer *QgsRstatsMapLayerWrapper::mapLayer() const {return QgsProject::instance()->mapLayer( mLayerId );}
+QgsMapLayer *QgsRstatsMapLayerWrapper::mapLayer() const
+{
+  QgsMapLayer *mapLayer;
+
+  auto prepareOnMainThread = [&mapLayer, this]
+  {
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "prepareOnMainThread must be run on the main thread" );
+
+    mapLayer = QgsProject::instance()->mapLayer( mLayerId );
+  };
+
+  QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+
+  return mapLayer;
+}
 
 QgsRasterLayer *QgsRstatsMapLayerWrapper::rasterLayer() const
 {
@@ -496,5 +527,6 @@ Rcpp::CharacterVector QgsRstatsMapLayerWrapper::functions()
   ret.push_back( "featureCount" );
   ret.push_back( "toDataFrame" );
   ret.push_back( "toNumericVector" );
+  ret.push_back( "readAsSf" );
   return ret;
 }
