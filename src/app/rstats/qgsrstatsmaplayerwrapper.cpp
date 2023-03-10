@@ -520,13 +520,21 @@ SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
   }
 }
 
+std::string QgsRstatsMapLayerWrapper::rClassName(){
+    return "QgsMapLayerWrapper";
+}
+
 Rcpp::CharacterVector QgsRstatsMapLayerWrapper::functions()
 {
   Rcpp::CharacterVector ret;
   ret.push_back( "id" );
   ret.push_back( "featureCount" );
-  ret.push_back( "toDataFrame" );
-  ret.push_back( "toNumericVector" );
-  ret.push_back( "readAsSf" );
+  ret.push_back( "asDataFrame(onlySelected)" );
+  ret.push_back( "toNumericVector(fieldName, onlySelected)" );
+  ret.push_back( "readAsSf()" );
   return ret;
+}
+
+std::string QgsRstatsMapLayerWrapper::s3FunctionForClass(std::string functionName){
+    return functionName + "." + rClassName();
 }

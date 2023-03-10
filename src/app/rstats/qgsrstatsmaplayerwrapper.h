@@ -45,6 +45,8 @@ class QgsRstatsMapLayerWrapper
     QgsVectorLayer *vectorLayer() const;
 
     static Rcpp::CharacterVector functions();
+    static std::string rClassName();
+    static std::string s3FunctionForClass(std::string functionName);
 
   private:
     QString mLayerId;
