@@ -14,8 +14,10 @@ class QgRstatsFunctions
     static SEXP DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name );
 
     static SEXP mapLayerByName( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name );
-    static SEXP printQgsMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
     static SEXP dfToLayer( SEXP data );
+
+    static void printMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
+    static void printApplicationWrapper();
 
     static SEXP readAsSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj );
 

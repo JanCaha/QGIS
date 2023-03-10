@@ -30,7 +30,8 @@ SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj
   }
   else if ( name == "asDataFrame" )
   {
-    return Rcpp::InternalFunction( &asDataFrame );
+      std::function<SEXP( bool)> func = std::bind( &asDataFrame, obj, std::placeholders::_1);
+      return Rcpp::InternalFunction( func );
   }
   else if ( name == "readAsSf" )
   {
@@ -45,6 +46,11 @@ SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj
   {
     return Rcpp::wrap( obj->isRasterLayer() );
   }
+  else if (name == "toNumericVector")
+  {
+      std::function<SEXP(std::string, bool)> func = std::bind( &toNumericVector, obj, std::placeholders::_1, std::placeholders::_2 );
+      return Rcpp::InternalFunction( func );
+  }
   else
   {
     return NULL;
@@ -56,6 +62,15 @@ SEXP QgRstatsFunctions::readAsSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
   return obj->readAsSf();
 }
 
+void QgRstatsFunctions::printApplicationWrapper()
+{
+    Rcpp::print(Rcpp::wrap(QgsRstatsApplicationWrapper::rClassName()));
+}
+
+void QgRstatsFunctions::printMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
+{
+    Rcpp::print( Rcpp::wrap( QgsRstatsMapLayerWrapper::rClassName() + "(" + obj->id() + ")"));
+}
 
 // The function which is called when running QGIS$...
 SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name )
@@ -76,6 +91,9 @@ SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std
   {
     std::function<SEXP( std::string )> func = std::bind( &mapLayerByName, obj, std::placeholders::_1 );
     return Rcpp::InternalFunction( func );
+  }
+  else if (name == "projectCrs" ){
+      return obj->projectCrs();
   }
   else if ( name == "dfToLayer" )
   {
@@ -297,10 +315,4 @@ SEXP QgRstatsFunctions::toTerra( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 SEXP QgRstatsFunctions::toStars( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
   return obj->toStars();
-}
-
-SEXP QgRstatsFunctions::printQgsMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
-{
-  std::string res = "QgsMapLayerWrapper: " + obj->id();
-  return Rcpp::wrap( res );
 }
