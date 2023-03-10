@@ -7,53 +7,23 @@
 #include "qgsrstatsfunctions.h"
 
 
-void QgsRStatsSession::prepareQGISObject()
-{
-
-  QString error;
-
-  if ( !error.isEmpty() )
-  {
-    QgsDebugMsg( error );
-  }
-}
-
 void QgsRStatsSession::prepareQgisApplicationWrapper()
 {
-  Rcpp::XPtr<QgsRstatsApplicationWrapper> qgiswrapper( new QgsRstatsApplicationWrapper() );
-  qgiswrapper.attr( "class" ) = "QGIS";
-  mRSession->assign( qgiswrapper, "QGIS" );
+  mRSession->assign( QgsRstatsApplicationWrapper::instance(), "QGIS" );
 }
 
-void QgsRStatsSession::preparePrintFunctions()
-{
-  QString error;
-  execCommandPrivate( QStringLiteral( R"""(
-      print.QgsMapLayerWrapper<-function(x){print('QgsMapLayer')}
-    )""" ), error );
-
-  if ( !error.isEmpty() )
-  {
-    QgsDebugMsg( error );
-  }
-
-  execCommandPrivate( QStringLiteral( R"""(
-      print.QGIS<-function(x){print('QGIS')}
-    )""" ), error );
-
-  if ( !error.isEmpty() )
-  {
-    QgsDebugMsg( error );
-  }
-}
 
 void QgsRStatsSession::prepareConvertFunctions()
 {
   mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::Dollar ), "$.QGIS" );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), "$.QgsMapLayerWrapper" );
   mRSession->assign( Rcpp::InternalFunction( &QgsRstatsApplicationWrapper::functions ), "names.QGIS" );
-  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), "names.QgsMapLayerWrapper" );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::asDataFrame ), "as.data.frame.QgsMapLayerWrapper" );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::printApplicationWrapper ),  "print.QGIS" );
+
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), QgsRstatsMapLayerWrapper::s3FunctionForClass("$") );
+  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), QgsRstatsMapLayerWrapper::s3FunctionForClass("names") );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::asDataFrame ), QgsRstatsMapLayerWrapper::s3FunctionForClass("as.data.frame") );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::printMapLayerWrapper ), QgsRstatsMapLayerWrapper::s3FunctionForClass("print") );
+
 }
 
 QgsRStatsSession::QgsRStatsSession()
@@ -69,9 +39,7 @@ QgsRStatsSession::QgsRStatsSession()
   execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
 
   prepareQgisApplicationWrapper();
-  preparePrintFunctions();
   prepareConvertFunctions();
-  prepareQGISObject();
 }
 
 void QgsRStatsSession::showStartupMessage()

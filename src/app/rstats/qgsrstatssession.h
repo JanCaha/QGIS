@@ -72,8 +72,6 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
     void execCommandPrivate( const QString &command, QString &error, QVariant *res = nullptr, QString *output = nullptr );
 
     void prepareQgisApplicationWrapper();
-    void prepareQGISObject();
-    void preparePrintFunctions();
     void prepareConvertFunctions();
 
     std::unique_ptr< RInside > mRSession;
