@@ -452,6 +452,7 @@ if(WITH_R)
     rstats/qgsrstatsmaplayerwrapper.cpp
     rstats/qgsrstatsrunner.cpp
     rstats/qgsrstatssession.cpp
+    rstats/qgsrstatsutils.cpp
   )
 endif()
 
