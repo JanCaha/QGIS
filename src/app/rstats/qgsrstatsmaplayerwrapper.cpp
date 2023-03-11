@@ -444,30 +444,34 @@ QgsMapLayer *QgsRstatsMapLayerWrapper::mapLayer() const
 
 QgsRasterLayer *QgsRstatsMapLayerWrapper::rasterLayer() const
 {
+    QgsRasterLayer *rlayer = nullptr;
 
-  if ( QgsMapLayer *layer = mapLayer() )
-  {
-    if ( QgsRasterLayer *rlayer = qobject_cast<QgsRasterLayer *>( layer ) )
+    auto prepareOnMainThread = [&rlayer, this]
     {
-      return rlayer;
-    }
-  }
+      Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
 
-  return nullptr;
+        rlayer = QgsProject::instance()->mapLayer<QgsRasterLayer *>(mLayerId);
+    };
+
+    QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+
+    return rlayer;
 }
 
 QgsVectorLayer *QgsRstatsMapLayerWrapper::vectorLayer() const
 {
+    QgsVectorLayer *vlayer = nullptr;
 
-  if ( QgsMapLayer *layer = mapLayer() )
-  {
-    if ( QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer ) )
+    auto prepareOnMainThread = [&vlayer, this]
     {
-      return vlayer;
-    }
-  }
+      Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
 
-  return nullptr;
+        vlayer = QgsProject::instance()->mapLayer<QgsVectorLayer *>(mLayerId);
+    };
+
+    QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+
+    return vlayer;
 }
 
 SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
