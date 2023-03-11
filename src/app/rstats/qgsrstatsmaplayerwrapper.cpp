@@ -11,6 +11,7 @@
 #include "qgsvectorlayerfeatureiterator.h"
 #include "qgsproxyprogresstask.h"
 #include "qgsproviderregistry.h"
+#include "qgsrstatsutils.h"
 
 QgsRstatsMapLayerWrapper::QgsRstatsMapLayerWrapper( const QgsMapLayer *layer )
 {
@@ -92,49 +93,21 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
   };
 
   QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+
   if ( !prepared )
     return result;
 
   QList<int> attributesToFetch;
+
   for ( int index = 0; index < fields.count(); ++index )
   {
-    Rcpp::RObject column;
     const QgsField field = fields.at( index );
 
-    switch ( field.type() )
+    if (QgsRstatsUtils::canConvertToRcpp(field))
     {
-      case QVariant::Bool:
-      {
-        column = Rcpp::LogicalVector( featureCount );
-        break;
-      }
-      case QVariant::Int:
-      {
-        column = Rcpp::IntegerVector( featureCount );
-        break;
-      }
-      case QVariant::Double:
-      {
-        column = Rcpp::DoubleVector( featureCount );
-        break;
-      }
-      case QVariant::LongLong:
-      {
-        column = Rcpp::DoubleVector( featureCount );
-        break;
-      }
-      case QVariant::String:
-      {
-        column = Rcpp::StringVector( featureCount );
-        break;
-      }
-
-      default:
-        continue;
+        result.push_back( QgsRstatsUtils::fieldToRcppVector(field, featureCount), field.name().toStdString() );
+        attributesToFetch.append( index );
     }
-
-    result.push_back( column, field.name().toStdString() );
-    attributesToFetch.append( index );
   }
 
   if ( selectedOnly && selectedFeatureIds.empty() )
@@ -163,58 +136,7 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
     if ( task->isCanceled() )
       break;
 
-    int settingColumn = 0;
-
-    const QgsAttributes attributes = feature.attributes();
-    const QVariant *attributeData = attributes.constData();
-
-    for ( int i = 0; i < fields.count(); i++, attributeData++ )
-    {
-      QgsField field = fields.at( i );
-
-      switch ( field.type() )
-      {
-        case QVariant::Bool:
-        {
-          Rcpp::LogicalVector column = result[settingColumn];
-          column[featureNumber] = attributeData->toBool();
-          break;
-        }
-        case QVariant::Int:
-        {
-          Rcpp::IntegerVector column = result[settingColumn];
-          column[featureNumber] = attributeData->toInt();
-          break;
-        }
-        case QVariant::LongLong:
-        {
-          Rcpp::DoubleVector column = result[settingColumn];
-          bool ok;
-          double val = attributeData->toDouble( &ok );
-          if ( ok )
-            column[featureNumber] = val;
-          else
-            column[featureNumber] = R_NaReal;
-          break;
-        }
-        case QVariant::Double:
-        {
-          Rcpp::DoubleVector column = result[settingColumn];
-          column[featureNumber] = attributeData->toDouble();
-          break;
-        }
-        case QVariant::String:
-        {
-          Rcpp::StringVector column = result[settingColumn];
-          column[featureNumber] = attributeData->toString().toStdString();
-          break;
-        }
-
-        default:
-          continue;
-      }
-      settingColumn++;
-    }
+    QgsRstatsUtils::addFeatureToDf(feature, featureNumber, result);
     featureNumber++;
   }
   return result;
@@ -259,6 +181,7 @@ Rcpp::NumericVector QgsRstatsMapLayerWrapper::toNumericVector( const std::string
   };
 
   QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+
   if ( !prepared )
     return result;
 
@@ -304,6 +227,8 @@ Rcpp::NumericVector QgsRstatsMapLayerWrapper::toNumericVector( const std::string
 
   return result;
 }
+
+
 
 SEXP QgsRstatsMapLayerWrapper::readAsSf()
 {
