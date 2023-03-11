@@ -19,10 +19,10 @@ void QgsRStatsSession::prepareConvertFunctions()
   mRSession->assign( Rcpp::InternalFunction( &QgsRstatsApplicationWrapper::functions ), "names.QGIS" );
   mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::printApplicationWrapper ),  "print.QGIS" );
 
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), QgsRstatsMapLayerWrapper::s3FunctionForClass("$") );
-  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), QgsRstatsMapLayerWrapper::s3FunctionForClass("names") );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::asDataFrame ), QgsRstatsMapLayerWrapper::s3FunctionForClass("as.data.frame") );
-  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::printMapLayerWrapper ), QgsRstatsMapLayerWrapper::s3FunctionForClass("print") );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::DollarMapLayer ), QgsRstatsMapLayerWrapper::s3FunctionForClass( "$" ) );
+  mRSession->assign( Rcpp::InternalFunction( &QgsRstatsMapLayerWrapper::functions ), QgsRstatsMapLayerWrapper::s3FunctionForClass( "names" ) );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::asDataFrame ), QgsRstatsMapLayerWrapper::s3FunctionForClass( "as.data.frame" ) );
+  mRSession->assign( Rcpp::InternalFunction( &QgRstatsFunctions::printMapLayerWrapper ), QgsRstatsMapLayerWrapper::s3FunctionForClass( "print" ) );
 
 }
 

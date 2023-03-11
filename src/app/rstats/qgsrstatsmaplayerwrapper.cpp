@@ -103,10 +103,10 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
   {
     const QgsField field = fields.at( index );
 
-    if (QgsRstatsUtils::canConvertToRcpp(field))
+    if ( QgsRstatsUtils::canConvertToRcpp( field ) )
     {
-        result.push_back( QgsRstatsUtils::fieldToRcppVector(field, featureCount), field.name().toStdString() );
-        attributesToFetch.append( index );
+      result.push_back( QgsRstatsUtils::fieldToRcppVector( field, featureCount ), field.name().toStdString() );
+      attributesToFetch.append( index );
     }
   }
 
@@ -136,7 +136,7 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
     if ( task->isCanceled() )
       break;
 
-    QgsRstatsUtils::addFeatureToDf(feature, featureNumber, result);
+    QgsRstatsUtils::addFeatureToDf( feature, featureNumber, result );
     featureNumber++;
   }
   return result;
@@ -369,34 +369,34 @@ QgsMapLayer *QgsRstatsMapLayerWrapper::mapLayer() const
 
 QgsRasterLayer *QgsRstatsMapLayerWrapper::rasterLayer() const
 {
-    QgsRasterLayer *rlayer = nullptr;
+  QgsRasterLayer *rlayer = nullptr;
 
-    auto prepareOnMainThread = [&rlayer, this]
-    {
-      Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
+  auto prepareOnMainThread = [&rlayer, this]
+  {
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
 
-        rlayer = QgsProject::instance()->mapLayer<QgsRasterLayer *>(mLayerId);
-    };
+    rlayer = QgsProject::instance()->mapLayer<QgsRasterLayer *>( mLayerId );
+  };
 
-    QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+  QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
 
-    return rlayer;
+  return rlayer;
 }
 
 QgsVectorLayer *QgsRstatsMapLayerWrapper::vectorLayer() const
 {
-    QgsVectorLayer *vlayer = nullptr;
+  QgsVectorLayer *vlayer = nullptr;
 
-    auto prepareOnMainThread = [&vlayer, this]
-    {
-      Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
+  auto prepareOnMainThread = [&vlayer, this]
+  {
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "rasterLayer", "prepareOnMainThread must be run on the main thread" );
 
-        vlayer = QgsProject::instance()->mapLayer<QgsVectorLayer *>(mLayerId);
-    };
+    vlayer = QgsProject::instance()->mapLayer<QgsVectorLayer *>( mLayerId );
+  };
 
-    QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+  QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
 
-    return vlayer;
+  return vlayer;
 }
 
 SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
@@ -449,8 +449,9 @@ SEXP QgsRstatsMapLayerWrapper::toRasterDataObject( RasterPackage rasterPackage )
   }
 }
 
-std::string QgsRstatsMapLayerWrapper::rClassName(){
-    return "QgsMapLayerWrapper";
+std::string QgsRstatsMapLayerWrapper::rClassName()
+{
+  return "QgsMapLayerWrapper";
 }
 
 Rcpp::CharacterVector QgsRstatsMapLayerWrapper::functions()
@@ -464,6 +465,7 @@ Rcpp::CharacterVector QgsRstatsMapLayerWrapper::functions()
   return ret;
 }
 
-std::string QgsRstatsMapLayerWrapper::s3FunctionForClass(std::string functionName){
-    return functionName + "." + rClassName();
+std::string QgsRstatsMapLayerWrapper::s3FunctionForClass( std::string functionName )
+{
+  return functionName + "." + rClassName();
 }

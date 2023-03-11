@@ -31,7 +31,10 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
 
     bool has_ShowMessage() override;
 
-    bool busy() const { return mBusy; }
+    bool busy() const
+    {
+      return mBusy;
+    }
 
     /**
      * Converts a SEXP object to a string.

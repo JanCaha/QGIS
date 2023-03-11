@@ -17,7 +17,6 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsmaplayerwrapper.h"
 
-
 SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, std::string name )
 {
   if ( name == "id" )
@@ -30,8 +29,8 @@ SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj
   }
   else if ( name == "asDataFrame" )
   {
-      std::function<SEXP( bool)> func = std::bind( &asDataFrame, obj, std::placeholders::_1);
-      return Rcpp::InternalFunction( func );
+    std::function<SEXP( bool )> func = std::bind( &asDataFrame, obj, std::placeholders::_1 );
+    return Rcpp::InternalFunction( func );
   }
   else if ( name == "readAsSf" )
   {
@@ -46,10 +45,10 @@ SEXP QgRstatsFunctions::DollarMapLayer( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj
   {
     return Rcpp::wrap( obj->isRasterLayer() );
   }
-  else if (name == "toNumericVector")
+  else if ( name == "toNumericVector" )
   {
-      std::function<SEXP(std::string, bool)> func = std::bind( &toNumericVector, obj, std::placeholders::_1, std::placeholders::_2 );
-      return Rcpp::InternalFunction( func );
+    std::function<SEXP( std::string, bool )> func = std::bind( &toNumericVector, obj, std::placeholders::_1, std::placeholders::_2 );
+    return Rcpp::InternalFunction( func );
   }
   else
   {
@@ -64,12 +63,12 @@ SEXP QgRstatsFunctions::readAsSf( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 
 void QgRstatsFunctions::printApplicationWrapper()
 {
-    Rcpp::print(Rcpp::wrap(QgsRstatsApplicationWrapper::rClassName()));
+  Rcpp::print( Rcpp::wrap( QgsRstatsApplicationWrapper::rClassName() ) );
 }
 
 void QgRstatsFunctions::printMapLayerWrapper( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj )
 {
-    Rcpp::print( Rcpp::wrap( QgsRstatsMapLayerWrapper::rClassName() + "(" + obj->id() + ")"));
+  Rcpp::print( Rcpp::wrap( QgsRstatsMapLayerWrapper::rClassName() + "(" + obj->id() + ")" ) );
 }
 
 // The function which is called when running QGIS$...
@@ -92,8 +91,9 @@ SEXP QgRstatsFunctions::Dollar( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std
     std::function<SEXP( std::string )> func = std::bind( &mapLayerByName, obj, std::placeholders::_1 );
     return Rcpp::InternalFunction( func );
   }
-  else if (name == "projectCrs" ){
-      return obj->projectCrs();
+  else if ( name == "projectCrs" )
+  {
+    return obj->projectCrs();
   }
   else if ( name == "dfToLayer" )
   {
@@ -127,6 +127,8 @@ SEXP QgRstatsFunctions::dfToLayer( SEXP data )
   std::unique_ptr<QgsScopedProxyProgressTask> task;
   QgsFields fields = QgsFields();
   std::string geometryColumnName;
+
+  // TODO run everything from main layer
 
   auto prepareOnMainThread = [&geometryColumnName, &fields, &dfColumnNames, &hasSfColumAttribute, &prepared, &df, &task, &resultLayer]
   {
@@ -207,6 +209,10 @@ SEXP QgRstatsFunctions::dfToLayer( SEXP data )
   Rcpp::StringVector geometries;
   Rcpp::List geometriesWKB;
 
+  // auto prepareOnMainThread = [&geometryColumnName, &fields, &dfColumnNames, &hasSfColumAttribute, &prepared, &df, &task, &resultLayer]
+  //{
+  //   Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "dfToQGIS", "prepareOnMainThread must be run on the main thread" );
+
   if ( isSf && hasSfColumAttribute )
   {
     Rcpp::Function st_as_binary = Rcpp::Function( "st_as_binary", Rcpp::Environment::namespace_env( "sf" ) );
@@ -285,7 +291,6 @@ SEXP QgRstatsFunctions::dfToLayer( SEXP data )
   return Rcpp::wrap( true );
 }
 
-
 SEXP QgRstatsFunctions::asDataFrame( Rcpp::XPtr<QgsRstatsMapLayerWrapper> obj, bool selectedOnly )
 {
   return obj->asDataFrame( selectedOnly );
@@ -295,7 +300,6 @@ SEXP QgRstatsFunctions::toNumericVector( Rcpp::XPtr<QgsRstatsMapLayerWrapper> ob
 {
   return obj->toNumericVector( field, selectedOnly );
 }
-
 
 SEXP QgRstatsFunctions::mapLayerByName( Rcpp::XPtr<QgsRstatsApplicationWrapper> obj, std::string name )
 {

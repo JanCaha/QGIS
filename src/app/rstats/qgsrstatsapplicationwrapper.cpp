@@ -8,7 +8,10 @@
 
 QgsRstatsApplicationWrapper::QgsRstatsApplicationWrapper() {}
 
-int QgsRstatsApplicationWrapper::version() const { return Qgis::versionInt(); }
+int QgsRstatsApplicationWrapper::version() const
+{
+  return Qgis::versionInt();
+}
 
 SEXP QgsRstatsApplicationWrapper::activeLayer() const
 {
@@ -80,24 +83,24 @@ SEXP QgsRstatsApplicationWrapper::mapLayerByName( std::string layerName )
 
 SEXP QgsRstatsApplicationWrapper::projectCrs()
 {
-    Rcpp::Function st_crs( "st_crs", Rcpp::Environment::namespace_env( "sf" ) );
-    SEXP result;
+  Rcpp::Function st_crs( "st_crs", Rcpp::Environment::namespace_env( "sf" ) );
+  SEXP result;
 
-    auto prepareOnMainThread = [&st_crs, &result]
-    {
-      Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "projectCrs", "prepareOnMainThread must be run on the main thread" );
+  auto prepareOnMainThread = [&st_crs, &result]
+  {
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "projectCrs", "prepareOnMainThread must be run on the main thread" );
 
-      result = st_crs( QgsProject::instance()->crs().toWkt().toStdString() );
-    };
+    result = st_crs( QgsProject::instance()->crs().toWkt().toStdString() );
+  };
 
-    QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+  QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
 
-    return result;
+  return result;
 }
 
 std::string QgsRstatsApplicationWrapper::rClassName()
 {
-    return "QGIS";
+  return "QGIS";
 }
 
 Rcpp::CharacterVector QgsRstatsApplicationWrapper::functions()
@@ -113,8 +116,8 @@ Rcpp::CharacterVector QgsRstatsApplicationWrapper::functions()
 
 Rcpp::XPtr<QgsRstatsApplicationWrapper> QgsRstatsApplicationWrapper::instance()
 {
-    Rcpp::XPtr<QgsRstatsApplicationWrapper> qgiswrapper( new QgsRstatsApplicationWrapper() );
-    qgiswrapper.attr( "class" ) = QgsRstatsApplicationWrapper::rClassName();
-    return qgiswrapper;
+  Rcpp::XPtr<QgsRstatsApplicationWrapper> qgiswrapper( new QgsRstatsApplicationWrapper() );
+  qgiswrapper.attr( "class" ) = QgsRstatsApplicationWrapper::rClassName();
+  return qgiswrapper;
 }
 
