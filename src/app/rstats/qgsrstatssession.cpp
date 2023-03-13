@@ -43,9 +43,10 @@ void QgsRStatsSession::setLibraryPath()
 
   if (! rLibPath.isEmpty())
   {
-    execCommand( QStringLiteral( ".libPaths(\"%1\")" ).arg( rLibPath ) );
+    QString command = QStringLiteral( ".libPaths(\"%1\")" ).arg( rLibPath );
+    emit showMessage( command );
+    execCommand( command );
   }
-
 }
 
 void QgsRStatsSession::showStartupMessage()
