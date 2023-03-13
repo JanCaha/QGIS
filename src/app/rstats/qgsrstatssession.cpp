@@ -443,4 +443,7 @@ void QgsRStatsSession::emptyRMemory()
   {
     QgsDebugMsg( error );
   }
+
+  prepareQgisApplicationWrapper();
+  prepareConvertFunctions();
 }
