@@ -62,6 +62,7 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
   } );
 
   mEmptyRMemory = new QAction( tr( "Empty R Memory" ), this );
+  mEmptyRMemory->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "console/iconClearConsole.svg" ) ) );
   toolBar->addAction( mEmptyRMemory );
   connect( mEmptyRMemory, &QAction::triggered, this, [ = ]()
   {
@@ -126,6 +127,7 @@ QgsRStatsConsole::QgsRStatsConsole( QWidget *parent, QgsRStatsRunner *runner )
   setLayout( vl );
 
   mRunner->showStartupMessage();
+  mRunner->setLibraryPath();
 }
 
 QgsRStatsConsole::~QgsRStatsConsole()
