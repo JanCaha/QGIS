@@ -542,6 +542,7 @@ extern "C"
 #ifdef HAVE_R
 #include "rstats/qgsrstatsrunner.h"
 #include "rstats/qgsrstatsconsole.h"
+#include "rstats/qgsrstatssettings.h"
 #endif
 
 #ifndef Q_OS_WIN
@@ -1916,6 +1917,9 @@ QgisApp::QgisApp( QSplashScreen *splash, bool restorePlugins, bool skipBadLayers
   mOptionWidgetFactories.emplace_back( QgsScopedOptionsWidgetFactory( std::make_unique< Qgs3DOptionsFactory >() ) );
 #endif
 
+#ifdef HAVE_R
+  mOptionWidgetFactories.emplace_back( QgsScopedOptionsWidgetFactory( std::make_unique< QgsRStatsSettingsOptionsFactory >() ) );
+#endif
   connect( QgsApplication::fontManager(), &QgsFontManager::fontDownloaded, this, [ = ]( const QStringList & families, const QString & licenseDetails )
   {
     const QString shortMessage = tr( "Installed font %1" ).arg( families.join( QLatin1String( ", " ) ) );
