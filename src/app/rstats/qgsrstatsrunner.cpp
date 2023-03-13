@@ -59,6 +59,11 @@ void QgsRStatsRunner::showStartupMessage()
   QMetaObject::invokeMethod( mSession.get(), "showStartupMessage", Qt::QueuedConnection );
 }
 
+void QgsRStatsRunner::setLibraryPath()
+{
+  QMetaObject::invokeMethod( mSession.get(), "showStartupMessage", Qt::QueuedConnection );
+}
+
 void QgsRStatsRunner::emptyRMemory()
 {
   mSession->emptyRMemory();

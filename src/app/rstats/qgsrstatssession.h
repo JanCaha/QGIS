@@ -62,6 +62,8 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
 
     void showStartupMessage();
 
+    void setLibraryPath();
+
   signals:
 
     void busyChanged( bool busy );

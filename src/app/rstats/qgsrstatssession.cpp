@@ -5,6 +5,7 @@
 #include "qgsapplication.h"
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsfunctions.h"
+#include "qgssettings.h"
 
 
 void QgsRStatsSession::prepareQgisApplicationWrapper()
@@ -31,15 +32,20 @@ QgsRStatsSession::QgsRStatsSession()
   mRSession = std::make_unique<RInside>( 0, nullptr, true, false, true );
   mRSession->set_callbacks( this );
 
-  const QString userPath = QgsApplication::qgisSettingsDirPath() + QStringLiteral( "r_libs" );
-  if ( !QFile::exists( userPath ) )
-  {
-    QDir().mkpath( userPath );
-  }
-  execCommandNR( QStringLiteral( ".libPaths(\"%1\")" ).arg( userPath ) );
-
   prepareQgisApplicationWrapper();
   prepareConvertFunctions();
+}
+
+void QgsRStatsSession::setLibraryPath()
+{
+  QgsSettings settings;
+  QString rLibPath = settings.value(QStringLiteral( "RStats/LibraryPath" ), "").toString();
+
+  if (! rLibPath.isEmpty())
+  {
+    execCommand( QStringLiteral( ".libPaths(\"%1\")" ).arg( rLibPath ) );
+  }
+
 }
 
 void QgsRStatsSession::showStartupMessage()
