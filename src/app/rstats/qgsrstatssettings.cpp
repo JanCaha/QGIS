@@ -32,19 +32,26 @@ QgsRStatsSettingsWidget::QgsRStatsSettingsWidget( QWidget *parent )
     mRLibrariesFolder->setStorageMode(QgsFileWidget::StorageMode::GetDirectory);
 
     box1Layout->addRow("Path for R Libraries:", mRLibrariesFolder);
+
+    QgsSettings settings;
+    mRLibrariesFolder->setFilePath(settings.value(QStringLiteral( "RStats/LibraryPath" ), "").toString());
 }
 
 QgsRStatsSettingsWidget::~QgsRStatsSettingsWidget()
 {
-  QgsSettings settings;
-  //settings.setValue( QStringLiteral( "Windows/CodeEditorOptions/splitterState" ), mSplitter->saveState() );
+  saveSettings();
 }
 
+void QgsRStatsSettingsWidget::saveSettings()
+{
+  QgsSettings settings;
+  settings.setValue( QStringLiteral( "RStats/LibraryPath" ), mRLibrariesFolder->filePath() );
+}
 
 void QgsRStatsSettingsWidget::apply()
 {
+  saveSettings();
 }
-
 
 
 //
@@ -58,7 +65,7 @@ QgsRStatsSettingsOptionsFactory::QgsRStatsSettingsOptionsFactory()
 
 QIcon QgsRStatsSettingsOptionsFactory::icon() const
 {
-  return QgsApplication::getThemeIcon( QStringLiteral( "/mIconCodeEditor.svg" ) );
+  return QgsApplication::getThemeIcon( QStringLiteral( "console/iconR.svg" ) );
 }
 
 QgsOptionsPageWidget *QgsRStatsSettingsOptionsFactory::createWidget( QWidget *parent ) const

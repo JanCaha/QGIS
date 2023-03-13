@@ -19,6 +19,8 @@ class QgsRStatsSettingsWidget : public QgsOptionsPageWidget
 
     void apply() override;
 
+    void saveSettings();
+
   private:
 
     QgsFileWidget *mRLibrariesFolder;
