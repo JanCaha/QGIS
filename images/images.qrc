@@ -979,6 +979,7 @@
         <file>themes/default/mIconFieldGeometry.svg</file>
         <file>themes/default/algorithms/mAlgorithmRectanglesOvalsDiamonds.svg</file>
         <file>themes/default/algorithms/mAlgorithmOffsetLines.svg</file>
+        <file>composer/refreshing_item.svg</file>
         <file>themes/default/console/iconR.svg</file>
     </qresource>
     <qresource prefix="/images/tips">
