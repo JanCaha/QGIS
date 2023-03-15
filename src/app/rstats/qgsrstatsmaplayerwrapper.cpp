@@ -63,7 +63,7 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
   std::unique_ptr<QgsScopedProxyProgressTask> task;
   QgsFeatureIds selectedFeatureIds;
 
-  auto prepareOnMainThread = [&prepared, &fields, &featureCount, &source, &task, selectedOnly, &selectedFeatureIds, this]
+  auto prepareSourceFeatureCountOnMainThread = [&prepared, &fields, &featureCount, &source, &task, selectedOnly, &selectedFeatureIds, this]
   {
     Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
 
@@ -92,23 +92,30 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
     task = std::make_unique<QgsScopedProxyProgressTask>( QObject::tr( "Creating R dataframe" ), true );
   };
 
-  QMetaObject::invokeMethod( qApp, prepareOnMainThread, Qt::BlockingQueuedConnection );
+  QMetaObject::invokeMethod( qApp, prepareSourceFeatureCountOnMainThread, Qt::BlockingQueuedConnection );
 
   if ( !prepared )
     return result;
 
   QList<int> attributesToFetch;
 
-  for ( int index = 0; index < fields.count(); ++index )
+  auto prepareAttributesOnMainThread = [&attributesToFetch, &result, &fields, &featureCount, this]
   {
-    const QgsField field = fields.at( index );
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
 
-    if ( QgsRstatsUtils::canConvertToRcpp( field ) )
+    for ( int index = 0; index < fields.count(); ++index )
     {
-      result.push_back( QgsRstatsUtils::fieldToRcppVector( field, featureCount ), field.name().toStdString() );
-      attributesToFetch.append( index );
+      const QgsField field = fields.at( index );
+
+      if ( QgsRstatsUtils::canConvertToRcpp( field ) )
+      {
+        result.push_back( QgsRstatsUtils::fieldToRcppVector( field, featureCount ), field.name().toStdString() );
+        attributesToFetch.append( index );
+      }
     }
-  }
+  };
+
+  QMetaObject::invokeMethod( qApp, prepareAttributesOnMainThread, Qt::BlockingQueuedConnection );
 
   if ( selectedOnly && selectedFeatureIds.empty() )
     return result;
@@ -120,25 +127,33 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
   if ( selectedOnly )
     req.setFilterFids( selectedFeatureIds );
 
-  QgsFeatureIterator it = source->getFeatures( req );
-  std::size_t featureNumber = 0;
-
-  int prevProgress = 0;
-  while ( it.nextFeature( feature ) )
+  auto prepareFeaturesOnMainThread = [&source, &result, &req, &feature, &featureCount, &task, this]
   {
-    const int progress = 100 * static_cast<double>( featureNumber ) / featureCount;
-    if ( progress > prevProgress )
+    Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
+
+    QgsFeatureIterator it = source->getFeatures( req );
+    std::size_t featureNumber = 0;
+
+    int prevProgress = 0;
+    while ( it.nextFeature( feature ) )
     {
-      task->setProgress( progress );
-      prevProgress = progress;
+      const int progress = 100 * static_cast<double>( featureNumber ) / featureCount;
+      if ( progress > prevProgress )
+      {
+        task->setProgress( progress );
+        prevProgress = progress;
+      }
+
+      if ( task->isCanceled() )
+        break;
+
+      QgsRstatsUtils::addFeatureToDf( feature, featureNumber, result );
+      featureNumber++;
     }
+  };
 
-    if ( task->isCanceled() )
-      break;
+  QMetaObject::invokeMethod( qApp, prepareFeaturesOnMainThread, Qt::BlockingQueuedConnection );
 
-    QgsRstatsUtils::addFeatureToDf( feature, featureNumber, result );
-    featureNumber++;
-  }
   return result;
 }
 
