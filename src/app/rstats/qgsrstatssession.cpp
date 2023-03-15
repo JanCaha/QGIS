@@ -161,6 +161,7 @@ QVariant QgsRStatsSession::sexpToVariant( const SEXP exp )
     case STRSXP:
     case CHARSXP:
     case EXPRSXP:
+    case VECSXP:
       break;
 
     default:
@@ -292,6 +293,7 @@ QVariant QgsRStatsSession::sexpToVariant( const SEXP exp )
     case CLOSXP:
     case ENVSXP:
     case PROMSXP:
+    case VECSXP: // data.frame - could be converted to QgsVectorLayer, but would it be helpfull ???
       // unreachable, handled earlier
       return QVariant();
 
