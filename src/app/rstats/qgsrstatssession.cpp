@@ -341,15 +341,36 @@ SEXP QgsRStatsSession::variantToSexp( const QVariant &variant )
   }
 }
 
+void QgsRStatsSession::changeFromPreviousEnvState()
+{
+  SEXP globalEnvCurrent = mRSession->parseEvalNT("ls()");
+
+  Rcpp::Function Rf_Identical = Rcpp::Function ("identical", Rcpp::Environment::base_namespace());
+  mCommandChangedREnv = !Rcpp::as<bool>(Rf_Identical(mGlobalEnvBeforeCommand, globalEnvCurrent));
+}
+
 void QgsRStatsSession::execCommandPrivate( const QString &command, QString &error, QVariant *res, QString *output )
 {
   try
   {
+    mRPrinted = false;
+
+    if (mRSession->parseComplete())
+    {
+      mGlobalEnvBeforeCommand = mRSession->parseEvalNT("ls()");
+    }
+
     const SEXP sexpRes = mRSession->parseEval( command.toStdString() );
-    if ( res )
-      *res = sexpToVariant( sexpRes );
-    if ( output )
-      *output = sexpToString( sexpRes );
+
+    if (mRSession->parseComplete())
+    {
+      changeFromPreviousEnvState();
+
+      if ( res )
+        *res = sexpToVariant( sexpRes );
+      if ( output )
+        *output = sexpToString( sexpRes );
+    }
   }
   catch ( std::exception &ex )
   {
@@ -400,8 +421,11 @@ void QgsRStatsSession::execCommand( const QString &command )
   }
   else
   {
-    if ( !output.isEmpty() )
-      emit consoleMessage( output, 0 );
+    if (!mRPrinted && !mCommandChangedREnv){
+      if ( !output.isEmpty() )
+        emit consoleMessage( output, 0 );
+    }
+
     emit commandFinished( res );
   }
 
@@ -411,6 +435,8 @@ void QgsRStatsSession::execCommand( const QString &command )
 
 void QgsRStatsSession::WriteConsole( const std::string &line, int type )
 {
+  mRPrinted = true;
+
   if ( type > 0 )
     mEncounteredErrorMessageType = true;
 
