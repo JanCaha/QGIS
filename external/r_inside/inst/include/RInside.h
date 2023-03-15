@@ -74,6 +74,8 @@ public:
     Proxy parseEval(const std::string &line);		 	// parse line, return SEXP (throws on error)
     Proxy parseEvalNT(const std::string &line);			// parse line, return SEXP (no throw)
 
+    bool parseComplete() { return mb_m.isEmpty(); };
+
     template <typename T> 
     void assign(const T& object, const std::string& nam) {
 		global_env_m->assign( nam, object ) ;
