@@ -99,7 +99,7 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
 
   QList<int> attributesToFetch;
 
-  auto prepareAttributesOnMainThread = [&attributesToFetch, &result, &fields, &featureCount, this]
+  auto prepareAttributesOnMainThread = [&attributesToFetch, &result, &fields, &featureCount]
   {
     Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
 
@@ -127,7 +127,7 @@ Rcpp::DataFrame QgsRstatsMapLayerWrapper::asDataFrame( bool selectedOnly ) const
   if ( selectedOnly )
     req.setFilterFids( selectedFeatureIds );
 
-  auto prepareFeaturesOnMainThread = [&source, &result, &req, &feature, &featureCount, &task, this]
+  auto prepareFeaturesOnMainThread = [&source, &result, &req, &feature, &featureCount, &task]
   {
     Q_ASSERT_X( QThread::currentThread() == qApp->thread(), "toDataFrame", "toDataFrame must be run on the main thread" );
 
@@ -242,8 +242,6 @@ Rcpp::NumericVector QgsRstatsMapLayerWrapper::toNumericVector( const std::string
 
   return result;
 }
-
-
 
 SEXP QgsRstatsMapLayerWrapper::readAsSf()
 {
