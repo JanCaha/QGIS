@@ -136,7 +136,11 @@ SEXP QgRstatsFunctions::dfToLayer( SEXP data )
 
     Qgis::WkbType wkbType = QgsRstatsUtils::wkbType(df);
     QgsCoordinateReferenceSystem crs = QgsRstatsUtils::crs(df);
-    geometryColumnName = QgsRstatsUtils::geometryColumn(df);
+
+    if(QgsRstatsUtils::hasSfColumn(df))
+    {
+      geometryColumnName = QgsRstatsUtils::geometryColumn(df);
+    }
 
     resultLayer = QgsMemoryProviderUtils::createMemoryLayer( QStringLiteral( "R_layer" ), fields, wkbType, crs );
 
