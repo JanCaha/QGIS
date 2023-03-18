@@ -79,15 +79,11 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
     void prepareQgisApplicationWrapper();
     void prepareConvertFunctions();
 
-    void changeFromPreviousEnvState();
-
     std::unique_ptr< RInside > mRSession;
     bool mBusy = false;
     bool mEncounteredErrorMessageType = false;
 
-    bool mRPrinted = false;
-    bool mCommandChangedREnv = false;
-    SEXP mGlobalEnvBeforeCommand;
+    bool mVerboseR = false;
 };
 
 #endif // QGSRSTATSSESSION_H

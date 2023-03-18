@@ -6,6 +6,7 @@
 #include "qgsrstatsapplicationwrapper.h"
 #include "qgsrstatsfunctions.h"
 #include "qgssettings.h"
+#include "qgssettings.h"
 
 
 void QgsRStatsSession::prepareQgisApplicationWrapper()
@@ -29,7 +30,10 @@ void QgsRStatsSession::prepareConvertFunctions()
 
 QgsRStatsSession::QgsRStatsSession()
 {
-  mRSession = std::make_unique<RInside>( 0, nullptr, true, false, true );
+  QgsSettings settings;
+  mVerboseR = settings.value(QStringLiteral( "RStats/VerboseR" ), false).toBool();
+
+  mRSession = std::make_unique<RInside>( 0, nullptr, true, mVerboseR, true );
   mRSession->set_callbacks( this );
 
   prepareQgisApplicationWrapper();
@@ -343,31 +347,14 @@ SEXP QgsRStatsSession::variantToSexp( const QVariant &variant )
   }
 }
 
-void QgsRStatsSession::changeFromPreviousEnvState()
-{
-  SEXP globalEnvCurrent = mRSession->parseEvalNT("ls()");
-
-  Rcpp::Function Rf_Identical = Rcpp::Function ("identical", Rcpp::Environment::base_namespace());
-  mCommandChangedREnv = !Rcpp::as<bool>(Rf_Identical(mGlobalEnvBeforeCommand, globalEnvCurrent));
-}
-
 void QgsRStatsSession::execCommandPrivate( const QString &command, QString &error, QVariant *res, QString *output )
 {
   try
   {
-    mRPrinted = false;
-
-    if (mRSession->parseComplete())
-    {
-      mGlobalEnvBeforeCommand = mRSession->parseEvalNT("ls()");
-    }
-
     const SEXP sexpRes = mRSession->parseEval( command.toStdString() );
 
     if (mRSession->parseComplete())
     {
-      changeFromPreviousEnvState();
-
       if ( res )
         *res = sexpToVariant( sexpRes );
       if ( output )
@@ -423,11 +410,6 @@ void QgsRStatsSession::execCommand( const QString &command )
   }
   else
   {
-    if (!mRPrinted && !mCommandChangedREnv){
-      if ( !output.isEmpty() )
-        emit consoleMessage( output, 0 );
-    }
-
     emit commandFinished( res );
   }
 
@@ -437,8 +419,6 @@ void QgsRStatsSession::execCommand( const QString &command )
 
 void QgsRStatsSession::WriteConsole( const std::string &line, int type )
 {
-  mRPrinted = true;
-
   if ( type > 0 )
     mEncounteredErrorMessageType = true;
 
