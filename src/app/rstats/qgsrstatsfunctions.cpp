@@ -118,8 +118,6 @@ SEXP QgRstatsFunctions::dfToLayer( SEXP data )
   if ( !isDdataFrame )
     return Rcpp::wrap( false );
 
-  bool hasSfColumAttribute = df.hasAttribute( "sf_column" );
-
   Rcpp::StringVector dfColumnNames = df.names();
 
   bool prepared = false;
