@@ -4,6 +4,7 @@
 #include "qgsoptionswidgetfactory.h"
 
 class QgsFileWidget;
+class QCheckBox;
 
 class QgsRStatsSettingsWidget : public QgsOptionsPageWidget
 {
@@ -24,7 +25,7 @@ class QgsRStatsSettingsWidget : public QgsOptionsPageWidget
   private:
 
     QgsFileWidget *mRLibrariesFolder;
-
+    QCheckBox *mRVerbose;
 };
 
 
