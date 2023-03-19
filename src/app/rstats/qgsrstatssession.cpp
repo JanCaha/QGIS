@@ -395,6 +395,12 @@ void QgsRStatsSession::execCommand( const QString &command )
   if ( mBusy )
     return;
 
+  if ( command.isEmpty() )
+    return;
+
+  if ( mEmptyCommandCheck.exactMatch(command) )
+    return;
+
   mBusy = true;
   emit busyChanged( true );
   QString error;

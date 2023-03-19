@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QThread>
+#include <QRegExp>
 
 #include "Callbacks.h"
 
@@ -84,6 +85,7 @@ class APP_EXPORT QgsRStatsSession: public QObject, public Callbacks
     bool mEncounteredErrorMessageType = false;
 
     bool mVerboseR = false;
+    QRegExp mEmptyCommandCheck = QRegExp("\\s+");
 };
 
 #endif // QGSRSTATSSESSION_H
