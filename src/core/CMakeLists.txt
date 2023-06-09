@@ -53,6 +53,7 @@ set(QGIS_CORE_SRCS
   elevation/qgsabstractprofilegenerator.cpp
   elevation/qgsabstractprofilesurfacegenerator.cpp
   elevation/qgsabstractprofilesource.cpp
+  elevation/qgsprofileexporter.cpp
   elevation/qgsprofilerenderer.cpp
   elevation/qgsprofilerequest.cpp
   elevation/qgsprofilesnapping.cpp
@@ -160,6 +161,7 @@ set(QGIS_CORE_SRCS
 
   layertree/qgscolorramplegendnode.cpp
   layertree/qgscolorramplegendnodesettings.cpp
+  layertree/qgslayertreefiltersettings.cpp
   layertree/qgslayertreegroup.cpp
   layertree/qgslayertreelayer.cpp
   layertree/qgslayertreemodel.cpp
@@ -206,6 +208,7 @@ set(QGIS_CORE_SRCS
   annotations/qgsannotationlayer.cpp
   annotations/qgsannotationlayerrenderer.cpp
   annotations/qgsannotationlineitem.cpp
+  annotations/qgsannotationlinetextitem.cpp
   annotations/qgsannotationmarkeritem.cpp
   annotations/qgsannotationmanager.cpp
   annotations/qgsannotationpointtextitem.cpp
@@ -278,6 +281,7 @@ set(QGIS_CORE_SRCS
   providers/qgsprovidersublayermodel.cpp
   providers/qgsprovidersublayertask.cpp
   providers/qgsproviderutils.cpp
+  providers/qgsrunnableprovidercreator.cpp
 
   providers/arcgis/qgsarcgisportalutils.cpp
   providers/arcgis/qgsarcgisrestquery.cpp
@@ -332,6 +336,12 @@ set(QGIS_CORE_SRCS
   textrenderer/qgstextrendererutils.cpp
   textrenderer/qgstextshadowsettings.cpp
 
+  sensor/qgssensormodel.cpp
+  sensor/qgssensormanager.cpp
+  sensor/qgssensorregistry.cpp
+  sensor/qgsabstractsensor.cpp
+  sensor/qgsiodevicesensor.cpp
+
   fromencodedcomponenthelper.cpp
   qgis.cpp
   qgsabstractcontentcache.cpp
@@ -369,6 +379,7 @@ set(QGIS_CORE_SRCS
   qgsdatabasetablemodel.cpp
   qgsdatadefinedsizelegend.cpp
   qgsdatasourceuri.cpp
+  qgsdataproviderelevationproperties.cpp
   qgsdataprovidertemporalcapabilities.cpp
   qgsdatetimestatisticalsummary.cpp
   qgsdbfilterproxymodel.cpp
@@ -524,6 +535,7 @@ set(QGIS_CORE_SRCS
   qgstemporalrangeobject.cpp
   qgstemporalutils.cpp
   qgstessellator.cpp
+  qgsthreadingutils.cpp
   qgstilecache.cpp
   qgstiledownloadmanager.cpp
   qgstiles.cpp
@@ -695,6 +707,7 @@ set(QGIS_CORE_SRCS
   raster/qgsrasterchecker.cpp
   raster/qgsrastercontourrenderer.cpp
   raster/qgsrasterdataprovider.cpp
+  raster/qgsrasterdataproviderelevationproperties.cpp
   raster/qgsrasterdataprovidertemporalcapabilities.cpp
   raster/qgsrasterfilewritertask.cpp
   raster/qgsrasteridentifyresult.cpp
@@ -890,11 +903,14 @@ set(QGIS_CORE_SRCS
   vector/qgsvectorlayerundopassthroughcommand.cpp
   vector/qgsvectorlayerutils.cpp
 
+  vectortile/qgsarcgisvectortileservicedataprovider.cpp
   vectortile/qgsmapboxglstyleconverter.cpp
+  vectortile/qgsmbtilesvectortiledataprovider.cpp
   vectortile/qgsvectortilebasiclabeling.cpp
   vectortile/qgsvectortilebasicrenderer.cpp
   vectortile/qgsvectortileconnection.cpp
   vectortile/qgsvectortiledataitems.cpp
+  vectortile/qgsvectortiledataprovider.cpp
   vectortile/qgsvectortilelabeling.cpp
   vectortile/qgsvectortilelayer.cpp
   vectortile/qgsvectortilelayerrenderer.cpp
@@ -907,6 +923,8 @@ set(QGIS_CORE_SRCS
   vectortile/qgsvectortileutils.cpp
   vectortile/qgsvectortilewriter.cpp
   vectortile/qgsvtpktiles.cpp
+  vectortile/qgsvtpkvectortiledataprovider.cpp
+  vectortile/qgsxyzvectortiledataprovider.cpp
 
   ${CMAKE_CURRENT_BINARY_DIR}/qgsexpression_texts.cpp
 
@@ -1033,6 +1051,7 @@ set(QGIS_CORE_HDRS
   qgsdatabaseschemamodel.h
   qgsdatabasetablemodel.h
   qgsdatadefinedsizelegend.h
+  qgsdataproviderelevationproperties.h
   qgsdataprovidertemporalcapabilities.h
   qgsdatasourceuri.h
   qgsdatetimestatisticalsummary.h
@@ -1257,6 +1276,7 @@ set(QGIS_CORE_HDRS
   annotations/qgsannotationlayer.h
   annotations/qgsannotationlayerrenderer.h
   annotations/qgsannotationlineitem.h
+  annotations/qgsannotationlinetextitem.h
   annotations/qgsannotationmarkeritem.h
   annotations/qgsannotationmanager.h
   annotations/qgsannotationpointtextitem.h
@@ -1331,6 +1351,7 @@ set(QGIS_CORE_HDRS
   elevation/qgsabstractprofilegenerator.h
   elevation/qgsabstractprofilesurfacegenerator.h
   elevation/qgsabstractprofilesource.h
+  elevation/qgsprofileexporter.h
   elevation/qgsprofilepoint.h
   elevation/qgsprofilerenderer.h
   elevation/qgsprofilerequest.h
@@ -1445,6 +1466,7 @@ set(QGIS_CORE_HDRS
   layertree/qgscolorramplegendnode.h
   layertree/qgscolorramplegendnodesettings.h
   layertree/qgslayertree.h
+  layertree/qgslayertreefiltersettings.h
   layertree/qgslayertreegroup.h
   layertree/qgslayertreelayer.h
   layertree/qgslayertreemodel.h
@@ -1592,6 +1614,7 @@ set(QGIS_CORE_HDRS
   pointcloud/qgspointcloudlayerprofilegenerator.h
   pointcloud/qgspointcloudlayerrenderer.h
   pointcloud/qgspointcloudindex.h
+  pointcloud/qgspointcloudsubindex.h
   pointcloud/qgspointclouddataprovider.h
   pointcloud/qgspointcloudrenderer.h
   pointcloud/qgspointcloudrendererregistry.h
@@ -1711,6 +1734,7 @@ set(QGIS_CORE_HDRS
   providers/qgsprovidersublayermodel.h
   providers/qgsprovidersublayertask.h
   providers/qgsproviderutils.h
+  providers/qgsrunnableprovidercreator.h
 
   providers/arcgis/qgsarcgisportalutils.h
   providers/arcgis/qgsarcgisrestquery.h
@@ -1758,6 +1782,7 @@ set(QGIS_CORE_HDRS
   raster/qgsrasterchecker.h
   raster/qgsrastercontourrenderer.h
   raster/qgsrasterdataprovider.h
+  raster/qgsrasterdataproviderelevationproperties.h
   raster/qgsrasterdataprovidertemporalcapabilities.h
   raster/qgsrasterdrawer.h
   raster/qgsrasterfilewriter.h
@@ -1860,6 +1885,12 @@ set(QGIS_CORE_HDRS
   textrenderer/qgstextrendererutils.h
   textrenderer/qgstextshadowsettings.h
 
+  sensor/qgssensormodel.h
+  sensor/qgssensormanager.h
+  sensor/qgssensorregistry.h
+  sensor/qgsabstractsensor.h
+  sensor/qgsiodevicesensor.h
+
   settings/qgssettings.h
   settings/qgssettingsentry.h
   settings/qgssettingsentrygroup.h
@@ -1899,11 +1930,14 @@ set(QGIS_CORE_HDRS
   vector/qgsvectorlayerundopassthroughcommand.h
   vector/qgsvectorlayerutils.h
 
+  vectortile/qgsarcgisvectortileservicedataprovider.h
   vectortile/qgsmapboxglstyleconverter.h
+  vectortile/qgsmbtilesvectortiledataprovider.h
   vectortile/qgsvectortilebasiclabeling.h
   vectortile/qgsvectortilebasicrenderer.h
   vectortile/qgsvectortileconnection.h
   vectortile/qgsvectortiledataitems.h
+  vectortile/qgsvectortiledataprovider.h
   vectortile/qgsvectortilelabeling.h
   vectortile/qgsvectortilelayer.h
   vectortile/qgsvectortilelayerrenderer.h
@@ -1917,6 +1951,8 @@ set(QGIS_CORE_HDRS
   vectortile/qgsvectortileutils.h
   vectortile/qgsvectortilewriter.h
   vectortile/qgsvtpktiles.h
+  vectortile/qgsvtpkvectortiledataprovider.h
+  vectortile/qgsxyzvectortiledataprovider.h
 )
 
 set(QGIS_CORE_PRIVATE_HDRS
@@ -1971,6 +2007,7 @@ endif()
 if(MSVC)
   set_source_files_properties(
       ${CMAKE_CURRENT_BINARY_DIR}/qgsexpression_texts.cpp
+      ${CMAKE_CURRENT_BINARY_DIR}/qgis_core_autogen/mocs_compilation.cpp
       proj/qgscoordinatereferencesystem.cpp
       PROPERTIES COMPILE_FLAGS "/bigobj"
   )
@@ -2045,15 +2082,19 @@ endif()
 
 if (WITH_COPC)
   include_directories(providers/copc)
+  include_directories(providers/vpc)
+
 
   set(QGIS_CORE_SRCS ${QGIS_CORE_SRCS}
       providers/copc/qgscopcprovider.cpp
+      providers/vpc/qgsvirtualpointcloudprovider.cpp
       pointcloud/qgscopcpointcloudindex.cpp
       pointcloud/qgsremotecopcpointcloudindex.cpp
       pointcloud/qgscopcpointcloudblockrequest.cpp
   )
   set(QGIS_CORE_HDRS ${QGIS_CORE_HDRS}
       providers/copc/qgscopcprovider.h
+      providers/vpc/qgsvirtualpointcloudprovider.h
       pointcloud/qgscopcpointcloudindex.h
       pointcloud/qgsremotecopcpointcloudindex.h
       pointcloud/qgscopcpointcloudblockrequest.h
@@ -2220,6 +2261,7 @@ target_include_directories(qgis_core PUBLIC
   renderer
   scalebar
   settings
+  sensor
   symbology
   textrenderer
   validity
@@ -2240,7 +2282,8 @@ endif()
 
 if (WITH_COPC)
   target_include_directories(qgis_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/src/core/providers/copc)
+    ${CMAKE_SOURCE_DIR}/src/core/providers/copc
+    ${CMAKE_SOURCE_DIR}/src/core/providers/vpc)
 endif()
 
 GENERATE_EXPORT_HEADER(

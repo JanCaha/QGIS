@@ -31,6 +31,7 @@
 %Include auto_generated/qgsdatabaseschemamodel.sip
 %Include auto_generated/qgsdatabasetablemodel.sip
 %Include auto_generated/qgsdatadefinedsizelegend.sip
+%Include auto_generated/qgsdataproviderelevationproperties.sip
 %Include auto_generated/qgsdataprovidertemporalcapabilities.sip
 %Include auto_generated/qgsdatasourceuri.sip
 %Include auto_generated/qgsdatetimestatisticalsummary.sip
@@ -227,6 +228,7 @@
 %Include auto_generated/annotations/qgsannotationitemregistry.sip
 %Include auto_generated/annotations/qgsannotationlayer.sip
 %Include auto_generated/annotations/qgsannotationlineitem.sip
+%Include auto_generated/annotations/qgsannotationlinetextitem.sip
 %Include auto_generated/annotations/qgsannotationmarkeritem.sip
 %Include auto_generated/annotations/qgsannotationmanager.sip
 %Include auto_generated/annotations/qgsannotationpointtextitem.sip
@@ -285,6 +287,7 @@
 %Include auto_generated/editform/qgsattributeeditorspacerelement.sip
 %Include auto_generated/elevation/qgsabstractprofilegenerator.sip
 %Include auto_generated/elevation/qgsabstractprofilesource.sip
+%Include auto_generated/elevation/qgsprofileexporter.sip
 %Include auto_generated/elevation/qgsprofilepoint.sip
 %Include auto_generated/elevation/qgsprofilerenderer.sip
 %Include auto_generated/elevation/qgsprofilerequest.sip
@@ -380,6 +383,7 @@
 %Include auto_generated/layertree/qgscolorramplegendnode.sip
 %Include auto_generated/layertree/qgscolorramplegendnodesettings.sip
 %Include auto_generated/layertree/qgslayertree.sip
+%Include auto_generated/layertree/qgslayertreefiltersettings.sip
 %Include auto_generated/layertree/qgslayertreegroup.sip
 %Include auto_generated/layertree/qgslayertreelayer.sip
 %Include auto_generated/layertree/qgslayertreemodel.sip
@@ -608,6 +612,7 @@
 %Include auto_generated/raster/qgsrasterchecker.sip
 %Include auto_generated/raster/qgsrastercontourrenderer.sip
 %Include auto_generated/raster/qgsrasterdataprovider.sip
+%Include auto_generated/raster/qgsrasterdataproviderelevationproperties.sip
 %Include auto_generated/raster/qgsrasterdataprovidertemporalcapabilities.sip
 %Include auto_generated/raster/qgsrasterdrawer.sip
 %Include auto_generated/raster/qgsrasterfilewriter.sip
@@ -702,6 +707,11 @@
 %Include auto_generated/textrenderer/qgstextrenderer.sip
 %Include auto_generated/textrenderer/qgstextrendererutils.sip
 %Include auto_generated/textrenderer/qgstextshadowsettings.sip
+%Include auto_generated/sensor/qgssensormodel.sip
+%Include auto_generated/sensor/qgssensormanager.sip
+%Include auto_generated/sensor/qgssensorregistry.sip
+%Include auto_generated/sensor/qgsabstractsensor.sip
+%Include auto_generated/sensor/qgsiodevicesensor.sip
 %Include auto_generated/settings/qgssettings.sip
 %Include auto_generated/settings/qgssettingsentry.sip
 %Include auto_generated/settings/qgssettingsentrygroup.sip

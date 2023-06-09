@@ -20,7 +20,6 @@
 #include "qgsdatasourceuri.h"
 #include "qgsmessagelog.h"
 #include "qgscredentials.h"
-#include "qgsfields.h"
 #include "qgsvectordataprovider.h"
 #include "qgswkbtypes.h"
 #include "qgssettings.h"
@@ -161,7 +160,7 @@ QMap<QString, QgsPostgresConn *> QgsPostgresConn::sConnectionsRW;
 
 const int QgsPostgresConn::GEOM_TYPE_SELECT_LIMIT = 100;
 
-QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool readonly, bool shared, bool transaction )
+QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool readonly, bool shared, bool transaction, bool allowRequestCredentials )
 {
   QMap<QString, QgsPostgresConn *> &connections =
     readonly ? QgsPostgresConn::sConnectionsRO : QgsPostgresConn::sConnectionsRW;
@@ -170,6 +169,8 @@ QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool reado
   // and which is run in a different thread (drag and drop in browser)
   if ( QApplication::instance()->thread() != QThread::currentThread() )
   {
+    // sharing connection between threads is not safe
+    // See https://github.com/qgis/QGIS/issues/21205
     shared = false;
   }
 
@@ -177,10 +178,6 @@ QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool reado
 
   if ( shared )
   {
-    // sharing connection between threads is not safe
-    // See https://github.com/qgis/QGIS/issues/21205
-    Q_ASSERT( QApplication::instance()->thread() == QThread::currentThread() );
-
     QMap<QString, QgsPostgresConn *>::iterator it = connections.find( conninfo );
     if ( it != connections.end() )
     {
@@ -209,7 +206,7 @@ QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool reado
     );
   }
 
-  conn = new QgsPostgresConn( conninfo, readonly, shared, transaction );
+  conn = new QgsPostgresConn( conninfo, readonly, shared, transaction, allowRequestCredentials );
   QgsDebugMsgLevel(
     QStringLiteral(
       "Created new (%4) connection %2 for %1%3"
@@ -257,9 +254,9 @@ QgsPostgresConn *QgsPostgresConn::connectDb( const QString &conninfo, bool reado
   return conn;
 }
 
-QgsPostgresConn *QgsPostgresConn::connectDb( const QgsDataSourceUri &uri, bool readonly, bool shared, bool transaction )
+QgsPostgresConn *QgsPostgresConn::connectDb( const QgsDataSourceUri &uri, bool readonly, bool shared, bool transaction, bool allowRequestCredentials )
 {
-  QgsPostgresConn *conn = QgsPostgresConn::connectDb( uri.connectionInfo( false ), readonly, shared, transaction );
+  QgsPostgresConn *conn = QgsPostgresConn::connectDb( uri.connectionInfo( false ), readonly, shared, transaction, allowRequestCredentials );
   if ( !conn )
   {
     return conn;
@@ -301,7 +298,7 @@ static void noticeProcessor( void *arg, const char *message )
   QgsMessageLog::logMessage( QObject::tr( "NOTICE: %1" ).arg( msg ), QObject::tr( "PostGIS" ) );
 }
 
-QgsPostgresConn::QgsPostgresConn( const QString &conninfo, bool readOnly, bool shared, bool transaction )
+QgsPostgresConn::QgsPostgresConn( const QString &conninfo, bool readOnly, bool shared, bool transaction, bool allowRequestCredentials )
   : mRef( 1 )
   , mOpenCursors( 0 )
   , mConnInfo( conninfo )
@@ -390,7 +387,7 @@ QgsPostgresConn::QgsPostgresConn( const QString &conninfo, bool readOnly, bool s
     while ( PQstatus() != CONNECTION_OK && i < 5 )
     {
       ++i;
-      bool ok = QgsCredentials::instance()->get( conninfo, username, password, PQerrorMessage() );
+      bool ok = QgsCredentials::instance()->get( conninfo, username, password, PQerrorMessage(), allowRequestCredentials );
       if ( !ok )
       {
         break;
@@ -451,7 +448,7 @@ QgsPostgresConn::QgsPostgresConn( const QString &conninfo, bool readOnly, bool s
     // Quoting floating point values and application name for PostgreSQL connection in 1 request
     LoggedPQexecNR(
       "QgsPostgresConn",
-      QStringLiteral( "SET extra_float_digits=3; SET application_name=%1" ).arg( quotedValue( QgsApplication::applicationFullName() ) )
+      QStringLiteral( "SET extra_float_digits=3; SET application_name=%1; SET datestyle='ISO'" ).arg( quotedValue( QgsApplication::applicationFullName() ) )
     );
   }
 
@@ -713,9 +710,6 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
     QString ssrid = result.PQgetvalue( idx, 4 );
     int dim = result.PQgetvalue( idx, 5 ).toInt();
     QString relkind = result.PQgetvalue( idx, 6 );
-    bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
-    bool isMaterializedView = relkind == QLatin1String( "m" );
-    bool isForeignTable = relkind == QLatin1String( "f" );
     bool isRaster = type == QLatin1String( "RASTER" );
     QString comment = result.PQgetvalue( idx, 7 );
     QString attributes = result.PQgetvalue( idx, 8 );
@@ -735,8 +729,8 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       columnType = SctRaster;
     else
     {
-      QgsDebugMsg( QStringLiteral( "Unhandled columnType index %1" )
-                   .  arg( columnTypeInt ) );
+      QgsDebugError( QStringLiteral( "Unhandled columnType index %1" )
+                     .  arg( columnTypeInt ) );
     }
 
     int srid = ssrid.isEmpty() ? std::numeric_limits<int>::min() : ssrid.toInt();
@@ -769,14 +763,13 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
     layerProperty.types = QList<Qgis::WkbType>() << ( QgsPostgresConn::wkbTypeFromPostgis( type ) );
     layerProperty.srids = QList<int>() << srid;
     layerProperty.sql.clear();
-    layerProperty.relKind = relkind;
-    layerProperty.isView = isView;
-    layerProperty.isForeignTable = isForeignTable;
+    layerProperty.relKind = relKindFromValue( relkind );
     layerProperty.isRaster = isRaster;
-    layerProperty.isMaterializedView = isMaterializedView;
     layerProperty.tableComment = comment;
     layerProperty.nSpCols = nSpCols;
-    if ( isView || isForeignTable )
+    if ( ( layerProperty.relKind == Qgis::PostgresRelKind::View )
+         || ( layerProperty.relKind == Qgis::PostgresRelKind::MaterializedView )
+         || ( layerProperty.relKind == Qgis::PostgresRelKind::ForeignTable ) )
     {
       // TODO: use std::transform
       for ( const auto &a : QgsPostgresStringUtils::parseArray( attributes ) )
@@ -785,7 +778,8 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       }
     }
 
-    if ( isView && layerProperty.pkCols.empty() )
+    if ( ( layerProperty.relKind == Qgis::PostgresRelKind::View
+           || layerProperty.relKind == Qgis::PostgresRelKind::MaterializedView ) && layerProperty.pkCols.empty() )
     {
       //QgsDebugMsgLevel( QStringLiteral( "no key columns found." ), 2 );
       continue;
@@ -879,9 +873,6 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       QString column     = result.PQgetvalue( i, 2 ); // attname
       QString relkind    = result.PQgetvalue( i, 3 ); // relation kind
       QString coltype    = result.PQgetvalue( i, 4 ); // column type
-      bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
-      bool isMaterializedView = relkind == QLatin1String( "m" );
-      bool isForeignTable = relkind == QLatin1String( "f" );
       QString comment    = result.PQgetvalue( i, 5 ); // table comment
 
       QgsPostgresLayerProperty layerProperty;
@@ -890,11 +881,8 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       layerProperty.schemaName = schemaName;
       layerProperty.tableName = tableName;
       layerProperty.geometryColName = column;
-      layerProperty.relKind = relkind;
-      layerProperty.isView = isView;
-      layerProperty.isForeignTable = isForeignTable;
+      layerProperty.relKind = relKindFromValue( relkind );
       layerProperty.isRaster = coltype == QLatin1String( "raster" );
-      layerProperty.isMaterializedView = isMaterializedView;
       layerProperty.tableComment = comment;
       if ( coltype == QLatin1String( "geometry" ) )
       {
@@ -924,9 +912,13 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
 
       // TODO: use knowledge from already executed query to count
       //       spatial fields and list attribute names...
-      addColumnInfo( layerProperty, schemaName, tableName, isView || isForeignTable );
+      addColumnInfo( layerProperty, schemaName, tableName,
+                     layerProperty.relKind == Qgis::PostgresRelKind::View
+                     || layerProperty.relKind == Qgis::PostgresRelKind::MaterializedView
+                     || layerProperty.relKind == Qgis::PostgresRelKind::ForeignTable );
 
-      if ( isView && layerProperty.pkCols.empty() )
+      if ( ( layerProperty.relKind == Qgis::PostgresRelKind::View
+             || layerProperty.relKind == Qgis::PostgresRelKind::MaterializedView ) && layerProperty.pkCols.empty() )
       {
         //QgsDebugMsgLevel( QStringLiteral( "no key columns found." ), 2 );
         continue;
@@ -986,9 +978,6 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       QString relkind = result.PQgetvalue( i, 2 ); // relation kind
       QString comment = result.PQgetvalue( i, 3 ); // table comment
       QString attributes = result.PQgetvalue( i, 4 ); // attributes array
-      bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
-      bool isMaterializedView = relkind == QLatin1String( "m" );
-      bool isForeignTable = relkind == QLatin1String( "f" );
 
       QgsPostgresLayerProperty layerProperty;
       layerProperty.types = QList<Qgis::WkbType>() << Qgis::WkbType::NoGeometry;
@@ -998,11 +987,8 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       layerProperty.geometryColName = QString();
       layerProperty.geometryColType = SctNone;
       layerProperty.nSpCols = 0;
-      layerProperty.relKind = relkind;
-      layerProperty.isView = isView;
-      layerProperty.isForeignTable = isForeignTable;
+      layerProperty.relKind = relKindFromValue( relkind );
       layerProperty.isRaster = false;
-      layerProperty.isMaterializedView = isMaterializedView;
       layerProperty.tableComment = comment;
 
       //check if we've already added this layer in some form
@@ -1020,7 +1006,9 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
       if ( alreadyFound )
         continue;
 
-      if ( isView || isForeignTable )
+      if ( layerProperty.relKind == Qgis::PostgresRelKind::View
+           || layerProperty.relKind == Qgis::PostgresRelKind::MaterializedView
+           || layerProperty.relKind == Qgis::PostgresRelKind::ForeignTable )
       {
         // TODO: use std::transform
         for ( const auto &a : QgsPostgresStringUtils::parseArray( attributes ) )
@@ -1379,6 +1367,48 @@ QString QgsPostgresConn::quotedJsonValue( const QVariant &value )
   return quotedString( QString::fromStdString( j.dump() ) );
 }
 
+Qgis::PostgresRelKind QgsPostgresConn::relKindFromValue( const QString &value )
+{
+  if ( value == 'r' )
+  {
+    return Qgis::PostgresRelKind::OrdinaryTable;
+  }
+  else if ( value == 'i' )
+  {
+    return Qgis::PostgresRelKind::Index;
+  }
+  else if ( value == 's' )
+  {
+    return Qgis::PostgresRelKind::Sequence;
+  }
+  else if ( value == 'v' )
+  {
+    return Qgis::PostgresRelKind::View;
+  }
+  else if ( value == 'm' )
+  {
+    return Qgis::PostgresRelKind::MaterializedView;
+  }
+  else if ( value == 'c' )
+  {
+    return Qgis::PostgresRelKind::CompositeType;
+  }
+  else if ( value == 't' )
+  {
+    return Qgis::PostgresRelKind::ToastTable;
+  }
+  else if ( value == 'f' )
+  {
+    return Qgis::PostgresRelKind::ForeignTable;
+  }
+  else if ( value == 'p' )
+  {
+    return Qgis::PostgresRelKind::PartitionedTable;
+  }
+
+  return Qgis::PostgresRelKind::Unknown;
+}
+
 PGresult *QgsPostgresConn::PQexec( const QString &query, bool logError, bool retry, const QString &originatorClass, const QString &queryOrigin ) const
 {
   QMutexLocker locker( &mLock );
@@ -1405,8 +1435,8 @@ PGresult *QgsPostgresConn::PQexec( const QString &query, bool logError, bool ret
       }
       else
       {
-        QgsDebugMsg( QStringLiteral( "Not logged erroneous query: %1 returned %2 [%3]" )
-                     .arg( query ).arg( errorStatus ).arg( PQresultErrorMessage( res ) ) );
+        QgsDebugError( QStringLiteral( "Not logged erroneous query: %1 returned %2 [%3]" )
+                       .arg( query ).arg( errorStatus ).arg( PQresultErrorMessage( res ) ) );
       }
     }
     logWrapper->setFetchedRows( PQntuples( res ) );
@@ -1424,8 +1454,8 @@ PGresult *QgsPostgresConn::PQexec( const QString &query, bool logError, bool ret
     }
     else
     {
-      QgsDebugMsg( QStringLiteral( "Connection error: %1 returned %2 [%3]" )
-                   .arg( query ).arg( PQstatus() ).arg( PQerrorMessage() ) );
+      QgsDebugError( QStringLiteral( "Connection error: %1 returned %2 [%3]" )
+                     .arg( query ).arg( PQstatus() ).arg( PQerrorMessage() ) );
     }
   }
   else
@@ -1438,7 +1468,7 @@ PGresult *QgsPostgresConn::PQexec( const QString &query, bool logError, bool ret
     }
     else
     {
-      QgsDebugMsg( QStringLiteral( "Not logged query failed: %1\nError: no result buffer" ).arg( query ) );
+      QgsDebugError( QStringLiteral( "Not logged query failed: %1\nError: no result buffer" ).arg( query ) );
     }
   }
 
@@ -1765,7 +1795,7 @@ qint64 QgsPostgresConn::getBinaryInt( QgsPostgresResult &queryResult, int row, i
     break;
 
     default:
-      QgsDebugMsg( QStringLiteral( "unexpected size %1" ).arg( s ) );
+      QgsDebugError( QStringLiteral( "unexpected size %1" ).arg( s ) );
       //intentional fall-through
       FALLTHROUGH
     case 4:
@@ -1917,7 +1947,9 @@ void QgsPostgresConn::deduceEndian()
   // return data in the endian of the server
 
   QgsPostgresResult resOID;
+#ifdef QGISDEBUG
   int queryCounter = 0;
+#endif
   int errorCounter = 0;
   int oidStatus = 0;
   int oidSelectSet = 1 << 0;
@@ -1942,7 +1974,9 @@ void QgsPostgresConn::deduceEndian()
     if ( resOID.result() == nullptr )
       break;
 
+#ifdef QGISDEBUG
     queryCounter++;
+#endif
     if ( resOID.PQresultStatus() == PGRES_FATAL_ERROR )
     {
       errorCounter++;

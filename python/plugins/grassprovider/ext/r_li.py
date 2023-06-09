@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     r_li.py
@@ -102,7 +100,7 @@ def configFile(alg, parameters, context, feedback, outputTxt=False):
     # Handle inline configuration
     elif parameters['config_txt']:
         # Creates a temporary txt file in user r.li directory
-        tempConfig = os.path.basename(getTempFilename())
+        tempConfig = os.path.basename(getTempFilename(context=context))
         configFilePath = os.path.join(userGrass7Path, tempConfig)
         # Inject rules into temporary txt file
         with open(configFilePath, "w") as f:
@@ -117,7 +115,7 @@ def configFile(alg, parameters, context, feedback, outputTxt=False):
     if outputTxt:
         param = QgsProcessingParameterString(
             'output', 'virtual output',
-            'a' + os.path.basename(getTempFilename()),
+            'a' + os.path.basename(getTempFilename(context=context)),
             False, False)
         alg.addParameter(param)
 

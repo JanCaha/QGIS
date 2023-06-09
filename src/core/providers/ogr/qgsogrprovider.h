@@ -110,6 +110,7 @@ class QgsOgrProvider final: public QgsVectorDataProvider
     bool createSpatialIndex() override;
     bool createAttributeIndex( int field ) override;
     QgsVectorDataProvider::Capabilities capabilities() const override;
+    Qgis::VectorDataProviderAttributeEditCapabilities attributeEditCapabilities() const override;
     QgsAttributeList pkAttributeIndexes() const override { return mPrimaryKeyAttrs; }
     void setEncoding( const QString &e ) override;
     bool enterUpdateMode() override { return _enterUpdateMode(); }
@@ -199,6 +200,8 @@ class QgsOgrProvider final: public QgsVectorDataProvider
 
     //! Does the real job of settings the subset string and adds an argument to disable update capabilities
     bool _setSubsetString( const QString &theSQL, bool updateFeatureCount = true, bool updateCapabilities = true, bool hasExistingRef = true );
+
+    bool  createSpatialIndexImpl();
 
     QList< QgsProviderSublayerDetails > _subLayers( Qgis::SublayerQueryFlags flags ) const;
 
@@ -326,6 +329,7 @@ class QgsOgrProvider final: public QgsVectorDataProvider
     void computeCapabilities();
 
     QgsVectorDataProvider::Capabilities mCapabilities = QgsVectorDataProvider::Capabilities();
+    Qgis::VectorDataProviderAttributeEditCapabilities mAttributeEditCapabilities = Qgis::VectorDataProviderAttributeEditCapabilities();
 
     bool doInitialActionsForEdition();
 
@@ -344,6 +348,8 @@ class QgsOgrProvider final: public QgsVectorDataProvider
 
     //! Invalidate GDAL /vsicurl/ RAM cache for mFilePath
     void invalidateNetworkCache();
+
+    bool mShapefileHadSpatialIndex = false;
 };
 
 ///@endcond

@@ -70,15 +70,15 @@ bool QgsMssqlTableModel::searchableColumn( int column ) const
 
 void QgsMssqlTableModel::addTableEntry( const QgsMssqlLayerProperty &layerProperty )
 {
-  QgsDebugMsg( QStringLiteral( "%1.%2.%3 type=%4 srid=%5 pk=%6 sql=%7 view=%8" )
-               .arg( layerProperty.schemaName,
-                     layerProperty.tableName,
-                     layerProperty.geometryColName,
-                     layerProperty.type,
-                     layerProperty.srid,
-                     layerProperty.pkCols.join( ',' ),
-                     layerProperty.sql,
-                     layerProperty.isView ? "yes" : "no" ) );
+  QgsDebugMsgLevel( QStringLiteral( "%1.%2.%3 type=%4 srid=%5 pk=%6 sql=%7 view=%8" )
+                    .arg( layerProperty.schemaName,
+                          layerProperty.tableName,
+                          layerProperty.geometryColName,
+                          layerProperty.type,
+                          layerProperty.srid,
+                          layerProperty.pkCols.join( ',' ),
+                          layerProperty.sql,
+                          layerProperty.isView ? "yes" : "no" ), 2 );
 
   // is there already a root item with the given scheme Name?
   QStandardItem *schemaItem = nullptr;
@@ -270,6 +270,10 @@ void QgsMssqlTableModel::setGeometryTypesForTable( QgsMssqlLayerProperty layerPr
   schemaItem = schemaItems.at( 0 );
 
   int n = schemaItem->rowCount();
+  const int columns = columnCount();
+  if ( columns == 0 )
+    return;
+
   for ( int i = 0; i < n; i++ )
   {
     QModelIndex currentChildIndex = indexFromItem( schemaItem->child( i, DbtmSchema ) );
@@ -279,12 +283,15 @@ void QgsMssqlTableModel::setGeometryTypesForTable( QgsMssqlLayerProperty layerPr
     }
 
     QList<QStandardItem *> row;
-    row.reserve( columnCount() );
+    row.reserve( columns );
 
-    for ( int j = 0; j < columnCount(); j++ )
+    for ( int j = 0; j < columns; j++ )
     {
       row << itemFromIndex( currentChildIndex.sibling( i, j ) );
     }
+
+    if ( row.empty() )
+      continue;
 
     if ( row[ DbtmTable ]->text() == layerProperty.tableName && row[ DbtmGeomCol ]->text() == layerProperty.geometryColName )
     {

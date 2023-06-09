@@ -109,13 +109,13 @@ class CORE_EXPORT QgsSettingsTreeNode
     QList<QgsSettingsTreeNode *> childrenNodes() const {return mChildrenNodes;}
 
     //! Returns the existing child node if it exists at the given \a key
-    QgsSettingsTreeNode *childNode( const QString &key );
+    QgsSettingsTreeNode *childNode( const QString &key ) const;
 
     //! Returns the children settings
     QList<const QgsSettingsEntryBase *> childrenSettings() const {return mChildrenSettings;}
 
     //! Returns the existing child settings if it exists at the given \a key
-    const QgsSettingsEntryBase *childSetting( const QString &key );
+    const QgsSettingsEntryBase *childSetting( const QString &key ) const;
 
     //! Returns the parent of the node or nullptr if it does not exists
     QgsSettingsTreeNode *parent() const {return mParent;}
@@ -231,6 +231,14 @@ class CORE_EXPORT QgsSettingsTreeNamedListNode : public QgsSettingsTreeNode
      * \throws QgsSettingsException if the number of given parent named items doesn't match the complete key definition
      */
     void deleteItem( const QString &item, const QStringList &parentsNamedItems = QStringList() ) SIP_THROW( QgsSettingsException );
+
+    /**
+     * Deletes all items from the named list node
+     * \param parentsNamedItems the list of named items in the parent named list (if any)
+     * \throws QgsSettingsException if the number of given parent named items doesn't match the complete key definition
+     * \since QGIS 3.30.1
+     */
+    void deleteAllItems( const QStringList &parentsNamedItems = QStringList() ) SIP_THROW( QgsSettingsException );
 
     //! Returns the setting used to store the selected item
     const QgsSettingsEntryString *selectedItemSetting() const {return mSelectedItemSetting;}

@@ -144,7 +144,7 @@ QVariantMap QgsOgrProviderMetadata::decodeUri( const QString &uri ) const
 
   int layerId = -1;
 
-  const QRegularExpression authcfgRegex( " authcfg='([^']+)'" );
+  const thread_local QRegularExpression authcfgRegex( " authcfg='([^']+)'" );
   QRegularExpressionMatch match;
   if ( path.contains( authcfgRegex, &match ) )
   {
@@ -158,7 +158,7 @@ QVariantMap QgsOgrProviderMetadata::decodeUri( const QString &uri ) const
   {
     path = path.mid( vsiPrefix.count() );
 
-    const QRegularExpression vsiRegex( QStringLiteral( "(?:\\.zip|\\.tar|\\.gz|\\.tar\\.gz|\\.tgz)([^|]+)" ) );
+    const thread_local QRegularExpression vsiRegex( QStringLiteral( "(?:\\.zip|\\.tar|\\.gz|\\.tar\\.gz|\\.tgz)([^|]+)" ) );
     QRegularExpressionMatch match = vsiRegex.match( path );
     if ( match.hasMatch() )
     {
@@ -173,13 +173,12 @@ QVariantMap QgsOgrProviderMetadata::decodeUri( const QString &uri ) const
 
   if ( path.contains( '|' ) )
   {
-    const QRegularExpression geometryTypeRegex( QStringLiteral( "\\|geometrytype=([a-zA-Z0-9]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
-    const QRegularExpression uniqueGeometryTypeRegex( QStringLiteral( "\\|uniqueGeometryType=([a-z]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
-    const QRegularExpression layerNameRegex( QStringLiteral( "\\|layername=([^|]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
-    const QRegularExpression layerIdRegex( QStringLiteral( "\\|layerid=([^|]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
-    const QRegularExpression subsetRegex( QStringLiteral( "\\|subset=((?:.*[\r\n]*)*)\\Z" ) );
-    const QRegularExpression openOptionRegex( QStringLiteral( "\\|option:([^|]*)" ) );
-
+    const thread_local QRegularExpression geometryTypeRegex( QStringLiteral( "\\|geometrytype=([a-zA-Z0-9]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+    const thread_local QRegularExpression uniqueGeometryTypeRegex( QStringLiteral( "\\|uniqueGeometryType=([a-z]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+    const thread_local QRegularExpression layerNameRegex( QStringLiteral( "\\|layername=([^|]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+    const thread_local QRegularExpression layerIdRegex( QStringLiteral( "\\|layerid=([^|]*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+    const thread_local QRegularExpression subsetRegex( QStringLiteral( "\\|subset=((?:.*[\r\n]*)*)\\Z" ) );
+    const thread_local QRegularExpression openOptionRegex( QStringLiteral( "\\|option:([^|]*)" ) );
 
     // we first try to split off the geometry type component, if that's present. That's a known quantity which
     // will never be more than a-z characters
@@ -526,7 +525,7 @@ bool QgsOgrProviderMetadata::saveStyle(
       bool ok = OGR_L_SetFeature( hLayer, hFeature.get() ) == 0;
       if ( !ok )
       {
-        QgsDebugMsg( QStringLiteral( "Could not unset previous useAsDefault style" ) );
+        QgsDebugError( QStringLiteral( "Could not unset previous useAsDefault style" ) );
       }
     }
   }
@@ -1071,6 +1070,9 @@ bool QgsOgrProviderMetadata::saveLayerMetadata( const QString &uri, const QgsLay
       if ( qmdFile.open( QFile::WriteOnly | QFile::Truncate ) )
       {
         QTextStream fileStream( &qmdFile );
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+        fileStream.setCodec( "UTF-8" );
+#endif
         fileStream << metadataXml;
         qmdFile.close();
         return true;
@@ -1138,17 +1140,18 @@ QIcon QgsOgrProviderMetadata::icon() const
   return QgsApplication::getThemeIcon( QStringLiteral( "mIconVector.svg" ) );
 }
 
-QString QgsOgrProviderMetadata::filters( FilterType type )
+QString QgsOgrProviderMetadata::filters( Qgis::FileFilterType type )
 {
   switch ( type )
   {
-    case QgsProviderMetadata::FilterType::FilterVector:
+    case Qgis::FileFilterType::Vector:
       return QgsOgrProviderUtils::fileVectorFilters();
 
-    case QgsProviderMetadata::FilterType::FilterRaster:
-    case QgsProviderMetadata::FilterType::FilterMesh:
-    case QgsProviderMetadata::FilterType::FilterMeshDataset:
-    case QgsProviderMetadata::FilterType::FilterPointCloud:
+    case Qgis::FileFilterType::Raster:
+    case Qgis::FileFilterType::Mesh:
+    case Qgis::FileFilterType::MeshDataset:
+    case Qgis::FileFilterType::PointCloud:
+    case Qgis::FileFilterType::VectorTile:
       return QString();
   }
   return QString();
@@ -1270,7 +1273,7 @@ QList<QgsProviderSublayerDetails> QgsOgrProviderMetadata::querySublayers( const 
       const QStringList wildcards = QgsOgrProviderUtils::wildcards();
       for ( const QString &wildcard : wildcards )
       {
-        const QRegularExpression rx( QRegularExpression::wildcardToRegularExpression( wildcard ), QRegularExpression::CaseInsensitiveOption );
+        const thread_local QRegularExpression rx( QRegularExpression::wildcardToRegularExpression( wildcard ), QRegularExpression::CaseInsensitiveOption );
         if ( rx.match( pathInfo.fileName() ).hasMatch() )
         {
           matches = true;

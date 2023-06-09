@@ -17,6 +17,7 @@
 #include <QString>
 #include <QtConcurrentMap>
 #include <QSignalSpy>
+#include <QTextDocument>
 
 #include <qgsapplication.h>
 //header for class being tested
@@ -999,12 +1000,28 @@ class TestQgsExpression: public QObject
       QTest::newRow( "scale_linear(-1,0,10,100,200)" ) << "scale_linear(-1,0,10,100,200)" << false << QVariant( 100. );
       QTest::newRow( "scale_linear(11,0,10,100,200)" ) << "scale_linear(11,0,10,100,200)" << false << QVariant( 200. );
 
+      // previously had name scale_exp, but renamed to scale_polynomial as it uses polynomial interpolation formula
+      // see https://github.com/qgis/QGIS/pull/53164 for more details
+      QTest::newRow( "scale_polynomial(0.5,0,1,0,1,2)" ) << "scale_polynomial(0.5,0,1,0,1,2)" << false << QVariant( 0.25 );
+      QTest::newRow( "scale_polynomial(0,0,10,100,200,2)" ) << "scale_polynomial(0,0,10,100,200,2)" << false << QVariant( 100. );
+      QTest::newRow( "scale_polynomial(5,0,10,100,200,2)" ) << "scale_polynomial(5,0,10,100,200,2)" << false << QVariant( 125. );
+      QTest::newRow( "scale_polynomial(10,0,10,100,200,0.5)" ) << "scale_polynomial(10,0,10,100,200,0.5)" << false << QVariant( 200. );
+      QTest::newRow( "scale_polynomial(-1,0,10,100,200,0.5)" ) << "scale_polynomial(-1,0,10,100,200,0.5)" << false << QVariant( 100. );
+      QTest::newRow( "scale_polynomial(4,0,9,0,90,0.5)" ) << "scale_polynomial(4,0,9,0,90,0.5)" << false << QVariant( 60. );
+      // this is an alias for scale_polynomial to preserve backward compatibility
       QTest::newRow( "scale_exp(0.5,0,1,0,1,2)" ) << "scale_exp(0.5,0,1,0,1,2)" << false << QVariant( 0.25 );
       QTest::newRow( "scale_exp(0,0,10,100,200,2)" ) << "scale_exp(0,0,10,100,200,2)" << false << QVariant( 100. );
       QTest::newRow( "scale_exp(5,0,10,100,200,2)" ) << "scale_exp(5,0,10,100,200,2)" << false << QVariant( 125. );
       QTest::newRow( "scale_exp(10,0,10,100,200,0.5)" ) << "scale_exp(10,0,10,100,200,0.5)" << false << QVariant( 200. );
       QTest::newRow( "scale_exp(-1,0,10,100,200,0.5)" ) << "scale_exp(-1,0,10,100,200,0.5)" << false << QVariant( 100. );
       QTest::newRow( "scale_exp(4,0,9,0,90,0.5)" ) << "scale_exp(4,0,9,0,90,0.5)" << false << QVariant( 60. );
+
+      QTest::newRow( "scale_exponential(0.5,0,1,0,1,2)" ) << "scale_exponential(0.5,0,1,0,1,2)" << false << QVariant( 0.414213562373 );
+      QTest::newRow( "scale_exponential(0,0,10,100,200,2)" ) << "scale_exponential(0,0,10,100,200,2)" << false << QVariant( 100. );
+      QTest::newRow( "scale_exponential(5,0,10,100,200,2)" ) << "scale_exponential(5,0,10,100,200,2)" << false << QVariant( 103.0303030303 );
+      QTest::newRow( "scale_exponential(10,0,10,100,200,0.5)" ) << "scale_exponential(10,0,10,100,200,0.5)" << false << QVariant( 200. );
+      QTest::newRow( "scale_exponential(-1,0,10,100,200,0.5)" ) << "scale_exponential(-1,0,10,100,200,0.5)" << false << QVariant( 100. );
+      QTest::newRow( "scale_exponential(4,0,9,0,90,0.5)" ) << "scale_exponential(4,0,9,0,90,0.5)" << false << QVariant( 84.5401174168 );
 
       // cast functions
       QTest::newRow( "double to int" ) << "toint(3.2)" << false << QVariant( 3 );
@@ -5759,6 +5776,36 @@ class TestQgsExpression: public QObject
       QVERIFY( !exp.hasEvalError() );
       QCOMPARE( exp.evaluate( &context ).toString(), QStringLiteral( "RasterRaster" ) );
 
+    }
+
+    void testHelpExamples()
+    {
+      // trigger initialization of function help
+      QgsExpression::helpText( QString() );
+      const HelpTextHash &functionHelp = QgsExpression::functionHelpTexts();
+      for ( auto helpIt = functionHelp.constBegin(); helpIt != functionHelp.constEnd(); ++ helpIt )
+      {
+#if GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR<11
+        if ( helpIt->mName == QLatin1String( "concave_hull" ) )
+          continue;
+#endif
+
+        for ( auto variantIt = helpIt->mVariants.constBegin(); variantIt != helpIt->mVariants.constEnd(); ++variantIt )
+        {
+          for ( const HelpExample &example : std::as_const( variantIt->mExamples ) )
+          {
+            const QString htmlExpression = example.mExpression;
+            QTextDocument sourceDoc;
+            sourceDoc.setHtml( htmlExpression );
+            const QString plainTextExpression = sourceDoc.toPlainText();
+
+            QgsExpression exampleExpression( plainTextExpression );
+            QVERIFY2( !exampleExpression.hasParserError(),
+                      QStringLiteral( "Expression: %1 for %2 has parser error" ).arg( plainTextExpression,
+                          helpIt->mName ).toLocal8Bit() );
+          }
+        }
+      }
     }
 
 };

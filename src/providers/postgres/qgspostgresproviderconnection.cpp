@@ -55,7 +55,7 @@ QgsPostgresProviderConnection::QgsPostgresProviderConnection( const QString &nam
 {
   mProviderKey = QStringLiteral( "postgres" );
   // Remove the sql and table empty parts
-  const QRegularExpression removePartsRe { R"raw(\s*sql=\s*|\s*table=""\s*)raw" };
+  const thread_local QRegularExpression removePartsRe { R"raw(\s*sql=\s*|\s*table=""\s*)raw" };
   setUri( QgsPostgresConn::connUri( name ).uri( false ).replace( removePartsRe, QString() ) );
 
   QgsSettings settings;
@@ -132,6 +132,8 @@ void QgsPostgresProviderConnection::setDefaultCapabilities()
     Qgis::SqlLayerDefinitionCapability::GeometryColumn,
     Qgis::SqlLayerDefinitionCapability::UnstableFeatureIds,
   };
+
+  mCapabilities2 |= Qgis::DatabaseProviderConnectionCapability2::SetFieldComment;
 
   // see https://www.postgresql.org/docs/current/ddl-system-columns.html
   mIllegalFieldNames =
@@ -497,9 +499,9 @@ long long QgsPostgresProviderResultIterator::rowCountPrivate() const
 void QgsPostgresProviderConnection::vacuum( const QString &schema, const QString &name ) const
 {
   checkCapability( Capability::Vacuum );
-  executeSql( QStringLiteral( "VACUUM FULL ANALYZE %1.%2" )
-              .arg( QgsPostgresConn::quotedIdentifier( schema ),
-                    QgsPostgresConn::quotedIdentifier( name ) ) );
+  executeSqlPrivate( QStringLiteral( "VACUUM FULL ANALYZE %1.%2" )
+                     .arg( QgsPostgresConn::quotedIdentifier( schema ),
+                           QgsPostgresConn::quotedIdentifier( name ) ), false );
 }
 
 void QgsPostgresProviderConnection::createSpatialIndex( const QString &schema, const QString &name, const QgsAbstractDatabaseProviderConnection::SpatialIndexOptions &options ) const
@@ -527,11 +529,11 @@ void QgsPostgresProviderConnection::createSpatialIndex( const QString &schema, c
   }
 
   const QString indexName = QStringLiteral( "sidx_%1_%2" ).arg( name, geometryColumnName );
-  executeSql( QStringLiteral( "CREATE INDEX %1 ON %2.%3 USING GIST (%4);" )
-              .arg( QgsPostgresConn::quotedIdentifier( indexName ),
-                    QgsPostgresConn::quotedIdentifier( schema ),
-                    QgsPostgresConn::quotedIdentifier( name ),
-                    QgsPostgresConn::quotedIdentifier( geometryColumnName ) ) );
+  executeSqlPrivate( QStringLiteral( "CREATE INDEX %1 ON %2.%3 USING GIST (%4);" )
+                     .arg( QgsPostgresConn::quotedIdentifier( indexName ),
+                           QgsPostgresConn::quotedIdentifier( schema ),
+                           QgsPostgresConn::quotedIdentifier( name ),
+                           QgsPostgresConn::quotedIdentifier( geometryColumnName ) ), false );
 }
 
 bool QgsPostgresProviderConnection::spatialIndexExists( const QString &schema, const QString &name, const QString &geometryColumn ) const
@@ -582,8 +584,18 @@ void QgsPostgresProviderConnection::deleteSpatialIndex( const QString &schema, c
 
   const QString indexName = res.at( 0 ).at( 0 ).toString();
 
-  executeSql( QStringLiteral( "DROP INDEX %1.%2" ).arg( QgsPostgresConn::quotedIdentifier( schema ),
-              QgsPostgresConn::quotedIdentifier( indexName ) ) );
+  executeSqlPrivate( QStringLiteral( "DROP INDEX %1.%2" ).arg( QgsPostgresConn::quotedIdentifier( schema ),
+                     QgsPostgresConn::quotedIdentifier( indexName ) ), false );
+}
+
+void QgsPostgresProviderConnection::setFieldComment( const QString &fieldName, const QString &schema, const QString &tableName, const QString &comment ) const
+{
+  executeSqlPrivate( QStringLiteral( "COMMENT ON COLUMN %1.%2.%3 IS %4;" )
+                     .arg( QgsPostgresConn::quotedIdentifier( schema ),
+                           QgsPostgresConn::quotedIdentifier( tableName ),
+                           QgsPostgresConn::quotedIdentifier( fieldName ),
+                           QgsPostgresConn::quotedValue( comment )
+                         ) );
 }
 
 QList<QgsPostgresProviderConnection::TableProperty> QgsPostgresProviderConnection::tables( const QString &schema, const TableFlags &flags ) const
@@ -618,15 +630,15 @@ QList<QgsPostgresProviderConnection::TableProperty> QgsPostgresProviderConnectio
       {
         // Classify
         TableFlags prFlags;
-        if ( pr.isView )
+        if ( pr.relKind == Qgis::PostgresRelKind::View || pr.relKind == Qgis::PostgresRelKind::MaterializedView )
         {
           prFlags.setFlag( QgsPostgresProviderConnection::TableFlag::View );
         }
-        if ( pr.isMaterializedView )
+        if ( pr.relKind == Qgis::PostgresRelKind::MaterializedView )
         {
           prFlags.setFlag( QgsPostgresProviderConnection::TableFlag::MaterializedView );
         }
-        if ( pr.isForeignTable )
+        if ( pr.relKind == Qgis::PostgresRelKind::ForeignTable )
         {
           prFlags.setFlag( QgsPostgresProviderConnection::TableFlag::Foreign );
         }
@@ -667,7 +679,9 @@ QList<QgsPostgresProviderConnection::TableProperty> QgsPostgresProviderConnectio
           property.setComment( pr.tableComment );
 
           // Get PKs
-          if ( pr.isView || pr.isMaterializedView || pr.isForeignTable )
+          if ( pr.relKind == Qgis::PostgresRelKind::View
+               || pr.relKind == Qgis::PostgresRelKind::MaterializedView
+               || pr.relKind == Qgis::PostgresRelKind::ForeignTable )
           {
             // Set the candidates
             property.setPrimaryKeyColumns( pr.pkCols );
@@ -676,16 +690,16 @@ QList<QgsPostgresProviderConnection::TableProperty> QgsPostgresProviderConnectio
           {
             try
             {
-              const auto pks = executeSql( QStringLiteral( R"(
+              const QList<QVariantList> pks = executeSqlPrivate( QStringLiteral( R"(
               WITH pkrelid AS (
               SELECT indexrelid AS idxri FROM pg_index WHERE indrelid='%1.%2'::regclass AND (indisprimary OR indisunique)
                 ORDER BY CASE WHEN indisprimary THEN 1 ELSE 2 END LIMIT 1)
               SELECT attname FROM pg_index,pg_attribute, pkrelid
               WHERE indexrelid=pkrelid.idxri AND indrelid=attrelid AND pg_attribute.attnum=any(pg_index.indkey);
              )" ).arg( QgsPostgresConn::quotedIdentifier( pr.schemaName ),
-                                               QgsPostgresConn::quotedIdentifier( pr.tableName ) ) );
+                                                  QgsPostgresConn::quotedIdentifier( pr.tableName ) ), false );
               QStringList pkNames;
-              for ( const auto &pk : std::as_const( pks ) )
+              for ( const QVariantList &pk : std::as_const( pks ) )
               {
                 pkNames.push_back( pk.first().toString() );
               }
@@ -693,7 +707,7 @@ QList<QgsPostgresProviderConnection::TableProperty> QgsPostgresProviderConnectio
             }
             catch ( const QgsProviderConnectionException &ex )
             {
-              QgsDebugMsg( QStringLiteral( "Error retrieving primary keys: %1" ).arg( ex.what() ) );
+              QgsDebugError( QStringLiteral( "Error retrieving primary keys: %1" ).arg( ex.what() ) );
             }
           }
 

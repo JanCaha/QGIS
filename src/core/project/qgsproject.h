@@ -53,6 +53,7 @@
 #include "qgspropertycollection.h"
 #include "qgsvectorlayereditbuffergroup.h"
 #include "qgselevationshadingrenderer.h"
+#include "qgsabstractsensor.h"
 
 #include "qgsrelationmanager.h"
 #include "qgsmapthemecollection.h"
@@ -87,6 +88,7 @@ class QgsPropertyCollection;
 class QgsMapViewsManager;
 class QgsProjectElevationProperties;
 class QgsProjectGpsSettings;
+class QgsSensorManager;
 
 /**
  * \ingroup core
@@ -795,6 +797,21 @@ class CORE_EXPORT QgsProject : public QObject, public QgsExpressionContextGenera
      * \since QGIS 3.10
      */
     QgsBookmarkManager *bookmarkManager();
+
+    /**
+     * Returns the project's sensor manager, which manages sensors within
+     * the project.
+     * \note not available in Python bindings
+     * \since QGIS 3.32
+     */
+    const QgsSensorManager *sensorManager() const SIP_SKIP;
+
+    /**
+     * Returns the project's sensor manager, which manages sensors within
+     * the project.
+     * \since QGIS 3.32
+     */
+    QgsSensorManager *sensorManager();
 
     /**
      * Returns the project's view settings, which contains settings and properties
@@ -2206,9 +2223,15 @@ class CORE_EXPORT QgsProject : public QObject, public QgsExpressionContextGenera
      *
      * The optional \a flags argument can be used to control layer reading behavior.
      *
+     * If the provider is already created, it can be passed with \a provider (takes ownership)
+     *
      * \note not available in Python bindings
      */
-    bool addLayer( const QDomElement &layerElem, QList<QDomNode> &brokenNodes, QgsReadWriteContext &context, Qgis::ProjectReadFlags flags = Qgis::ProjectReadFlags() ) SIP_SKIP;
+    bool addLayer( const QDomElement &layerElem,
+                   QList<QDomNode> &brokenNodes,
+                   QgsReadWriteContext &context,
+                   Qgis::ProjectReadFlags flags = Qgis::ProjectReadFlags(),
+                   QgsDataProvider *provider = nullptr ) SIP_SKIP;
 
     /**
      * Remove auxiliary layer of the corresponding layer.
@@ -2249,6 +2272,13 @@ class CORE_EXPORT QgsProject : public QObject, public QgsExpressionContextGenera
     //! Returns the property definition used for a data defined server property
     static QgsPropertiesDefinition &dataDefinedServerPropertyDefinitions();
 
+    //! Attempts to preload providers in parallel
+    void preloadProviders( const QVector<QDomNode> &asynchronusLayerNodes,
+                           const QgsReadWriteContext &context,
+                           QMap<QString, QgsDataProvider *> &loadedProviders,
+                           QgsMapLayer::ReadFlags layerReadFlags,
+                           int totalProviderCount );
+
     Qgis::ProjectCapabilities mCapabilities;
 
     std::unique_ptr< QgsMapLayerStore > mLayerStore;
@@ -2274,6 +2304,8 @@ class CORE_EXPORT QgsProject : public QObject, public QgsExpressionContextGenera
     std::unique_ptr<QgsMapViewsManager> m3DViewsManager;
 
     QgsBookmarkManager *mBookmarkManager = nullptr;
+
+    QgsSensorManager *mSensorManager = nullptr;
 
     QgsProjectViewSettings *mViewSettings = nullptr;
 
@@ -2457,6 +2489,17 @@ class GetNamedProjectColor : public QgsScopedExpressionFunction
 
 };
 
+class GetSensorData : public QgsScopedExpressionFunction
+{
+  public:
+    GetSensorData( const QMap<QString, QgsAbstractSensor::SensorData> &sensorData = QMap<QString, QgsAbstractSensor::SensorData>() );
+    QVariant func( const QVariantList &values, const QgsExpressionContext *, QgsExpression *, const QgsExpressionNodeFunction * ) override;
+    QgsScopedExpressionFunction *clone() const override;
+
+  private:
+
+    QMap<QString, QgsAbstractSensor::SensorData> mSensorData;
+};
 #endif
 ///@endcond
 

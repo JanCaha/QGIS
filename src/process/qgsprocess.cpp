@@ -23,6 +23,11 @@
 #ifdef HAVE_3D
 #include "qgs3dalgorithms.h"
 #endif
+#ifdef HAVE_PDAL_QGIS
+#if PDAL_VERSION_MAJOR_INT > 2 || (PDAL_VERSION_MAJOR_INT == 2 && PDAL_VERSION_MINOR_INT >= 5)
+#include "qgspdalalgorithms.h"
+#endif
+#endif
 #include "qgssettings.h"
 #include "qgsapplication.h"
 #include "qgsprocessingparametertype.h"
@@ -188,7 +193,7 @@ std::unique_ptr< QgsPythonUtils > QgsProcessingExec::loadPythonSupport()
   pythonlibName.prepend( "lib" );
 #endif
   QString version = QStringLiteral( "%1.%2.%3" ).arg( Qgis::versionInt() / 10000 ).arg( Qgis::versionInt() / 100 % 100 ).arg( Qgis::versionInt() % 100 );
-  QgsDebugMsg( QStringLiteral( "load library %1 (%2)" ).arg( pythonlibName, version ) );
+  QgsDebugMsgLevel( QStringLiteral( "load library %1 (%2)" ).arg( pythonlibName, version ), 1 );
   QLibrary pythonlib( pythonlibName, version );
   // It's necessary to set these two load hints, otherwise Python library won't work correctly
   // see http://lists.kde.org/?l=pykde&m=117190116820758&w=2
@@ -273,6 +278,12 @@ int QgsProcessingExec::run( const QStringList &constArgs )
   QgsApplication::processingRegistry()->addProvider( new QgsNativeAlgorithms( QgsApplication::processingRegistry() ) );
 #ifdef HAVE_3D
   QgsApplication::processingRegistry()->addProvider( new Qgs3DAlgorithms( QgsApplication::processingRegistry() ) );
+#endif
+
+#ifdef HAVE_PDAL_QGIS
+#if PDAL_VERSION_MAJOR_INT > 1 && PDAL_VERSION_MINOR_INT >= 5
+  QgsApplication::processingRegistry()->addProvider( new QgsPdalAlgorithms( QgsApplication::processingRegistry() ) );
+#endif
 #endif
 
 #ifdef WITH_BINDINGS

@@ -752,7 +752,7 @@ bool QgsOgrProviderUtils::createEmptyDataSource( const QString &uri,
          !uri.endsWith( QLatin1String( ".dbf" ), Qt::CaseInsensitive ) )
     {
       errorMessage = QObject::tr( "URI %1 doesn't end with .shp or .dbf" ).arg( uri );
-      QgsDebugMsg( errorMessage );
+      QgsDebugError( errorMessage );
       return false;
     }
 
@@ -1235,7 +1235,7 @@ void QgsOgrProviderUtils::GDALCloseWrapper( GDALDatasetH hDS )
           }
           else if ( CPLGetLastErrorType() != CE_None )
           {
-            QgsDebugMsg( QStringLiteral( "Return: %1" ).arg( CPLGetLastErrorMsg() ) );
+            QgsDebugError( QStringLiteral( "Return: %1" ).arg( CPLGetLastErrorMsg() ) );
           }
           GDALDatasetReleaseResultSet( hDS, hSqlLyr );
           CPLPopErrorHandler();
@@ -2010,7 +2010,7 @@ OGRwkbGeometryType QgsOgrProviderUtils::ogrWkbGeometryTypeFromName( const QStrin
   else if ( typeName == QLatin1String( "MultiSurfaceZ" ) )
     return wkbMultiSurfaceZ;
 
-  QgsDebugMsg( QStringLiteral( "unknown geometry type: %1" ).arg( typeName ) );
+  QgsDebugError( QStringLiteral( "unknown geometry type: %1" ).arg( typeName ) );
   return wkbUnknown;
 }
 
@@ -2187,7 +2187,7 @@ QString QgsOgrProviderUtils::expandAuthConfig( const QString &dsName )
 {
   QString uri( dsName );
   // Check for authcfg
-  QRegularExpression authcfgRe( " authcfg='([^']+)'" );
+  const thread_local QRegularExpression authcfgRe( " authcfg='([^']+)'" );
   QRegularExpressionMatch match;
   if ( uri.contains( authcfgRe, &match ) )
   {
@@ -2263,7 +2263,7 @@ QgsOgrLayerUniquePtr QgsOgrProviderUtils::getLayer( const QString &dsName,
 
   if ( checkModificationDateAgainstCache && !canUseOpenedDatasets( dsName ) )
   {
-    QgsDebugMsg( QStringLiteral( "Cannot reuse existing opened dataset(s) on %1 since it has been modified" ).arg( dsName ) );
+    QgsDebugMsgLevel( QStringLiteral( "Cannot reuse existing opened dataset(s) on %1 since it has been modified" ).arg( dsName ), 2 );
     invalidateCachedDatasets( dsName );
   }
 
@@ -2457,7 +2457,8 @@ QList< QgsProviderSublayerDetails > QgsOgrProviderUtils::querySubLayerList( int 
   }
 
   Qgis::SublayerFlags layerFlags;
-  if ( ( driverName == QLatin1String( "SQLite" ) && layerName.contains( QRegularExpression( QStringLiteral( "idx_.*_geom(etry)?($|_.*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption ) ) )
+  const thread_local QRegularExpression sqliteSystemTableRegEx( QStringLiteral( "idx_.*_geom(etry)?($|_.*)" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+  if ( ( driverName == QLatin1String( "SQLite" ) && layerName.contains( sqliteSystemTableRegEx ) )
        || privateLayerNames.contains( layerName ) )
   {
     layerFlags |= Qgis::SublayerFlag::SystemTable;

@@ -17,8 +17,6 @@
 
 #include <QElapsedTimer>
 #include <QVector4D>
-#include <Qt3DRender/QObjectPicker>
-#include <Qt3DRender/QPickTriangleEvent>
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <Qt3DRender/QBuffer>
 typedef Qt3DRender::QBuffer Qt3DQBuffer;
@@ -40,31 +38,6 @@ typedef Qt3DCore::QBuffer Qt3DQBuffer;
 
 ///@cond PRIVATE
 
-static float screenSpaceError( float epsilon, float distance, float screenSize, float fov )
-{
-  /* This routine approximately calculates how an error (epsilon) of an object in world coordinates
-   * at given distance (between camera and the object) will look like in screen coordinates.
-   *
-   * the math below simply uses triangle similarity:
-   *
-   *             epsilon                       phi
-   *   -----------------------------  = ----------------
-   *   [ frustum width at distance ]    [ screen width ]
-   *
-   * Then we solve for phi, substituting [frustum width at distance] = 2 * distance * tan(fov / 2)
-   *
-   *  ________xxx__      xxx = real world error (epsilon)
-   *  \     |     /        x = screen space error (phi)
-   *   \    |    /
-   *    \___|_x_/   near plane (screen space)
-   *     \  |  /
-   *      \ | /
-   *       \|/    angle = field of view
-   *       camera
-   */
-  float phi = epsilon * screenSize / ( 2 * distance * tan( fov * M_PI / ( 2 * 180 ) ) );
-  return phi;
-}
 
 static float screenSpaceError( QgsChunkNode *node, const QgsChunkedEntity::SceneState &state )
 {
@@ -75,12 +48,12 @@ static float screenSpaceError( QgsChunkNode *node, const QgsChunkedEntity::Scene
 
   // TODO: what to do when distance == 0 ?
 
-  float sse = screenSpaceError( node->error(), dist, state.screenSizePx, state.cameraFov );
+  float sse = Qgs3DUtils::screenSpaceError( node->error(), dist, state.screenSizePx, state.cameraFov );
   return sse;
 }
 
 QgsChunkedEntity::QgsChunkedEntity( float tau, QgsChunkLoaderFactory *loaderFactory, bool ownsFactory, int primitiveBudget, Qt3DCore::QNode *parent )
-  : Qt3DCore::QEntity( parent )
+  : Qgs3DMapSceneEntity( parent )
   , mTau( tau )
   , mChunkLoaderFactory( loaderFactory )
   , mOwnsFactory( ownsFactory )
@@ -132,8 +105,7 @@ QgsChunkedEntity::~QgsChunkedEntity()
   }
 }
 
-
-void QgsChunkedEntity::update( const SceneState &state )
+void QgsChunkedEntity::handleSceneUpdate( const SceneState &state )
 {
   if ( !mIsValid )
     return;
@@ -157,7 +129,9 @@ void QgsChunkedEntity::update( const SceneState &state )
 
   update( mRootNode, state );
 
+#ifdef QGISDEBUG
   int enabled = 0, disabled = 0, unloaded = 0;
+#endif
 
   for ( QgsChunkNode *node : std::as_const( mActiveNodes ) )
   {
@@ -169,11 +143,13 @@ void QgsChunkedEntity::update( const SceneState &state )
     {
       if ( !node->entity() )
       {
-        QgsDebugMsg( "Active node has null entity - this should never happen!" );
+        QgsDebugError( "Active node has null entity - this should never happen!" );
         continue;
       }
       node->entity()->setEnabled( true );
+#ifdef QGISDEBUG
       ++enabled;
+#endif
     }
   }
 
@@ -182,11 +158,13 @@ void QgsChunkedEntity::update( const SceneState &state )
   {
     if ( !node->entity() )
     {
-      QgsDebugMsg( "Active node has null entity - this should never happen!" );
+      QgsDebugError( "Active node has null entity - this should never happen!" );
       continue;
     }
     node->entity()->setEnabled( false );
+#ifdef QGISDEBUG
     ++disabled;
+#endif
   }
 
   double usedGpuMemory = QgsChunkedEntity::calculateEntityGpuMemorySize( this );
@@ -199,7 +177,9 @@ void QgsChunkedEntity::update( const SceneState &state )
     usedGpuMemory -= QgsChunkedEntity::calculateEntityGpuMemorySize( entry->chunk->entity() );
     entry->chunk->unloadChunk();  // also deletes the entry
     mActiveNodes.removeOne( entry->chunk );
+#ifdef QGISDEBUG
     ++unloaded;
+#endif
   }
 
   if ( mBboxesEntity )
@@ -225,6 +205,40 @@ void QgsChunkedEntity::update( const SceneState &state )
                     .arg( mReplacementQueue->count() )
                     .arg( unloaded )
                     .arg( t.elapsed() ), 2 );
+}
+
+QgsRange<float> QgsChunkedEntity::getNearFarPlaneRange( const QMatrix4x4 &viewMatrix ) const
+{
+  QList<QgsChunkNode *> activeEntityNodes = activeNodes();
+
+  // it could be that there are no active nodes - they could be all culled or because root node
+  // is not yet loaded - we still need at least something to understand bounds of our scene
+  // so lets use the root node
+  if ( activeEntityNodes.empty() )
+    activeEntityNodes << rootNode();
+
+  float fnear = 1e9;
+  float ffar = 0;
+
+  for ( QgsChunkNode *node : std::as_const( activeEntityNodes ) )
+  {
+    // project each corner of bbox to camera coordinates
+    // and determine closest and farthest point.
+    QgsAABB bbox = node->bbox();
+    for ( int i = 0; i < 8; ++i )
+    {
+      const QVector4D p( ( ( i >> 0 ) & 1 ) ? bbox.xMin : bbox.xMax,
+                         ( ( i >> 1 ) & 1 ) ? bbox.yMin : bbox.yMax,
+                         ( ( i >> 2 ) & 1 ) ? bbox.zMin : bbox.zMax, 1 );
+
+      const QVector4D pc = viewMatrix * p;
+
+      const float dst = -pc.z();  // in camera coordinates, x grows right, y grows down, z grows to the back
+      fnear = std::min( fnear, dst );
+      ffar = std::max( ffar, dst );
+    }
+  }
+  return QgsRange<float>( fnear, ffar );
 }
 
 void QgsChunkedEntity::setShowBoundingBoxes( bool enabled )
@@ -547,13 +561,6 @@ void QgsChunkedEntity::onActiveJobFinished()
 
       mReplacementQueue->insertFirst( node->replacementQueueEntry() );
 
-      if ( mPickingEnabled )
-      {
-        Qt3DRender::QObjectPicker *picker = new Qt3DRender::QObjectPicker( node->entity() );
-        node->entity()->addComponent( picker );
-        connect( picker, &Qt3DRender::QObjectPicker::clicked, this, &QgsChunkedEntity::onPickEvent );
-      }
-
       emit newEntityCreated( entity );
     }
     else
@@ -662,72 +669,6 @@ void QgsChunkedEntity::cancelActiveJobs()
   }
 }
 
-
-void QgsChunkedEntity::setPickingEnabled( bool enabled )
-{
-  if ( mPickingEnabled == enabled )
-    return;
-
-  mPickingEnabled = enabled;
-
-  if ( enabled )
-  {
-    QgsChunkListEntry *entry = mReplacementQueue->first();
-    while ( entry )
-    {
-      QgsChunkNode *node = entry->chunk;
-      Qt3DRender::QObjectPicker *picker = new Qt3DRender::QObjectPicker( node->entity() );
-      node->entity()->addComponent( picker );
-      connect( picker, &Qt3DRender::QObjectPicker::clicked, this, &QgsChunkedEntity::onPickEvent );
-
-      entry = entry->next;
-    }
-  }
-  else
-  {
-    for ( Qt3DRender::QObjectPicker *picker : findChildren<Qt3DRender::QObjectPicker *>() )
-      picker->deleteLater();
-  }
-}
-
-void QgsChunkedEntity::onPickEvent( Qt3DRender::QPickEvent *event )
-{
-  Qt3DRender::QPickTriangleEvent *triangleEvent = qobject_cast<Qt3DRender::QPickTriangleEvent *>( event );
-  if ( !triangleEvent )
-    return;
-
-  Qt3DRender::QObjectPicker *picker = qobject_cast<Qt3DRender::QObjectPicker *>( sender() );
-  if ( !picker )
-    return;
-
-  Qt3DCore::QEntity *entity = qobject_cast<Qt3DCore::QEntity *>( picker->parent() );
-  if ( !entity )
-    return;
-
-  // go figure out feature ID from the triangle index
-  QgsFeatureId fid = FID_NULL;
-  for ( Qt3DRender::QGeometryRenderer *geomRenderer : entity->findChildren<Qt3DRender::QGeometryRenderer *>() )
-  {
-    // unfortunately we can't access which sub-entity triggered the pick event
-    // so as a temporary workaround let's just ignore the entity with selection
-    // and hope the event was the main entity (QTBUG-58206)
-    if ( geomRenderer->objectName() != QLatin1String( "main" ) )
-      continue;
-
-    if ( QgsTessellatedPolygonGeometry *g = qobject_cast<QgsTessellatedPolygonGeometry *>( geomRenderer->geometry() ) )
-    {
-      fid = g->triangleIndexToFeatureId( triangleEvent->triangleIndex() );
-      if ( !FID_IS_NULL( fid ) )
-        break;
-    }
-  }
-
-  if ( !FID_IS_NULL( fid ) )
-  {
-    emit pickedObject( event, fid );
-  }
-}
-
 double QgsChunkedEntity::calculateEntityGpuMemorySize( Qt3DCore::QEntity *entity )
 {
   long long usedGpuMemory = 0;
@@ -741,6 +682,13 @@ double QgsChunkedEntity::calculateEntityGpuMemorySize( Qt3DCore::QEntity *entity
     usedGpuMemory += tex->width() * tex->height() * 4;
   }
   return usedGpuMemory / 1024.0 / 1024.0;
+}
+
+QVector<QgsRayCastingUtils::RayHit> QgsChunkedEntity::rayIntersection( const QgsRayCastingUtils::Ray3D &ray, const QgsRayCastingUtils::RayCastContext &context ) const
+{
+  Q_UNUSED( ray )
+  Q_UNUSED( context )
+  return QVector<QgsRayCastingUtils::RayHit>();
 }
 
 /// @endcond

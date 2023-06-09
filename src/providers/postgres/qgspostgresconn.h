@@ -67,6 +67,7 @@ struct QgsPostgresSchemaProperty
   QString owner;
 };
 
+
 //! Layer Property structure
 // TODO: Fill to Postgres/PostGIS specifications
 struct QgsPostgresLayerProperty
@@ -81,10 +82,7 @@ struct QgsPostgresLayerProperty
   QList<int>                    srids;
   unsigned int                  nSpCols;
   QString                       sql;
-  QString                       relKind;
-  bool                          isView = false;
-  bool                          isMaterializedView = false;
-  bool                          isForeignTable = false;
+  Qgis::PostgresRelKind         relKind = Qgis::PostgresRelKind::Unknown;
   bool                          isRaster = false;
   QString                       tableComment;
 
@@ -114,9 +112,7 @@ struct QgsPostgresLayerProperty
     property.nSpCols            = nSpCols;
     property.sql                = sql;
     property.relKind            = relKind;
-    property.isView             = isView;
     property.isRaster           = isRaster;
-    property.isMaterializedView = isMaterializedView;
     property.tableComment       = tableComment;
 
     return property;
@@ -188,6 +184,21 @@ class QgsPostgresResult
 
 };
 
+struct PGException
+{
+    explicit PGException( QgsPostgresResult &r )
+      : mWhat( r.PQresultErrorMessage() )
+    {}
+
+    QString errorMessage() const
+    {
+      return mWhat;
+    }
+
+  private:
+    QString mWhat;
+};
+
 //! Wraps acquireConnection() and releaseConnection() from a QgsPostgresConnPool.
 // This can be used for creating std::shared_ptr<QgsPoolPostgresConn>.
 class QgsPoolPostgresConn
@@ -217,31 +228,28 @@ class QgsPostgresConn : public QObject
      *
      * \param connInfo the QgsDataSourceUri connection info with username / password
      * \param readOnly is the connection read only ?
-     * \param shared allow using a shared connection. Should never be
-     *        called from a thread other than the main one.
-     *        An assertion guards against such programmatic error.
-     * \param transaction is the connection a transaction ?
+     * \param shared allow using a shared connection if called from the same thread as the main one.
+     * \param allowRequestCredentials allow credentials request through current QgsCredentials instance if the provided ones are not valid
      *
      * \returns the PostgreSQL connection
      */
-    static QgsPostgresConn *connectDb( const QString &connInfo, bool readOnly, bool shared = true, bool transaction = false );
+    static QgsPostgresConn *connectDb( const QString &connInfo, bool readOnly, bool shared = true, bool transaction = false, bool allowRequestCredentials = true );
 
     /**
      * Get a new PostgreSQL connection
      *
      * \param uri the QgsDataSourceUri with username / password
      * \param readOnly is the connection read only ?
-     * \param shared allow using a shared connection. Should never be
-     *        called from a thread other than the main one.
-     *        An assertion guards against such programmatic error.
+     * \param shared allow using a shared connection if called from the same thread as the main one.
      * \param transaction is the connection a transaction ?
+     * \param allowRequestCredentials allow credentials request through current QgsCredentials instance if the provided ones are not valid
      *
      * \returns the PostgreSQL connection
      */
-    static QgsPostgresConn *connectDb( const QgsDataSourceUri &uri, bool readOnly, bool shared = true, bool transaction = false );
+    static QgsPostgresConn *connectDb( const QgsDataSourceUri &uri, bool readOnly, bool shared = true, bool transaction = false, bool allowRequestCredentials = true );
 
 
-    QgsPostgresConn( const QString &conninfo, bool readOnly, bool shared, bool transaction );
+    QgsPostgresConn( const QString &conninfo, bool readOnly, bool shared, bool transaction, bool allowRequestCredentials = true );
     ~QgsPostgresConn() override;
 
     void ref();
@@ -356,6 +364,12 @@ class QgsPostgresConn : public QObject
      * \note a null value will be represented as a NULL and not as a json null.
      */
     static QString quotedJsonValue( const QVariant &value );
+
+    /**
+     * Returns the RelKind associated with a value from the relkind column
+     * in pg_class.
+     */
+    static Qgis::PostgresRelKind relKindFromValue( const QString &value );
 
     /**
      * Gets the list of supported layers

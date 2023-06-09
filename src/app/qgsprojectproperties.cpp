@@ -156,6 +156,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas *mapCanvas, QWidget *pa
   mDistanceUnitsCombo->addItem( tr( "Nautical Miles" ), static_cast< int >( Qgis::DistanceUnit::NauticalMiles ) );
   mDistanceUnitsCombo->addItem( tr( "Centimeters" ), static_cast< int >( Qgis::DistanceUnit::Centimeters ) );
   mDistanceUnitsCombo->addItem( tr( "Millimeters" ), static_cast< int >( Qgis::DistanceUnit::Millimeters ) );
+  mDistanceUnitsCombo->addItem( tr( "Inches" ), static_cast< int >( Qgis::DistanceUnit::Inches ) );
   mDistanceUnitsCombo->addItem( tr( "Degrees" ), static_cast< int >( Qgis::DistanceUnit::Degrees ) );
   mDistanceUnitsCombo->addItem( tr( "Map Units" ), static_cast< int >( Qgis::DistanceUnit::Unknown ) );
 
@@ -169,6 +170,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas *mapCanvas, QWidget *pa
   mAreaUnitsCombo->addItem( tr( "Square Nautical Miles" ), static_cast< int >( Qgis::AreaUnit::SquareNauticalMiles ) );
   mAreaUnitsCombo->addItem( tr( "Square Centimeters" ), static_cast< int >( Qgis::AreaUnit::SquareCentimeters ) );
   mAreaUnitsCombo->addItem( tr( "Square Millimeters" ), static_cast< int >( Qgis::AreaUnit::SquareMillimeters ) );
+  mAreaUnitsCombo->addItem( tr( "Square Inches" ), static_cast< int >( Qgis::AreaUnit::SquareInches ) );
   mAreaUnitsCombo->addItem( tr( "Square Degrees" ), static_cast< int >( Qgis::AreaUnit::SquareDegrees ) );
   mAreaUnitsCombo->addItem( tr( "Map Units" ), static_cast< int >( Qgis::AreaUnit::Unknown ) );
 
@@ -182,6 +184,7 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas *mapCanvas, QWidget *pa
   projectionSelector->setShowNoProjection( true );
 
   connect( buttonBox->button( QDialogButtonBox::Apply ), &QAbstractButton::clicked, this, &QgsProjectProperties::apply );
+  connect( this, &QDialog::finished, this, [ = ]( int result ) { if ( result == QDialog::Rejected ) cancel(); } );
 
   // disconnect default connection setup by initOptionsBase for accepting dialog, and insert logic
   // to validate widgets before allowing dialog to be closed
@@ -1738,6 +1741,14 @@ void QgsProjectProperties::apply()
   }
 }
 
+void QgsProjectProperties::cancel()
+{
+  for ( QgsOptionsPageWidget *widget : std::as_const( mAdditionalProjectPropertiesWidgets ) )
+  {
+    widget->cancel();
+  }
+}
+
 void QgsProjectProperties::lwWmsRowsInserted( const QModelIndex &parent, int first, int last )
 {
   Q_UNUSED( parent )
@@ -2235,7 +2246,7 @@ void QgsProjectProperties::pbnImportScales_clicked()
   QStringList myScales;
   if ( !QgsScaleUtils::loadScaleList( fileName, myScales, msg ) )
   {
-    QgsDebugMsg( msg );
+    QgsDebugError( msg );
   }
 
   const auto constMyScales = myScales;
@@ -2280,7 +2291,7 @@ void QgsProjectProperties::pbnExportScales_clicked()
   QString msg;
   if ( !QgsScaleUtils::saveScaleList( fileName, myScales, msg ) )
   {
-    QgsDebugMsg( msg );
+    QgsDebugError( msg );
   }
 }
 

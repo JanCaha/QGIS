@@ -46,6 +46,7 @@ class QgsLayoutItemElevationProfilePlot : public Qgs2DPlot
 
     void setRenderer( QgsProfilePlotRenderer *renderer )
     {
+      // cppcheck-suppress danglingLifetime
       mRenderer = renderer;
     }
 
@@ -54,10 +55,12 @@ class QgsLayoutItemElevationProfilePlot : public Qgs2DPlot
       if ( mRenderer )
       {
         rc.painter()->translate( plotArea.left(), plotArea.top() );
-        mRenderer->render( rc, plotArea.width(), plotArea.height(), xMinimum(), xMaximum(), yMinimum(), yMaximum() );
+        mRenderer->render( rc, plotArea.width(), plotArea.height(), xMinimum() * xScale, xMaximum() * xScale, yMinimum(), yMaximum() );
         rc.painter()->translate( -plotArea.left(), -plotArea.top() );
       }
     }
+
+    double xScale = 1;
 
   private:
 
@@ -619,7 +622,7 @@ void QgsLayoutItemElevationProfile::paint( QPainter *painter, const QStyleOption
 
     QSizeF layoutSize = mLayout->convertToLayoutUnits( sizeWithUnits() );
 
-    if ( mLayout && mLayout->renderContext().flags() & QgsLayoutRenderContext::FlagLosslessImageRendering )
+    if ( mLayout->renderContext().flags() & QgsLayoutRenderContext::FlagLosslessImageRendering )
       painter->setRenderHint( QPainter::LosslessImageRendering, true );
 
     QgsRenderContext rc = QgsLayoutUtils::createRenderContextForLayout( mLayout, painter );
@@ -640,6 +643,11 @@ void QgsLayoutItemElevationProfile::paint( QPainter *painter, const QStyleOption
       layoutSize *= dotsPerMM; // output size will be in dots (pixels)
       painter->scale( 1 / dotsPerMM, 1 / dotsPerMM ); // scale painter from mm to dots
 
+      mPlot->xScale = QgsUnitTypes::fromUnitToUnitFactor( mDistanceUnit, mCrs.mapUnits() );
+
+      const double mapUnitsPerPixel = static_cast<double>( mPlot->xMaximum() - mPlot->xMinimum() ) * mPlot->xScale / layoutSize.width();
+      rc.setMapToPixel( QgsMapToPixel( mapUnitsPerPixel ) );
+
       QList< QgsAbstractProfileSource * > sources;
       for ( const QgsMapLayerRef &layer : std::as_const( mLayers ) )
       {
@@ -648,6 +656,7 @@ void QgsLayoutItemElevationProfile::paint( QPainter *painter, const QStyleOption
       }
 
       QgsProfilePlotRenderer renderer( sources, profileRequest() );
+
 
       // TODO
       // we should be able to call renderer.start()/renderer.waitForFinished() here and
@@ -718,6 +727,8 @@ bool QgsLayoutItemElevationProfile::writePropertiesToElement( QDomElement &layou
     layoutProfileElem.appendChild( plotElement );
   }
 
+  layoutProfileElem.setAttribute( QStringLiteral( "distanceUnit" ), qgsEnumValueToKey( mDistanceUnit ) );
+
   layoutProfileElem.setAttribute( QStringLiteral( "tolerance" ), mTolerance );
   layoutProfileElem.setAttribute( QStringLiteral( "atlasDriven" ), mAtlasDriven ? QStringLiteral( "1" ) : QStringLiteral( "0" ) );
   if ( mCrs.isValid() )
@@ -763,6 +774,8 @@ bool QgsLayoutItemElevationProfile::readPropertiesFromElement( const QDomElement
     crs.readXml( crsElem );
   }
   mCrs = crs;
+
+  setDistanceUnit( qgsEnumKeyToValue( itemElem.attribute( QStringLiteral( "distanceUnit" ) ), mCrs.mapUnits() ) );
 
   const QDomNodeList curveNodeList = itemElem.elementsByTagName( QStringLiteral( "curve" ) );
   if ( !curveNodeList.isEmpty() )
@@ -888,6 +901,12 @@ void QgsLayoutItemElevationProfile::profileGenerationFinished()
 
   QgsRenderContext rc = QgsLayoutUtils::createRenderContextForLayout( mLayout, mPainter.get() );
 
+  mPlot->xScale = QgsUnitTypes::fromUnitToUnitFactor( mDistanceUnit, mCrs.mapUnits() );
+
+  const double mapUnitsPerPixel = static_cast< double >( mPlot->xMaximum() - mPlot->xMinimum() ) * mPlot->xScale /
+                                  mCacheRenderingImage->size().width();
+  rc.setMapToPixel( QgsMapToPixel( mapUnitsPerPixel ) );
+
   // size must be in pixels, not layout units
   mPlot->setSize( mCacheRenderingImage->size() );
 
@@ -901,5 +920,38 @@ void QgsLayoutItemElevationProfile::profileGenerationFinished()
   mCacheFinalImage = std::move( mCacheRenderingImage );
   emit backgroundTaskCountChanged( 0 );
   update();
+}
+
+Qgis::DistanceUnit QgsLayoutItemElevationProfile::distanceUnit() const
+{
+  return mDistanceUnit;
+}
+
+void QgsLayoutItemElevationProfile::setDistanceUnit( Qgis::DistanceUnit unit )
+{
+  mDistanceUnit = unit;
+
+  switch ( mDistanceUnit )
+  {
+    case Qgis::DistanceUnit::Meters:
+    case Qgis::DistanceUnit::Kilometers:
+    case Qgis::DistanceUnit::Feet:
+    case Qgis::DistanceUnit::NauticalMiles:
+    case Qgis::DistanceUnit::Yards:
+    case Qgis::DistanceUnit::Miles:
+    case Qgis::DistanceUnit::Centimeters:
+    case Qgis::DistanceUnit::Millimeters:
+    case Qgis::DistanceUnit::Inches:
+      mPlot->xAxis().setLabelSuffix( QStringLiteral( " %1" ).arg( QgsUnitTypes::toAbbreviatedString( mDistanceUnit ) ) );
+      break;
+
+    case Qgis::DistanceUnit::Degrees:
+      mPlot->xAxis().setLabelSuffix( QObject::tr( "°" ) );
+      break;
+
+    case Qgis::DistanceUnit::Unknown:
+      mPlot->xAxis().setLabelSuffix( QString() );
+      break;
+  }
 }
 

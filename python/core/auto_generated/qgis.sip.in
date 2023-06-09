@@ -23,7 +23,7 @@ int QgisEvent = QEvent::User + 1;
 class Qgis
 {
 %Docstring(signature="appended")
-The Qgis class provides global constants for use throughout the application.
+The :py:class:`Qgis` class provides global constants for use throughout the application.
 %End
 
 %TypeHeaderCode
@@ -207,6 +207,16 @@ The development version
       Uncounted,
       UnknownCount,
     };
+
+    enum class VectorDataProviderAttributeEditCapability
+    {
+      EditAlias,
+      EditComment,
+    };
+
+
+    typedef QFlags<Qgis::VectorDataProviderAttributeEditCapability> VectorDataProviderAttributeEditCapabilities;
+
 
     enum class SymbolType
       {
@@ -405,6 +415,15 @@ The development version
       UserCanceled,
     };
 
+    enum class VectorFileWriterCapability
+    {
+      FieldAliases,
+      FieldComments,
+    };
+
+    typedef QFlags<Qgis::VectorFileWriterCapability> VectorFileWriterCapabilities;
+
+
     enum class SqlLayerDefinitionCapability
     {
       SubsetStringFilter,
@@ -471,7 +490,6 @@ The development version
       OutsidePolygons,
     };
 
-
     enum class LabelPredefinedPointPosition
       {
       TopLeft,
@@ -507,6 +525,26 @@ The development version
       BelowRight,
     };
 
+    enum class LabelLinePlacementFlag
+      {
+      OnLine,
+      AboveLine,
+      BelowLine,
+      MapOrientation,
+    };
+
+    typedef QFlags<Qgis::LabelLinePlacementFlag> LabelLinePlacementFlags;
+
+
+    enum class LabelPolygonPlacementFlag
+      {
+      AllowPlacementOutsideOfPolygon,
+      AllowPlacementInsideOfPolygon,
+    };
+
+    typedef QFlags<Qgis::LabelPolygonPlacementFlag> LabelPolygonPlacementFlags;
+
+
     enum class UpsideDownLabelHandling
       {
       FlipUpsideDownLabels,
@@ -521,6 +559,16 @@ The development version
       Right,
       FollowPlacement,
       Justify,
+    };
+
+    enum class FileFilterType
+      {
+      Vector,
+      Raster,
+      Mesh,
+      MeshDataset,
+      PointCloud,
+      VectorTile,
     };
 
     enum class SublayerQueryFlag
@@ -623,6 +671,13 @@ The development version
       NeverAskLoadAll,
     };
 
+    enum class FieldMetadataProperty
+    {
+      GeometryCrs,
+      GeometryWkbType,
+      CustomProperty,
+    };
+
     enum class SelectBehavior
       {
       SetSelection,
@@ -680,8 +735,8 @@ The development version
       Gpsd,
     };
 
-    enum class GpsConnectionStatus
-    {
+    enum class DeviceConnectionStatus
+      {
       Disconnected,
       Connecting,
       Connected,
@@ -1265,6 +1320,15 @@ The development version
       Size,
     };
 
+    enum class PlotAxisSuffixPlacement
+    {
+      NoLabels,
+      EveryLabel,
+      FirstLabel,
+      LastLabel,
+      FirstAndLastLabels,
+    };
+
     enum class DpiMode
     {
       All,
@@ -1405,6 +1469,19 @@ The development version
       NoVertex,
     };
 
+
+    enum class CadConstraintType
+    {
+      Generic,
+      Angle,
+      Distance,
+      XCoordinate,
+      YCoordinate,
+      ZValue,
+      MValue,
+    };
+
+
     enum class ProjectFlag
     {
       EvaluateDefaultValuesOnProviderSide,
@@ -1445,6 +1522,7 @@ The development version
     {
       Line,
       FillBelow,
+      FillAbove,
     };
 
     enum class VectorProfileType
@@ -1461,6 +1539,13 @@ The development version
     };
     typedef QFlags<Qgis::ProfileGeneratorFlag> ProfileGeneratorFlags;
 
+
+    enum class ProfileExportType
+    {
+      Features3D,
+      Profile2D,
+      DistanceVsElevationTable,
+    };
 
     enum class PointCloudSymbol
       {
@@ -1586,8 +1671,20 @@ The development version
       Python,
       R,
       Sql,
+      Batch,
+      Bash,
       Unknown,
     };
+
+    enum class ScriptLanguageCapability
+    {
+      Reformat,
+      CheckSyntax,
+      ToggleComment,
+    };
+
+    typedef QFlags<Qgis::ScriptLanguageCapability> ScriptLanguageCapabilities;
+
 
     enum class LayerTreeInsertionMethod
     {
@@ -1595,6 +1692,14 @@ The development version
       TopOfTree,
       OptimalInInsertionGroup,
     };
+
+    enum class LayerTreeFilterFlag
+    {
+      SkipVisibilityCheck,
+    };
+
+    typedef QFlags<Qgis::LayerTreeFilterFlag> LayerTreeFilterFlags;
+
 
     enum class ActionType
     {
@@ -1772,6 +1877,7 @@ The development version
       Degrees,
       Centimeters,
       Millimeters,
+      Inches,
       Unknown,
     };
 
@@ -1795,6 +1901,7 @@ The development version
       SquareDegrees,
       SquareCentimeters,
       SquareMillimeters,
+      SquareInches,
       Unknown,
     };
 
@@ -1870,6 +1977,115 @@ The development version
       {
       PaperUnits,
       ScreenUnits
+    };
+
+    enum class PostgresRelKind
+    {
+      NotSet,
+      Unknown,
+      OrdinaryTable,
+      Index,
+      Sequence,
+      View,
+      MaterializedView,
+      CompositeType,
+      ToastTable,
+      ForeignTable,
+      PartitionedTable,
+    };
+
+    enum class DatabaseProviderConnectionCapability2
+    {
+      SetFieldComment,
+      SetFieldAlias,
+    };
+    typedef QFlags<Qgis::DatabaseProviderConnectionCapability2> DatabaseProviderConnectionCapabilities2;
+
+
+    enum class UserProfileSelectionPolicy
+    {
+      LastProfile,
+      DefaultProfile,
+      AskUser,
+    };
+
+    enum class AttributeEditorType
+      {
+      Container,
+      Field,
+      Relation,
+      QmlElement,
+      HtmlElement,
+      Action,
+      TextElement,
+      SpacerElement,
+      Invalid,
+    };
+
+    enum class AttributeEditorContainerType
+    {
+      GroupBox,
+      Tab,
+      Row,
+    };
+
+    enum class AttributeFormLayout
+      {
+      AutoGenerated,
+      DragAndDrop,
+      UiFile
+    };
+
+    enum class AttributeFormSuppression
+      {
+      Default,
+      On,
+      Off
+    };
+
+    enum class AttributeFormPythonInitCodeSource
+      {
+      NoSource,
+      File,
+      Dialog,
+      Environment
+    };
+
+    enum class ExpressionType
+    {
+      Qgis,
+      PointCloud,
+    };
+
+    enum class FeatureSymbologyExport
+      {
+      NoSymbology,
+      PerFeature,
+      PerSymbolLayer
+    };
+
+    enum class VectorTileProviderFlag
+    {
+      AlwaysUseTileMatrixSetFromProvider,
+    };
+
+    typedef QFlags<Qgis::VectorTileProviderFlag> VectorTileProviderFlags;
+
+
+    enum class VectorTileProviderCapability
+    {
+      ReadLayerMetadata,
+    };
+
+    typedef QFlags<Qgis::VectorTileProviderCapability> VectorTileProviderCapabilities;
+
+
+    enum class TileAvailability
+    {
+      Available,
+      NotAvailable,
+      AvailableNoChildren,
+      UseLowerZoomLevelTile,
     };
 
     static const double DEFAULT_SEARCH_RADIUS_MM;
@@ -1982,6 +2198,8 @@ QFlags<Qgis::MapLayerProperty> operator|(Qgis::MapLayerProperty f1, QFlags<Qgis:
 
 QFlags<Qgis::DataProviderFlag> operator|(Qgis::DataProviderFlag f1, QFlags<Qgis::DataProviderFlag> f2);
 
+QFlags<Qgis::VectorDataProviderAttributeEditCapability> operator|(Qgis::VectorDataProviderAttributeEditCapability f1, QFlags<Qgis::VectorDataProviderAttributeEditCapability> f2);
+
 QFlags<Qgis::SnappingType> operator|(Qgis::SnappingType f1, QFlags<Qgis::SnappingType> f2);
 
 QFlags<Qgis::PlotToolFlag> operator|(Qgis::PlotToolFlag f1, QFlags<Qgis::PlotToolFlag> f2);
@@ -2012,6 +2230,21 @@ QFlags<Qgis::RelationshipCapability> operator|(Qgis::RelationshipCapability f1, 
 
 QFlags<Qgis::SettingsTreeNodeOption> operator|(Qgis::SettingsTreeNodeOption f1, QFlags<Qgis::SettingsTreeNodeOption> f2);
 
+QFlags<Qgis::ScriptLanguageCapability> operator|(Qgis::ScriptLanguageCapability f1, QFlags<Qgis::ScriptLanguageCapability> f2);
+
+QFlags<Qgis::LayerTreeFilterFlag> operator|(Qgis::LayerTreeFilterFlag f1, QFlags<Qgis::LayerTreeFilterFlag> f2);
+
+QFlags<Qgis::LabelLinePlacementFlag> operator|(Qgis::LabelLinePlacementFlag f1, QFlags<Qgis::LabelLinePlacementFlag> f2);
+
+QFlags<Qgis::LabelPolygonPlacementFlag> operator|(Qgis::LabelPolygonPlacementFlag f1, QFlags<Qgis::LabelPolygonPlacementFlag> f2);
+
+QFlags<Qgis::DatabaseProviderConnectionCapability2> operator|(Qgis::DatabaseProviderConnectionCapability2 f1, QFlags<Qgis::DatabaseProviderConnectionCapability2> f2);
+
+QFlags<Qgis::VectorFileWriterCapability> operator|(Qgis::VectorFileWriterCapability f1, QFlags<Qgis::VectorFileWriterCapability> f2);
+
+QFlags<Qgis::VectorTileProviderFlag> operator|(Qgis::VectorTileProviderFlag f1, QFlags<Qgis::VectorTileProviderFlag> f2);
+
+QFlags<Qgis::VectorTileProviderCapability> operator|(Qgis::VectorTileProviderCapability f1, QFlags<Qgis::VectorTileProviderCapability> f2);
 
 
 

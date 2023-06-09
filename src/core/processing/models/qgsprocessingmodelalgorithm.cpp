@@ -92,7 +92,7 @@ QString QgsProcessingModelAlgorithm::helpUrl() const
   return mHelpContent.value( QStringLiteral( "HELP_URL" ) ).toString();
 }
 
-QVariantMap QgsProcessingModelAlgorithm::parametersForChildAlgorithm( const QgsProcessingModelChildAlgorithm &child, const QVariantMap &modelParameters, const QVariantMap &results, const QgsExpressionContext &expressionContext, QString &error ) const
+QVariantMap QgsProcessingModelAlgorithm::parametersForChildAlgorithm( const QgsProcessingModelChildAlgorithm &child, const QVariantMap &modelParameters, const QVariantMap &results, const QgsExpressionContext &expressionContext, QString &error, const QgsProcessingContext *context ) const
 {
   error.clear();
   auto evaluateSources = [ =, &error ]( const QgsProcessingParameterDefinition * def )->QVariant
@@ -242,7 +242,7 @@ QVariantMap QgsProcessingModelAlgorithm::parametersForChildAlgorithm( const QgsP
 
         // not optional, or required elsewhere in model
         if ( required )
-          childParams.insert( destParam->name(), destParam->generateTemporaryDestination() );
+          childParams.insert( destParam->name(), destParam->generateTemporaryDestination( context ) );
       }
     }
   }
@@ -367,7 +367,7 @@ QVariantMap QgsProcessingModelAlgorithm::processAlgorithm( const QVariantMap &pa
       context.setExpressionContext( expContext );
 
       QString error;
-      QVariantMap childParams = parametersForChildAlgorithm( child, parameters, childResults, expContext, error );
+      QVariantMap childParams = parametersForChildAlgorithm( child, parameters, childResults, expContext, error, &context );
       if ( !error.isEmpty() )
         throw QgsProcessingException( error );
 
@@ -478,10 +478,10 @@ QVariantMap QgsProcessingModelAlgorithm::processAlgorithm( const QVariantMap &pa
 
       // look through child alg's outputs to determine whether any of these should be copied
       // to the final model outputs
-      QMap<QString, QgsProcessingModelOutput> outputs = child.modelOutputs();
-      QMap<QString, QgsProcessingModelOutput>::const_iterator outputIt = outputs.constBegin();
-      for ( ; outputIt != outputs.constEnd(); ++outputIt )
+      const QMap<QString, QgsProcessingModelOutput> outputs = child.modelOutputs();
+      for ( auto outputIt = outputs.constBegin(); outputIt != outputs.constEnd(); ++outputIt )
       {
+        const int outputSortKey = mOutputOrder.indexOf( QStringLiteral( "%1:%2" ).arg( childId, outputIt->childOutputName() ) );
         switch ( mInternalVersion )
         {
           case QgsProcessingModelAlgorithm::InternalVersion::Version1:
@@ -493,6 +493,14 @@ QVariantMap QgsProcessingModelAlgorithm::processAlgorithm( const QVariantMap &pa
               finalResults.insert( modelParam->name(), results.value( outputIt->childOutputName() ) );
             }
             break;
+        }
+
+        if ( !results.value( outputIt->childOutputName() ).toString().isEmpty() )
+        {
+          QgsProcessingContext::LayerDetails &details = context.layerToLoadOnCompletionDetails( results.value( outputIt->childOutputName() ).toString() );
+          details.groupName = mOutputGroup;
+          if ( outputSortKey > 0 )
+            details.layerSortKey = outputSortKey;
         }
       }
 
@@ -958,7 +966,8 @@ QMap<QString, QgsProcessingModelAlgorithm::VariableDefinition> QgsProcessingMode
   auto safeName = []( const QString & name )->QString
   {
     QString s = name;
-    return s.replace( QRegularExpression( QStringLiteral( "[\\s'\"\\(\\):\\.]" ) ), QStringLiteral( "_" ) );
+    const thread_local QRegularExpression safeNameRe( QStringLiteral( "[\\s'\"\\(\\):\\.]" ) );
+    return s.replace( safeNameRe, QStringLiteral( "_" ) );
   };
 
   // "static"/single value sources
@@ -1373,6 +1382,62 @@ void QgsProcessingModelAlgorithm::setParameterOrder( const QStringList &order )
   mParameterOrder = order;
 }
 
+QList<QgsProcessingModelOutput> QgsProcessingModelAlgorithm::orderedOutputs() const
+{
+  QList< QgsProcessingModelOutput > res;
+  QSet< QString > found;
+
+  for ( const QString &output : mOutputOrder )
+  {
+    bool foundOutput = false;
+    for ( auto it = mChildAlgorithms.constBegin(); it != mChildAlgorithms.constEnd(); ++it )
+    {
+      const QMap<QString, QgsProcessingModelOutput> outputs = it.value().modelOutputs();
+      for ( auto outputIt = outputs.constBegin(); outputIt != outputs.constEnd(); ++outputIt )
+      {
+        if ( output == QStringLiteral( "%1:%2" ).arg( outputIt->childId(), outputIt->childOutputName() ) )
+        {
+          res << outputIt.value();
+          foundOutput = true;
+          found.insert( QStringLiteral( "%1:%2" ).arg( outputIt->childId(), outputIt->childOutputName() ) );
+        }
+      }
+      if ( foundOutput )
+        break;
+    }
+  }
+
+  // add any missing ones to end of list
+  for ( auto it = mChildAlgorithms.constBegin(); it != mChildAlgorithms.constEnd(); ++it )
+  {
+    const QMap<QString, QgsProcessingModelOutput> outputs = it.value().modelOutputs();
+    for ( auto outputIt = outputs.constBegin(); outputIt != outputs.constEnd(); ++outputIt )
+    {
+      if ( !found.contains( QStringLiteral( "%1:%2" ).arg( outputIt->childId(), outputIt->childOutputName() ) ) )
+      {
+        res << outputIt.value();
+      }
+    }
+  }
+
+  return res;
+}
+
+void QgsProcessingModelAlgorithm::setOutputOrder( const QStringList &order )
+{
+  mOutputOrder = order;
+}
+
+QString QgsProcessingModelAlgorithm::outputGroup() const
+{
+  return mOutputGroup;
+}
+
+void QgsProcessingModelAlgorithm::setOutputGroup( const QString &group )
+{
+  mOutputGroup = group;
+}
+
 void QgsProcessingModelAlgorithm::updateDestinationParameters()
 {
   //delete existing destination parameters
@@ -1517,6 +1582,8 @@ QVariant QgsProcessingModelAlgorithm::toVariant() const
   map.insert( QStringLiteral( "designerParameterValues" ), mDesignerParameterValues );
 
   map.insert( QStringLiteral( "parameterOrder" ), mParameterOrder );
+  map.insert( QStringLiteral( "outputOrder" ), mOutputOrder );
+  map.insert( QStringLiteral( "outputGroup" ), mOutputGroup );
 
   return map;
 }
@@ -1536,6 +1603,8 @@ bool QgsProcessingModelAlgorithm::loadVariant( const QVariant &model )
   mDesignerParameterValues = map.value( QStringLiteral( "designerParameterValues" ) ).toMap();
 
   mParameterOrder = map.value( QStringLiteral( "parameterOrder" ) ).toStringList();
+  mOutputOrder = map.value( QStringLiteral( "outputOrder" ) ).toStringList();
+  mOutputGroup = map.value( QStringLiteral( "outputGroup" ) ).toString();
 
   mChildAlgorithms.clear();
   QVariantMap childMap = map.value( QStringLiteral( "children" ) ).toMap();

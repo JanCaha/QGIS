@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     v_net.py
@@ -39,7 +37,7 @@ def incorporatePoints(alg, parameters, context, feedback, pointLayerName='points
     pointLayer = alg.parameterAsVectorLayer(parameters, pointLayerName, context)
     if pointLayer:
         # Create an intermediate GRASS layer which is the combination of network + centers
-        intLayer = 'net' + os.path.basename(getTempFilename())
+        intLayer = 'net' + os.path.basename(getTempFilename(context=context))
 
         pointLayer = alg.exportedLayers[pointLayerName]
 

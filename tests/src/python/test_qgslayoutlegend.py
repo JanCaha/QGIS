@@ -20,9 +20,13 @@ from qgis.core import (
     QgsCategorizedSymbolRenderer,
     QgsCoordinateReferenceSystem,
     QgsExpression,
+    QgsFeature,
     QgsFillSymbol,
     QgsFontUtils,
+    QgsGeometry,
+    QgsGeometryGeneratorSymbolLayer,
     QgsLayout,
+    QgsLayoutChecker,
     QgsLayoutItem,
     QgsLayoutItemLegend,
     QgsLayoutItemMap,
@@ -43,12 +47,13 @@ from qgis.core import (
     QgsRendererCategory,
     QgsRuleBasedRenderer,
     QgsSingleSymbolRenderer,
+    QgsSymbol,
     QgsVectorLayer,
-    QgsReadWriteContext
+    QgsReadWriteContext,
+    QgsTextFormat
 )
 from qgis.testing import start_app, unittest
 
-from qgslayoutchecker import QgsLayoutChecker
 from test_qgslayoutitem import LayoutItemTestCase
 from utilities import unitTestDataPath
 
@@ -60,14 +65,12 @@ class TestQgsLayoutItemLegend(unittest.TestCase, LayoutItemTestCase):
 
     @classmethod
     def setUpClass(cls):
+        super(TestQgsLayoutItemLegend, cls).setUpClass()
         cls.item_class = QgsLayoutItemLegend
-        cls.report = "<h1>Python QgsLayoutItemLegend Tests</h1>\n"
 
     @classmethod
     def tearDownClass(cls):
-        report_file_path = f"{QDir.tempPath()}/qgistest.html"
-        with open(report_file_path, 'a') as report_file:
-            report_file.write(cls.report)
+        super(TestQgsLayoutItemLegend, cls).tearDownClass()
 
     def testInitialSizeSymbolMapUnits(self):
         """Test initial size of legend with a symbol size in map units"""
@@ -1022,6 +1025,326 @@ class TestQgsLayoutItemLegend(unittest.TestCase, LayoutItemTestCase):
         result, message = checker.testLayout()
         TestQgsLayoutItemLegend.report += checker.report()
         self.assertTrue(result, message)
+
+    def test_filter_by_map_content_rendering_different_layers(self):
+        point_path = os.path.join(TEST_DATA_DIR, 'points.shp')
+        point_layer = QgsVectorLayer(point_path, 'points', 'ogr')
+
+        point_layer2 = QgsVectorLayer(point_path, 'points2', 'ogr')
+
+        root_rule = QgsRuleBasedRenderer.Rule(None)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#ff0000', 'outline_style': 'no', 'size': '8'})
+
+        less_than_two_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                                       filterExp='"Importance" <=2',
+                                                       label='lessthantwo')
+        root_rule.appendChild(less_than_two_rule)
+
+        else_rule = QgsRuleBasedRenderer.Rule(None, elseRule=True)
+
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#00ffff', 'outline_style': 'no', 'size': '4'})
+        one_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                             filterExp='"Pilots" = 1',
+                                             label='1')
+        else_rule.appendChild(one_rule)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#ff8888', 'outline_style': 'no', 'size': '4'})
+        two_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                             filterExp='"Pilots" = 2',
+                                             label='2')
+        else_rule.appendChild(two_rule)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#8888ff', 'outline_style': 'no', 'size': '4'})
+        three_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                               filterExp='"Pilots" = 3',
+                                               label='3')
+        else_rule.appendChild(three_rule)
+
+        root_rule.appendChild(else_rule)
+
+        renderer = QgsRuleBasedRenderer(root_rule)
+        point_layer.setRenderer(renderer)
+
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#003366', 'outline_style': 'no', 'size': '8'})
+        point_layer2.setRenderer(QgsSingleSymbolRenderer(marker_symbol))
+
+        p = QgsProject()
+        p.addMapLayers([point_layer, point_layer2])
+
+        layout = QgsLayout(p)
+        layout.initializeDefaults()
+
+        map = QgsLayoutItemMap(layout)
+        map.attemptSetSceneRect(QRectF(19, 17, 100, 165))
+        map.setFrameEnabled(True)
+        map.setCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
+        map.setLayers([point_layer])
+        map.zoomToExtent(QgsRectangle(-120, 14, -100, 18))
+        map.setMapRotation(45)
+
+        layout.addLayoutItem(map)
+
+        map2 = QgsLayoutItemMap(layout)
+        map2.attemptSetSceneRect(QRectF(150, 117, 100, 165))
+        map2.setFrameEnabled(True)
+        map2.setCrs(QgsCoordinateReferenceSystem('EPSG:3857'))
+        map2.setLayers([point_layer2])
+        map2.setExtent(QgsRectangle(-12309930, 3091263, -11329181, 3977074))
+
+        layout.addLayoutItem(map2)
+
+        legend = QgsLayoutItemLegend(layout)
+        legend.setLegendFilterByMapEnabled(True)
+        legend.setFilterByMapItems([map, map2])
+        layout.addLayoutItem(legend)
+        legend.setTitle("Legend")
+        legend.attemptSetSceneRect(QRectF(220, 20, 20, 20))
+        legend.setFrameEnabled(True)
+        legend.setFrameStrokeWidth(QgsLayoutMeasurement(2))
+        legend.setBackgroundColor(QColor(200, 200, 200))
+        legend.setTitle('')
+
+        legend.setStyleFont(QgsLegendStyle.Title, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Group, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Subgroup, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Symbol, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.SymbolLabel,
+                            QgsFontUtils.getStandardTestFont('Bold', 16))
+
+        checker = QgsLayoutChecker(
+            'legend_multiple_filter_maps_different_layers', layout)
+        checker.setControlPathPrefix("composer_legend")
+        result, message = checker.testLayout()
+        TestQgsLayoutItemLegend.report += checker.report()
+        self.assertTrue(result, message)
+
+    def test_filter_by_map_content_rendering_different_layers_in_atlas(self):
+        point_path = os.path.join(TEST_DATA_DIR, 'points.shp')
+        point_layer = QgsVectorLayer(point_path, 'points', 'ogr')
+
+        point_layer2 = QgsVectorLayer(point_path, 'points2', 'ogr')
+
+        root_rule = QgsRuleBasedRenderer.Rule(None)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#ff0000', 'outline_style': 'no', 'size': '8'})
+
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#00ffff', 'outline_style': 'no', 'size': '4'})
+        one_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                             filterExp='"Pilots" = 1',
+                                             label='1')
+        root_rule.appendChild(one_rule)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#ff8888', 'outline_style': 'no', 'size': '4'})
+        two_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                             filterExp='"Pilots" = 2',
+                                             label='2')
+        root_rule.appendChild(two_rule)
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#8888ff', 'outline_style': 'no', 'size': '4'})
+        three_rule = QgsRuleBasedRenderer.Rule(marker_symbol,
+                                               filterExp='"Pilots" = 3',
+                                               label='3')
+        root_rule.appendChild(three_rule)
+
+        renderer = QgsRuleBasedRenderer(root_rule)
+        point_layer.setRenderer(renderer)
+
+        marker_symbol = QgsMarkerSymbol.createSimple(
+            {'color': '#003366', 'outline_style': 'no', 'size': '8'})
+        point_layer2.setRenderer(QgsSingleSymbolRenderer(marker_symbol))
+
+        p = QgsProject()
+        p.addMapLayers([point_layer, point_layer2])
+
+        layout = QgsLayout(p)
+        layout.initializeDefaults()
+
+        map = QgsLayoutItemMap(layout)
+        map.attemptSetSceneRect(QRectF(19, 17, 100, 165))
+        map.setFrameEnabled(True)
+        map.setCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
+        map.setLayers([point_layer])
+        map.zoomToExtent(QgsRectangle(-108.52403736600929562, 22.4408089916287814, -97.776639147740255, 29.00866345834875304))
+        map.setMapRotation(45)
+
+        layout.addLayoutItem(map)
+
+        map2 = QgsLayoutItemMap(layout)
+        map2.attemptSetSceneRect(QRectF(150, 117, 100, 165))
+        map2.setFrameEnabled(True)
+        map2.setCrs(QgsCoordinateReferenceSystem('EPSG:3857'))
+        map2.setLayers([point_layer2])
+        map2.setExtent(QgsRectangle(-12309930, 3091263, -11329181, 3977074))
+
+        layout.addLayoutItem(map2)
+
+        legend = QgsLayoutItemLegend(layout)
+        legend.setLegendFilterByMapEnabled(True)
+        legend.setLinkedMap(map2)
+        legend.setFilterByMapItems([map])
+        layout.addLayoutItem(legend)
+        legend.setTitle("Legend")
+        legend.attemptSetSceneRect(QRectF(220, 20, 20, 20))
+        legend.setFrameEnabled(True)
+        legend.setFrameStrokeWidth(QgsLayoutMeasurement(2))
+        legend.setBackgroundColor(QColor(200, 200, 200))
+        legend.setTitle('')
+
+        legend.setStyleFont(QgsLegendStyle.Title, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Group, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Subgroup, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.Symbol, QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setStyleFont(QgsLegendStyle.SymbolLabel,
+                            QgsFontUtils.getStandardTestFont('Bold', 16))
+        legend.setLegendFilterOutAtlas(True)
+
+        atlas_layer = QgsVectorLayer(
+            "Polygon?field=fldtxt:string&field=fldint:integer",
+            "addfeat", "memory")
+        layout.reportContext().setLayer(atlas_layer)
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromWkt('Polygon ((-115.422 42.22, -118.202 36.246, -103.351 22.06, -102.314 22.682, -116.542 37.159, -113.348 41.846, -98.747 39.98, -93.313 47.281, -94.225 47.861, -99.95 41.39, -114.51 43.34, -115.422 42.22))'))
+        layout.reportContext().setFeature(f)
+        legend.refresh()
+
+        checker = QgsLayoutChecker(
+            'legend_multiple_filter_maps_different_layers_atlas', layout)
+        checker.setControlPathPrefix("composer_legend")
+        result, message = checker.testLayout()
+        TestQgsLayoutItemLegend.report += checker.report()
+        self.assertTrue(result, message)
+
+    def testGeomGeneratorPoints(self):
+        """Test legend behavior when geometry generator on points is involved"""
+        point_path = os.path.join(TEST_DATA_DIR, 'points.shp')
+        point_layer = QgsVectorLayer(point_path, 'points', 'ogr')
+        QgsProject.instance().addMapLayers([point_layer])
+
+        sub_symbol = QgsFillSymbol.createSimple({'color': '#8888ff', 'outline_style': 'no'})
+        sym = QgsMarkerSymbol()
+        buffer_layer = QgsGeometryGeneratorSymbolLayer.create(
+            {'geometryModifier': 'buffer($geometry, 0.05)'})
+        buffer_layer.setSymbolType(QgsSymbol.Fill)
+        buffer_layer.setSubSymbol(sub_symbol)
+        sym.changeSymbolLayer(0, buffer_layer)
+        point_layer.setRenderer(QgsSingleSymbolRenderer(sym))
+
+        s = QgsMapSettings()
+        s.setLayers([point_layer])
+        layout = QgsLayout(QgsProject.instance())
+        layout.initializeDefaults()
+
+        map = QgsLayoutItemMap(layout)
+        map.attemptSetSceneRect(QRectF(20, 20, 80, 80))
+        map.setFrameEnabled(True)
+        map.setLayers([point_layer])
+        layout.addLayoutItem(map)
+
+        legend = QgsLayoutItemLegend(layout)
+        legend.setTitle("Legend")
+        legend.attemptSetSceneRect(QRectF(120, 20, 80, 80))
+        legend.setFrameEnabled(True)
+        legend.setFrameStrokeWidth(QgsLayoutMeasurement(2))
+        legend.setBackgroundColor(QColor(200, 200, 200))
+        legend.setTitle('')
+        legend.setLegendFilterByMapEnabled(True)
+        legend.setSymbolWidth(20)
+        legend.setSymbolHeight(10)
+
+        text_format = QgsTextFormat()
+        text_format.setFont(QgsFontUtils.getStandardTestFont("Bold"))
+        text_format.setSize(16)
+
+        for legend_item in [QgsLegendStyle.Title, QgsLegendStyle.Group, QgsLegendStyle.Subgroup,
+                            QgsLegendStyle.Symbol, QgsLegendStyle.SymbolLabel]:
+            style = legend.style(legend_item)
+            style.setTextFormat(text_format)
+            legend.setStyle(legend_item, style)
+
+        # disable auto resizing
+        legend.setResizeToContents(False)
+
+        layout.addLayoutItem(legend)
+        legend.setLinkedMap(map)
+
+        map.setExtent(QgsRectangle(-102.51, 41.16, -102.36, 41.30))
+
+        checker = QgsLayoutChecker(
+            'composer_legend_geomgenerator_point', layout)
+        checker.setControlPathPrefix("composer_legend")
+        result, message = checker.testLayout()
+        TestQgsLayoutItemLegend.report += checker.report()
+        self.assertTrue(result, message)
+        QgsProject.instance().removeMapLayers([point_layer.id()])
+
+    def testGeomGeneratorLines(self):
+        """Test legend behavior when geometry generator on lines is involved"""
+        line_path = os.path.join(TEST_DATA_DIR, 'lines.shp')
+        line_layer = QgsVectorLayer(line_path, 'lines', 'ogr')
+        QgsProject.instance().addMapLayers([line_layer])
+
+        sub_symbol = QgsFillSymbol.createSimple({'color': '#8888ff', 'outline_style': 'no'})
+        sym = QgsLineSymbol()
+        buffer_layer = QgsGeometryGeneratorSymbolLayer.create(
+            {'geometryModifier': 'buffer($geometry, 0.2)'})
+        buffer_layer.setSymbolType(QgsSymbol.Fill)
+        buffer_layer.setSubSymbol(sub_symbol)
+        sym.changeSymbolLayer(0, buffer_layer)
+        line_layer.setRenderer(QgsSingleSymbolRenderer(sym))
+
+        s = QgsMapSettings()
+        s.setLayers([line_layer])
+        layout = QgsLayout(QgsProject.instance())
+        layout.initializeDefaults()
+
+        map = QgsLayoutItemMap(layout)
+        map.attemptSetSceneRect(QRectF(20, 20, 80, 80))
+        map.setFrameEnabled(True)
+        map.setLayers([line_layer])
+        layout.addLayoutItem(map)
+        map.setExtent(line_layer.extent())
+
+        legend = QgsLayoutItemLegend(layout)
+        legend.setTitle("Legend")
+        legend.attemptSetSceneRect(QRectF(120, 20, 80, 80))
+        legend.setFrameEnabled(True)
+        legend.setFrameStrokeWidth(QgsLayoutMeasurement(2))
+        legend.setBackgroundColor(QColor(200, 200, 200))
+        legend.setTitle('')
+        legend.setLegendFilterByMapEnabled(True)
+        legend.setSymbolWidth(20)
+        legend.setSymbolHeight(10)
+
+        text_format = QgsTextFormat()
+        text_format.setFont(QgsFontUtils.getStandardTestFont("Bold"))
+        text_format.setSize(16)
+
+        for legend_item in [QgsLegendStyle.Title, QgsLegendStyle.Group, QgsLegendStyle.Subgroup,
+                            QgsLegendStyle.Symbol, QgsLegendStyle.SymbolLabel]:
+            style = legend.style(legend_item)
+            style.setTextFormat(text_format)
+            legend.setStyle(legend_item, style)
+
+        # disable auto resizing
+        legend.setResizeToContents(False)
+
+        layout.addLayoutItem(legend)
+        legend.setLinkedMap(map)
+
+        map.setExtent(QgsRectangle(-100.3127, 35.7607, -98.5259, 36.5145))
+
+        checker = QgsLayoutChecker(
+            'composer_legend_geomgenerator_line', layout)
+        checker.setControlPathPrefix("composer_legend")
+        result, message = checker.testLayout()
+        TestQgsLayoutItemLegend.report += checker.report()
+        self.assertTrue(result, message)
+
+        QgsProject.instance().removeMapLayers([line_layer.id()])
 
 
 if __name__ == '__main__':

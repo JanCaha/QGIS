@@ -48,6 +48,7 @@ class TestQgsAnnotationPointTextItem(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.report = "<h1>Python QgsAnnotationPointTextItem Tests</h1>\n"
 
     @classmethod
@@ -55,6 +56,7 @@ class TestQgsAnnotationPointTextItem(unittest.TestCase):
         report_file_path = f"{QDir.tempPath()}/qgistest.html"
         with open(report_file_path, 'a') as report_file:
             report_file.write(cls.report)
+        super().tearDownClass()
 
     def testBasic(self):
         item = QgsAnnotationPointTextItem('my text', QgsPointXY(12, 13))
@@ -196,6 +198,7 @@ class TestQgsAnnotationPointTextItem(unittest.TestCase):
         settings.setFlag(QgsMapSettings.Antialiasing, False)
 
         rc = QgsRenderContext.fromMapSettings(settings)
+        rc.setScaleFactor(96 / 25.4)  # 96 DPI
         image = QImage(200, 200, QImage.Format_ARGB32)
         image.setDotsPerMeterX(int(96 / 25.4 * 1000))
         image.setDotsPerMeterY(int(96 / 25.4 * 1000))
@@ -230,6 +233,7 @@ class TestQgsAnnotationPointTextItem(unittest.TestCase):
         settings.setFlag(QgsMapSettings.Antialiasing, False)
 
         rc = QgsRenderContext.fromMapSettings(settings)
+        rc.setScaleFactor(96 / 25.4)  # 96 DPI
         image = QImage(200, 200, QImage.Format_ARGB32)
         image.setDotsPerMeterX(int(96 / 25.4 * 1000))
         image.setDotsPerMeterY(int(96 / 25.4 * 1000))
@@ -264,6 +268,7 @@ class TestQgsAnnotationPointTextItem(unittest.TestCase):
         settings.setFlag(QgsMapSettings.Antialiasing, False)
 
         rc = QgsRenderContext.fromMapSettings(settings)
+        rc.setScaleFactor(96 / 25.4)  # 96 DPI
         rc.setCoordinateTransform(QgsCoordinateTransform(QgsCoordinateReferenceSystem('EPSG:4326'), settings.destinationCrs(), QgsProject.instance()))
         image = QImage(200, 200, QImage.Format_ARGB32)
         image.setDotsPerMeterX(int(96 / 25.4 * 1000))

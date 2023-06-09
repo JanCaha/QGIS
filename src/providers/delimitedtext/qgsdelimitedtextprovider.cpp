@@ -80,7 +80,7 @@ QgsDelimitedTextProvider::QgsDelimitedTextProvider( const QString &uri, const Pr
 
   QgsDebugMsgLevel( "Delimited text file uri is " + uri, 2 );
 
-  const QUrl url = QUrl::fromEncoded( uri.toLatin1() );
+  const QUrl url = QUrl::fromEncoded( uri.toUtf8() );
   mFile = std::make_unique< QgsDelimitedTextFile >();
   mFile->setFromUrl( url );
 
@@ -170,9 +170,10 @@ QgsDelimitedTextProvider::QgsDelimitedTextProvider( const QString &uri, const Pr
     if ( queryItem.first.compare( QStringLiteral( "field" ), Qt::CaseSensitivity::CaseInsensitive ) == 0 )
     {
       const QStringList parts { queryItem.second.split( ':' ) };
-      if ( parts.count() == 2 )
+      if ( parts.size() == 2 )
       {
-        mUserDefinedFieldTypes.insert( parts[0], parts [1] );
+        // cppcheck-suppress containerOutOfBounds
+        mUserDefinedFieldTypes.insert( parts[0], parts[1] );
       }
     }
   }
@@ -251,7 +252,7 @@ QStringList QgsDelimitedTextProvider::readCsvtFieldTypes( const QString &filenam
 
   strTypeList = strTypeList.toLower();
   // https://regex101.com/r/BcVPcF/1
-  const QRegularExpression reTypeList( QRegularExpression::anchoredPattern( QStringLiteral( R"re(^(?:\s*("?)(?:coord[xyz]|point\([xyz]\)|wkt|integer64|integer|integer\((?:boolean|int16)\)|real(?:\(float32\))?|double|longlong|long|int8|string|date|datetime|time)(?:\(\d+(?:\.\d+)?\))?\1\s*(?:,|$))+)re" ) ) );
+  const thread_local QRegularExpression reTypeList( QRegularExpression::anchoredPattern( QStringLiteral( R"re(^(?:\s*("?)(?:coord[xyz]|point\([xyz]\)|wkt|integer64|integer|integer\((?:boolean|int16)\)|real(?:\(float32\))?|double|longlong|long|int8|string|date|datetime|time)(?:\(\d+(?:\.\d+)?\))?\1\s*(?:,|$))+)re" ) ) );
   const QRegularExpressionMatch match = reTypeList.match( strTypeList );
   if ( !match.hasMatch() )
   {
@@ -266,7 +267,7 @@ QStringList QgsDelimitedTextProvider::readCsvtFieldTypes( const QString &filenam
 
   int pos = 0;
   // https://regex101.com/r/QwxaSe/1/
-  const QRegularExpression reType( QStringLiteral( R"re((coord[xyz]|point\([xyz]\)|wkt|int8|\binteger\b(?=[^\(])|(?<=integer\()bool(?=ean)|integer64|\binteger\b(?=\((?:\d+|int16)\))|integer64|longlong|\blong\b|real|double|string|\bdate\b|datetime|\btime\b))re" ) );
+  const thread_local QRegularExpression reType( QStringLiteral( R"re((coord[xyz]|point\([xyz]\)|wkt|int8|\binteger\b(?=[^\(])|(?<=integer\()bool(?=ean)|integer64|\binteger\b(?=\((?:\d+|int16)\))|integer64|longlong|\blong\b|real|double|string|\bdate\b|datetime|\btime\b))re" ) );
   QRegularExpressionMatch typeMatch = reType.match( strTypeList, pos );
   while ( typeMatch.hasMatch() )
   {
@@ -425,7 +426,6 @@ void QgsDelimitedTextProvider::scanFile( bool buildIndexes, bool forceFullScan, 
   // Also build subset and spatial indexes.
 
   QStringList parts;
-  long nEmptyRecords = 0;
   long nBadFormatRecords = 0;
   long nIncompatibleGeometry = 0;
   long nInvalidGeometry = 0;
@@ -464,7 +464,6 @@ void QgsDelimitedTextProvider::scanFile( bool buildIndexes, bool forceFullScan, 
     // Skip over empty records
     if ( recordIsEmpty( parts ) )
     {
-      nEmptyRecords++;
       continue;
     }
 
@@ -1289,14 +1288,14 @@ bool QgsDelimitedTextProvider::setSubsetString( const QString &subset, bool upda
 
 void QgsDelimitedTextProvider::setUriParameter( const QString &parameter, const QString &value )
 {
-  QUrl url = QUrl::fromEncoded( dataSourceUri().toLatin1() );
+  QUrl url = QUrl::fromEncoded( dataSourceUri().toUtf8() );
   QUrlQuery query( url );
   if ( query.hasQueryItem( parameter ) )
     query.removeAllQueryItems( parameter );
   if ( ! value.isEmpty() )
     query.addQueryItem( parameter, value );
   url.setQuery( query );
-  setDataSourceUri( QString::fromLatin1( url.toEncoded() ) );
+  setDataSourceUri( QString::fromUtf8( url.toEncoded() ) );
 }
 
 void QgsDelimitedTextProvider::onFileUpdated()
@@ -1368,7 +1367,7 @@ QString  QgsDelimitedTextProvider::description() const
 
 QVariantMap QgsDelimitedTextProviderMetadata::decodeUri( const QString &uri ) const
 {
-  const QUrl url = QUrl::fromEncoded( uri.toLatin1() );
+  const QUrl url = QUrl::fromEncoded( uri.toUtf8() );
   const QUrlQuery queryItems( url.query() );
 
   QString subset;
@@ -1415,20 +1414,20 @@ QString QgsDelimitedTextProviderMetadata::encodeUri( const QVariantMap &parts ) 
     queryItems.addQueryItem( QStringLiteral( "subset" ), parts.value( QStringLiteral( "subset" ) ).toString() );
   url.setQuery( queryItems );
 
-  return QString::fromLatin1( url.toEncoded() );
+  return QString::fromUtf8( url.toEncoded() );
 }
 
 QString QgsDelimitedTextProviderMetadata::absoluteToRelativeUri( const QString &uri, const QgsReadWriteContext &context ) const
 {
-  QUrl urlSource = QUrl::fromEncoded( uri.toLatin1() );
+  QUrl urlSource = QUrl::fromEncoded( uri.toUtf8() );
   QUrl urlDest = QUrl::fromLocalFile( context.pathResolver().writePath( urlSource.toLocalFile() ) );
   urlDest.setQuery( urlSource.query() );
-  return QString::fromLatin1( urlDest.toEncoded() );
+  return QString::fromUtf8( urlDest.toEncoded() );
 }
 
 QString QgsDelimitedTextProviderMetadata::relativeToAbsoluteUri( const QString &uri, const QgsReadWriteContext &context ) const
 {
-  QUrl urlSource = QUrl::fromEncoded( uri.toLatin1() );
+  QUrl urlSource = QUrl::fromEncoded( uri.toUtf8() );
 
   if ( !uri.startsWith( QLatin1String( "file:" ) ) )
   {
@@ -1439,7 +1438,7 @@ QString QgsDelimitedTextProviderMetadata::relativeToAbsoluteUri( const QString &
 
   QUrl urlDest = QUrl::fromLocalFile( context.pathResolver().readPath( urlSource.toLocalFile() ) );
   urlDest.setQuery( urlSource.query() );
-  return QString::fromLatin1( urlDest.toEncoded() );
+  return QString::fromUtf8( urlDest.toEncoded() );
 }
 
 QgsProviderMetadata::ProviderCapabilities QgsDelimitedTextProviderMetadata::providerCapabilities() const

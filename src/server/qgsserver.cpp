@@ -137,7 +137,7 @@ QString QgsServer::configPath( const QString &defaultConfigPath, const QString &
   if ( !projectFile.isEmpty() )
   {
     cfPath = projectFile;
-    QgsDebugMsg( QStringLiteral( "QGIS_PROJECT_FILE:%1" ).arg( cfPath ) );
+    QgsDebugMsgLevel( QStringLiteral( "QGIS_PROJECT_FILE:%1" ).arg( cfPath ), 2 );
   }
   else
   {
@@ -157,7 +157,7 @@ QString QgsServer::configPath( const QString &defaultConfigPath, const QString &
     else
     {
       cfPath = configPath;
-      QgsDebugMsg( QStringLiteral( "MAP:%1" ).arg( cfPath ) );
+      QgsDebugMsgLevel( QStringLiteral( "MAP:%1" ).arg( cfPath ), 2 );
     }
   }
   return cfPath;
@@ -352,7 +352,7 @@ bool QgsServer::init()
   sConfigFilePath = new QString( defaultConfigFilePath );
 
   //create cache for capabilities XML
-  sCapabilitiesCache = new QgsCapabilitiesCache();
+  sCapabilitiesCache = new QgsCapabilitiesCache( sSettings()->capabilitiesCacheSize() );
 
   QgsFontUtils::loadStandardTestFonts( QStringList() << QStringLiteral( "Roman" ) << QStringLiteral( "Bold" ) );
 

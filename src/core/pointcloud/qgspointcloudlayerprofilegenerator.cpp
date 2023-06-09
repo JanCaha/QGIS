@@ -104,6 +104,64 @@ QVector<QgsGeometry> QgsPointCloudLayerProfileResults::asGeometries() const
   return res;
 }
 
+QVector<QgsAbstractProfileResults::Feature> QgsPointCloudLayerProfileResults::asFeatures( Qgis::ProfileExportType type, QgsFeedback *feedback ) const
+{
+  QVector<  QgsAbstractProfileResults::Feature > res;
+  res.reserve( static_cast< int >( results.size() ) );
+  switch ( type )
+  {
+    case Qgis::ProfileExportType::Features3D:
+    {
+      for ( const PointResult &point : results )
+      {
+        if ( feedback && feedback->isCanceled() )
+          break;
+        QgsAbstractProfileResults::Feature f;
+        f.layerIdentifier = mLayerId;
+        f.geometry = QgsGeometry( std::make_unique< QgsPoint >( point.x, point.y, point.z ) );
+        res.append( f );
+      }
+      break;
+    }
+
+    case Qgis::ProfileExportType::Profile2D:
+    {
+      for ( const PointResult &point : results )
+      {
+        if ( feedback && feedback->isCanceled() )
+          break;
+        QgsAbstractProfileResults::Feature f;
+        f.layerIdentifier = mLayerId;
+        f.geometry = QgsGeometry( std::make_unique< QgsPoint >( point.distanceAlongCurve, point.z ) );
+        res.append( f );
+      }
+      break;
+    }
+
+    case Qgis::ProfileExportType::DistanceVsElevationTable:
+    {
+      for ( const PointResult &point : results )
+      {
+        if ( feedback && feedback->isCanceled() )
+          break;
+
+        QgsAbstractProfileResults::Feature f;
+        f.layerIdentifier = mLayerId;
+        f.attributes =
+        {
+          { QStringLiteral( "distance" ),  point.distanceAlongCurve },
+          { QStringLiteral( "elevation" ),  point.z }
+        };
+        f.geometry = QgsGeometry( std::make_unique< QgsPoint >( point.x, point.y, point.z ) );
+        res << f;
+      }
+      break;
+    }
+  }
+
+  return res;
+}
+
 QgsDoubleRange QgsPointCloudLayerProfileResults::zRange() const
 {
   return QgsDoubleRange( minZ, maxZ );
@@ -270,6 +328,7 @@ void QgsPointCloudLayerProfileResults::copyPropertiesFromGenerator( const QgsAbs
   opacityByDistanceEffect = pcGenerator->mOpacityByDistanceEffect;
 
   mLayer = pcGenerator->mLayer;
+  mLayerId = pcGenerator->mId;
   mCurveCrs = pcGenerator->mTargetCrs;
   mProfileCurve.reset( pcGenerator->mProfileCurve->clone() );
   mTolerance = pcGenerator->mTolerance;
@@ -365,7 +424,7 @@ bool QgsPointCloudLayerProfileGenerator::generateProfile( const QgsProfileGenera
   }
   catch ( QgsCsException & )
   {
-    QgsDebugMsg( QStringLiteral( "Error transforming profile line to layer CRS" ) );
+    QgsDebugError( QStringLiteral( "Error transforming profile line to layer CRS" ) );
     return false;
   }
 
@@ -397,7 +456,7 @@ bool QgsPointCloudLayerProfileGenerator::generateProfile( const QgsProfileGenera
   }
   catch ( QgsCsException & )
   {
-    QgsDebugMsg( QStringLiteral( "Could not transform node extent to curve CRS" ) );
+    QgsDebugError( QStringLiteral( "Could not transform node extent to curve CRS" ) );
     rootNodeExtentInCurveCrs = rootNodeExtentLayerCoords;
   }
 
@@ -406,7 +465,7 @@ bool QgsPointCloudLayerProfileGenerator::generateProfile( const QgsProfileGenera
   const double mapUnitsPerPixel = context.mapUnitsPerDistancePixel();
   if ( ( rootErrorInMapCoordinates < 0.0 ) || ( mapUnitsPerPixel < 0.0 ) || ( maximumErrorPixels < 0.0 ) )
   {
-    QgsDebugMsg( QStringLiteral( "invalid screen error" ) );
+    QgsDebugError( QStringLiteral( "invalid screen error" ) );
     return false;
   }
   double rootErrorPixels = rootErrorInMapCoordinates / mapUnitsPerPixel; // in pixels
@@ -600,7 +659,7 @@ int QgsPointCloudLayerProfileGenerator::visitNodesAsync( const QVector<IndexedPo
 
       if ( !block )
       {
-        QgsDebugMsg( QStringLiteral( "Unable to load node %1, error: %2" ).arg( nStr, blockRequest->errorStr() ) );
+        QgsDebugError( QStringLiteral( "Unable to load node %1, error: %2" ).arg( nStr, blockRequest->errorStr() ) );
         return;
       }
 

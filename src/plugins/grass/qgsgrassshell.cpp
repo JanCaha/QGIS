@@ -63,9 +63,10 @@ QgsGrassShell::QgsGrassShell( QgsGrassTools *tools, QTabWidget *parent, const ch
   }
 #endif
 
-  mTerminal->setSize( 80, 25 );
+  mTerminal->setSize( QSize( 80, 25 ) );
   //mTerminal->setColorScheme( COLOR_SCHEME_BLACK_ON_WHITE );
-  mTerminal->setColorScheme( QgsApplication::pkgDataPath() + "/grass/qtermwidget/color-schemes/BlackOnWhite.schema" );
+  mTerminal->addCustomColorSchemeDir( QgsApplication::pkgDataPath() + "/grass/qtermwidget/color-schemes/" );
+  mTerminal->setColorScheme( QgsApplication::pkgDataPath() + "/grass/qtermwidget/color-schemes/BlackOnWhite.colorscheme" );
   mTerminal->startShellProgram();
   mTerminal->setFocus( Qt::MouseFocusReason );
 
@@ -125,7 +126,7 @@ void QgsGrassShell::initTerminal( QTermWidget *terminal )
 
   QString path = getenv( "PATH" );
   path += QgsGrass::pathSeparator() + QgsGrass::grassModulesPaths().join( QgsGrass::pathSeparator() );
-  QgsDebugMsg( "path = " + path );
+  QgsDebugMsgLevel( "path = " + path, 2 );
 
   env << "PATH=" + path;
   env << "PYTHONPATH=" + QgsGrass::getPythonPath();

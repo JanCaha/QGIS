@@ -76,7 +76,7 @@ QgsSettingsTreeNamedListNode *QgsSettingsTreeNode::createNamedListNode( const QS
 }
 
 
-QgsSettingsTreeNode *QgsSettingsTreeNode::childNode( const QString &key )
+QgsSettingsTreeNode *QgsSettingsTreeNode::childNode( const QString &key ) const
 {
   QList<QgsSettingsTreeNode *>::const_iterator it = mChildrenNodes.constBegin();
   for ( ; it != mChildrenNodes.constEnd(); ++it )
@@ -87,7 +87,7 @@ QgsSettingsTreeNode *QgsSettingsTreeNode::childNode( const QString &key )
   return nullptr;
 }
 
-const QgsSettingsEntryBase *QgsSettingsTreeNode::childSetting( const QString &key )
+const QgsSettingsEntryBase *QgsSettingsTreeNode::childSetting( const QString &key ) const
 {
   const QString testCompleteKey = QStringLiteral( "%1%2" ).arg( mCompleteKey, key );
   QList<const QgsSettingsEntryBase *>::const_iterator it = mChildrenSettings.constBegin();
@@ -202,6 +202,21 @@ void QgsSettingsTreeNamedListNode::deleteItem( const QString &item, const QStrin
   args << item;
   QString key = completeKeyWithNamedItems( mCompleteKey, args );
   QgsSettings().remove( key );
+}
+
+void QgsSettingsTreeNamedListNode::deleteAllItems( const QStringList &parentsNamedItems )
+{
+  if ( namedNodesCount() - 1 != parentsNamedItems.count() )
+    throw QgsSettingsException( QObject::tr( "The number of given parent named items (%1) doesn't match with the number of named items in the key (%2)." ).arg( parentsNamedItems.count(), namedNodesCount() ) );
+
+  const QStringList children = items( parentsNamedItems );
+  for ( const QString &child : children )
+  {
+    QStringList args = parentsNamedItems;
+    args << child;
+    QString key = completeKeyWithNamedItems( mCompleteKey, args );
+    QgsSettings().remove( key );
+  }
 }
 
 QString QgsSettingsTreeNamedListNode::completeKeyWithNamedItems( const QString &key, const QStringList &namedItems ) const

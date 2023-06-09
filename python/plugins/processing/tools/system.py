@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     py
@@ -21,6 +19,7 @@ __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
 __copyright__ = '(C) 2012, Victor Olaya'
 
+from typing import Optional
 import os
 import time
 import sys
@@ -29,7 +28,8 @@ import math
 
 from qgis.PyQt.QtCore import QDir
 from qgis.core import (QgsApplication,
-                       QgsProcessingUtils)
+                       QgsProcessingUtils,
+                       QgsProcessingContext)
 
 numExported = 1
 
@@ -58,15 +58,15 @@ def isMac():
     return sys.platform == 'darwin'
 
 
-def getTempFilename(ext=None):
-    tmpPath = QgsProcessingUtils.tempFolder()
+def getTempFilename(ext=None, context: Optional[QgsProcessingContext] = None):
+    tmpPath = QgsProcessingUtils.tempFolder(context)
     t = time.time()
     m = math.floor(t)
-    uid = '{:8x}{:05x}'.format(m, int((t - m) * 1000000))
+    uid = f'{m:8x}{int((t - m) * 1000000):05x}'
     if ext is None:
-        filename = os.path.join(tmpPath, '{}{}'.format(uid, getNumExportedLayers()))
+        filename = os.path.join(tmpPath, f'{uid}{getNumExportedLayers()}')
     else:
-        filename = os.path.join(tmpPath, '{}{}.{}'.format(uid, getNumExportedLayers(), ext))
+        filename = os.path.join(tmpPath, f'{uid}{getNumExportedLayers()}.{ext}')
     return filename
 
 

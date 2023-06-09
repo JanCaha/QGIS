@@ -26,6 +26,7 @@
 #include "qgsapplication.h"
 #include "qgspanelwidget.h"
 #include "qgsjsonutils.h"
+#include "qgsunittypes.h"
 #include <QToolButton>
 #include <QDesktopServices>
 #include <QScrollBar>
@@ -135,6 +136,36 @@ QgsProcessingAlgorithmDialogBase::QgsProcessingAlgorithmDialogBase( QWidget *par
       mAdvancedButton = new QPushButton( tr( "Advanced" ) );
       mAdvancedMenu = new QMenu( this );
       mAdvancedButton->setMenu( mAdvancedMenu );
+
+      mContextSettingsAction = new QAction( tr( "Algorithm Settings…" ), mAdvancedMenu );
+      mContextSettingsAction->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/propertyicons/settings.svg" ) ) );
+      mAdvancedMenu->addAction( mContextSettingsAction );
+
+      connect( mContextSettingsAction, &QAction::triggered, this, [this]
+      {
+        if ( QgsPanelWidget *panel = QgsPanelWidget::findParentPanel( mMainWidget ) )
+        {
+          mTabWidget->setCurrentIndex( 0 );
+
+          if ( !mContextOptionsWidget )
+          {
+            mContextOptionsWidget = new QgsProcessingContextOptionsWidget();
+            mContextOptionsWidget->setFromContext( processingContext() );
+            panel->openPanel( mContextOptionsWidget );
+
+            connect( mContextOptionsWidget, &QgsPanelWidget::widgetChanged, this, [ = ]
+            {
+              mOverrideDefaultContextSettings = true;
+              mGeometryCheck = mContextOptionsWidget->invalidGeometryCheck();
+              mDistanceUnits = mContextOptionsWidget->distanceUnit();
+              mAreaUnits = mContextOptionsWidget->areaUnit();
+              mTemporaryFolderOverride = mContextOptionsWidget->temporaryFolder();
+              mMaximumThreads = mContextOptionsWidget->maximumThreads();
+            } );
+          }
+        }
+      } );
+      mAdvancedMenu->addSeparator();
 
       QAction *copyAsPythonCommand = new QAction( tr( "Copy as Python Command" ), mAdvancedMenu );
       copyAsPythonCommand->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "mIconPythonFile.svg" ) ) );
@@ -513,6 +544,11 @@ void QgsProcessingAlgorithmDialogBase::algExecuted( bool successful, const QVari
   }
   else
   {
+    if ( isFinalized() && successful )
+    {
+      progressBar->setFormat( tr( "Complete" ) );
+    }
+
     // delete dialog if closed
     if ( isFinalized() && !isVisible() )
     {
@@ -766,6 +802,8 @@ void QgsProcessingAlgorithmDialogBase::updateRunButtonVisibility()
   // Activate run button if current tab is Parameters
   const bool runButtonVisible = mTabWidget->currentIndex() == 0;
   mButtonRun->setVisible( runButtonVisible );
+  if ( runButtonVisible )
+    progressBar->resetFormat();
   mButtonChangeParameters->setVisible( !runButtonVisible && mExecutedAnyResult && mButtonChangeParameters->isEnabled() );
 }
 
@@ -817,6 +855,23 @@ QString QgsProcessingAlgorithmDialogBase::formatStringForLog( const QString &str
 bool QgsProcessingAlgorithmDialogBase::isFinalized()
 {
   return true;
+}
+
+void QgsProcessingAlgorithmDialogBase::applyContextOverrides( QgsProcessingContext *context )
+{
+  if ( !context )
+    return;
+
+  context->setLogLevel( logLevel() );
+
+  if ( mOverrideDefaultContextSettings )
+  {
+    context->setInvalidGeometryCheck( mGeometryCheck );
+    context->setDistanceUnit( mDistanceUnits );
+    context->setAreaUnit( mAreaUnits );
+    context->setTemporaryFolder( mTemporaryFolderOverride );
+    context->setMaximumThreads( mMaximumThreads );
+  }
 }
 
 void QgsProcessingAlgorithmDialogBase::setInfo( const QString &message, bool isError, bool escapeHtml, bool isWarning )
@@ -881,5 +936,123 @@ void QgsProcessingAlgorithmProgressDialog::reject()
 }
 
 
+//
+// QgsProcessingContextOptionsWidget
+//
+
+QgsProcessingContextOptionsWidget::QgsProcessingContextOptionsWidget( QWidget *parent )
+  : QgsPanelWidget( parent )
+{
+  setupUi( this );
+  setPanelTitle( tr( "Algorithm Settings" ) );
+
+  mComboInvalidFeatureFiltering->addItem( tr( "Do not Filter (Better Performance)" ), QgsFeatureRequest::GeometryNoCheck );
+  mComboInvalidFeatureFiltering->addItem( tr( "Skip (Ignore) Features with Invalid Geometries" ), QgsFeatureRequest::GeometrySkipInvalid );
+  mComboInvalidFeatureFiltering->addItem( tr( "Stop Algorithm Execution When a Geometry is Invalid" ), QgsFeatureRequest::GeometryAbortOnInvalid );
+
+  mTemporaryFolderWidget->setDialogTitle( tr( "Select Temporary Directory" ) );
+  mTemporaryFolderWidget->setStorageMode( QgsFileWidget::GetDirectory );
+  mTemporaryFolderWidget->lineEdit()->setPlaceholderText( tr( "Default" ) );
+
+  mDistanceUnitsCombo->addItem( tr( "Default" ), QVariant::fromValue( Qgis::DistanceUnit::Unknown ) );
+  for ( Qgis::DistanceUnit unit :
+        {
+          Qgis::DistanceUnit::Meters,
+          Qgis::DistanceUnit::Kilometers,
+          Qgis::DistanceUnit::Centimeters,
+          Qgis::DistanceUnit::Millimeters,
+          Qgis::DistanceUnit::Feet,
+          Qgis::DistanceUnit::Miles,
+          Qgis::DistanceUnit::NauticalMiles,
+          Qgis::DistanceUnit::Yards,
+          Qgis::DistanceUnit::Inches,
+          Qgis::DistanceUnit::Degrees,
+        } )
+  {
+    QString title;
+    if ( ( QgsGui::higFlags() & QgsGui::HigDialogTitleIsTitleCase ) )
+    {
+      title = QgsStringUtils::capitalize( QgsUnitTypes::toString( unit ), Qgis::Capitalization::TitleCase );
+    }
+    else
+    {
+      title = QgsUnitTypes::toString( unit );
+    }
+
+    mDistanceUnitsCombo->addItem( title, QVariant::fromValue( unit ) );
+  }
+
+  mAreaUnitsCombo->addItem( tr( "Default" ), QVariant::fromValue( Qgis::AreaUnit::Unknown ) );
+  for ( Qgis::AreaUnit unit :
+        {
+          Qgis::AreaUnit::SquareMeters,
+          Qgis::AreaUnit::Hectares,
+          Qgis::AreaUnit::SquareKilometers,
+          Qgis::AreaUnit::SquareCentimeters,
+          Qgis::AreaUnit::SquareMillimeters,
+          Qgis::AreaUnit::SquareFeet,
+          Qgis::AreaUnit::SquareMiles,
+          Qgis::AreaUnit::SquareNauticalMiles,
+          Qgis::AreaUnit::SquareYards,
+          Qgis::AreaUnit::SquareInches,
+          Qgis::AreaUnit::Acres,
+          Qgis::AreaUnit::SquareDegrees,
+        } )
+  {
+    QString title;
+    if ( ( QgsGui::higFlags() & QgsGui::HigDialogTitleIsTitleCase ) )
+    {
+      title = QgsStringUtils::capitalize( QgsUnitTypes::toString( unit ), Qgis::Capitalization::TitleCase );
+    }
+    else
+    {
+      title = QgsUnitTypes::toString( unit );
+    }
+
+    mAreaUnitsCombo->addItem( title, QVariant::fromValue( unit ) );
+  }
+
+  mThreadsSpinBox->setRange( 1, QThread::idealThreadCount() );
+
+  connect( mComboInvalidFeatureFiltering, qOverload< int >( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mDistanceUnitsCombo, qOverload< int >( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mAreaUnitsCombo, qOverload< int >( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mTemporaryFolderWidget, &QgsFileWidget::fileChanged, this, &QgsPanelWidget::widgetChanged );
+  connect( mThreadsSpinBox, qOverload< int >( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+}
+
+void QgsProcessingContextOptionsWidget::setFromContext( const QgsProcessingContext *context )
+{
+  whileBlocking( mComboInvalidFeatureFiltering )->setCurrentIndex( mComboInvalidFeatureFiltering->findData( static_cast< int >( context->invalidGeometryCheck() ) ) );
+  whileBlocking( mDistanceUnitsCombo )->setCurrentIndex( mDistanceUnitsCombo->findData( QVariant::fromValue( context->distanceUnit() ) ) );
+  whileBlocking( mAreaUnitsCombo )->setCurrentIndex( mAreaUnitsCombo->findData( QVariant::fromValue( context->areaUnit() ) ) );
+  whileBlocking( mTemporaryFolderWidget )->setFilePath( context->temporaryFolder() );
+  whileBlocking( mThreadsSpinBox )->setValue( context->maximumThreads() );
+}
+
+QgsFeatureRequest::InvalidGeometryCheck QgsProcessingContextOptionsWidget::invalidGeometryCheck() const
+{
+  return static_cast< QgsFeatureRequest::InvalidGeometryCheck >( mComboInvalidFeatureFiltering->currentData().toInt() );
+}
+
+Qgis::DistanceUnit QgsProcessingContextOptionsWidget::distanceUnit() const
+{
+  return mDistanceUnitsCombo->currentData().value< Qgis::DistanceUnit >();
+}
+
+Qgis::AreaUnit QgsProcessingContextOptionsWidget::areaUnit() const
+{
+  return mAreaUnitsCombo->currentData().value< Qgis::AreaUnit >();
+}
+
+QString QgsProcessingContextOptionsWidget::temporaryFolder()
+{
+  return mTemporaryFolderWidget->filePath();
+}
+
+int QgsProcessingContextOptionsWidget::maximumThreads() const
+{
+  return mThreadsSpinBox->value();
+}
 
 ///@endcond

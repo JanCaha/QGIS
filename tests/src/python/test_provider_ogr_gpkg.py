@@ -79,6 +79,7 @@ class TestPyQgsOGRProviderGpkgConformance(unittest.TestCase, ProviderTestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super(TestPyQgsOGRProviderGpkgConformance, cls).setUpClass()
         # Create test layer
         cls.basetestpath = tempfile.mkdtemp()
         cls.repackfilepath = tempfile.mkdtemp()
@@ -119,6 +120,7 @@ class TestPyQgsOGRProviderGpkgConformance(unittest.TestCase, ProviderTestCase):
         del cls.unique_not_null_constraints
         for dirname in cls.dirs_to_cleanup:
             shutil.rmtree(dirname, True)
+        super(TestPyQgsOGRProviderGpkgConformance, cls).tearDownClass()
 
     def getSource(self):
         tmpdir = tempfile.mkdtemp()
@@ -261,6 +263,7 @@ class TestPyQgsOGRProviderGpkg(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super().setUpClass()
 
         QCoreApplication.setOrganizationName("QGIS_Test")
         QCoreApplication.setOrganizationDomain("TestPyQgsOGRProviderGpkg.com")
@@ -277,6 +280,7 @@ class TestPyQgsOGRProviderGpkg(unittest.TestCase):
         shutil.rmtree(cls.basetestpath, True)
 
         QgsSettings().clear()
+        super().tearDownClass()
 
     def testDecodeUri(self):
 
@@ -542,6 +546,16 @@ class TestPyQgsOGRProviderGpkg(unittest.TestCase):
         # but this is broken now.
         got = [feat for feat in vl.getFeatures(QgsFeatureRequest(1))]
         self.assertEqual(len(got), 1)  # this is the current behavior, broken
+
+        # Test setSubsetString() with a SELECT ... statement not selecting
+        # the FID column
+        vl = QgsVectorLayer(f'{tmpfile}', 'test', 'ogr')
+        vl.setSubsetString("SELECT name FROM test_layer WHERE name = 'two'")
+        got = [feat for feat in vl.getFeatures()]
+        self.assertEqual(len(got), 1)
+
+        attributes = got[0].attributes()
+        self.assertEqual(attributes[0], 'two')
 
     def testEditSubsetString(self):
 

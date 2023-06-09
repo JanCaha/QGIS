@@ -164,12 +164,12 @@ sub python_header {
 sub create_class_links {
     my $line = $_[0];
 
-    if ( $line =~ m/\b(Qgs[A-Z]\w+)\b(\.?$|[^\w]{2})/) {
+    if ( $line =~ m/\b((?:Qgs[A-Z]\w+)|(?:Qgis))\b(\.?$|[^\w]{2})/) {
         if ( defined $ACTUAL_CLASS && $1 !~ $ACTUAL_CLASS ) {
             $line =~ s/\b(Qgs[A-Z]\w+)\b(\.?$|[^\w]{2})/:py:class:`$1`$2/g;
         }
     }
-    $line =~ s/\b(Qgs[A-Z]\w+\.[a-z]\w+\(\))(?!\w)/:py:func:`$1`/g;
+    $line =~ s/\b(((?:Qgs[A-Z]\w+)|(?:Qgis))\.[a-z]\w+\(\))(?!\w)/:py:func:`$1`/g;
     if ( defined $ACTUAL_CLASS && $ACTUAL_CLASS) {
         $line =~ s/(?<!\.)\b(?:([a-z]\w+)\(\))(?!\w)/:py:func:`~$ACTUAL_CLASS.$1`/g;
     }
@@ -177,9 +177,9 @@ sub create_class_links {
         $line =~ s/(?<!\.)\b(?:([a-z]\w+)\(\))(?!\w)/:py:func:`~$1`/g;
     }
 
-    if ( $line =~ m/\b(?<![`~])(Qgs[A-Z]\w+)\b(?!\()/) {
+    if ( $line =~ m/\b(?<![`~])((?:Qgs[A-Z]\w+)|(?:Qgis))\b(?!\()/) {
         if ( (!$ACTUAL_CLASS) || $1 ne $ACTUAL_CLASS ) {
-            $line =~ s/\b(?<![`~])(Qgs[A-Z]\w+)\b(?!\()/:py:class:`$1`/g;
+            $line =~ s/\b(?<![`~])((?:Qgs[A-Z]\w+)|(?:Qgis))\b(?!\()/:py:class:`$1`/g;
         }
     }
 
@@ -625,6 +625,10 @@ while ($LINE_IDX < $LINE_COUNT){
         next;
     }
 
+    if ( $LINE =~ m/^(.*?)\s*\/\/\s*cppcheck-suppress.*$/ ){
+        $LINE = "$1";
+    }
+
     if ($LINE =~ m/^\s*SIP_FEATURE\( (\w+) \)(.*)$/){
         write_output("SF1", "%Feature $1$2\n");
         next;
@@ -893,14 +897,16 @@ while ($LINE_IDX < $LINE_COUNT){
     }
 
     # class declaration started
-    # https://regex101.com/r/6FWntP/16
-    if ( $LINE =~ m/^(\s*(class))\s+([A-Z0-9_]+_EXPORT\s+)?(Q_DECL_DEPRECATED\s+)?(?<classname>\w+)(?<domain>\s*\:\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*(,\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*)*)?(?<annot>\s*\/?\/?\s*SIP_\w+)?\s*?(\/\/.*|(?!;))$/ ){
+    # https://regex101.com/r/KMQdF5/1 (older versions: https://regex101.com/r/6FWntP/16)
+    if ( $LINE =~ m/^(\s*(class))\s+([A-Z0-9_]+_EXPORT\s+)?(Q_DECL_DEPRECATED\s+)?(?<classname>\w+)(?<domain>\s*\:\s*(public|protected|private)\s+\w+(< *(\w|::)+ *(, *(\w|::)+ *)*>)?(::\w+(<(\w|::)+(, *(\w|::)+)*>)?)*(,\s*(public|protected|private)\s+\w+(< *(\w|::)+ *(, *(\w|::)+)*>)?(::\w+(<\w+(, *(\w|::)+)?>)?)*)*)?(?<annot>\s*\/?\/?\s*SIP_\w+)?\s*?(\/\/.*|(?!;))$/ ){
         dbg_info("class definition started");
         push @ACCESS, PUBLIC;
         push @EXPORTED, 0;
         push @GLOB_BRACKET_NESTING_IDX, 0;
         my @template_inheritance_template = ();
-        my @template_inheritance_class = ();
+        my @template_inheritance_class1 = ();
+        my @template_inheritance_class2 = ();
+        my @template_inheritance_class3 = ();
         do {no warnings 'uninitialized';
             push @CLASSNAME, $+{classname};
             if ($#CLASSNAME == 0){
@@ -923,14 +929,23 @@ while ($LINE_IDX < $LINE_COUNT){
             $m =~ s/public +(\w+, *)*(Ui::\w+,? *)+//g; # remove Ui::xxx public inheritance as the namespace is causing troubles
             $m =~ s/public +//g;
             $m =~ s/[,:]?\s*private +\w+(::\w+)?//g;
+
             # detect template based inheritance
-            while ($m =~ /[,:]\s+((?!QList)\w+)< *((\w|::)+) *>/g){
+            # https://regex101.com/r/9LGhyy/1
+            while ($m =~ /[,:]\s+(?<tpl>(?!QList)\w+)< *(?<cls1>(\w|::)+) *(, *(?<cls2>(\w|::)+)? *(, *(?<cls3>(\w|::)+)? *)?)? *>/g){
                 dbg_info("template class");
-                push @template_inheritance_template, $1;
-                push @template_inheritance_class, $2;
+                push @template_inheritance_template, $+{tpl};
+                push @template_inheritance_class1, $+{cls1};
+                push @template_inheritance_class2, $+{cls2} // "";
+                push @template_inheritance_class3, $+{cls3} // "";
+                # dbg_info("template classes (max 3): $+{cls1} $+{cls2} $+{cls3}");
             }
-            $m =~ s/(\b(?!QList)\w+)< *((?:\w|::)+) *>/$1${2}Base/g; # use the typeded as template inheritance
-            $m =~ s/(\w+)< *((?:\w|::)+) *>//g; # remove remaining templates
+            dbg_info("domain: $m");
+            do {no warnings 'uninitialized';
+              # https://regex101.com/r/nOLg2r/1
+              $m =~ s/\b(?<tpl>(?!QList)\w+)< *(?<cls1>(\w|::)+) *(, *(?<cls2>(\w|::)+)? *(, *(?<cls3>(\w|::)+)? *)?)? *>/$+{tpl}$+{cls1}$+{cls2}$+{cls3}Base/g; # use the typeded as template inheritance
+            };
+            $m =~ s/(\w+)< *(?:\w|::)+ *>//g; # remove remaining templates
             $m =~ s/([:,])\s*,/$1/g;
             $m =~ s/(\s*[:,])?\s*$//;
             $LINE .= $m;
@@ -952,8 +967,16 @@ while ($LINE_IDX < $LINE_COUNT){
         # see https://www.riverbankcomputing.com/pipermail/pyqt/2015-May/035893.html
         while ( @template_inheritance_template ) {
             my $tpl = pop @template_inheritance_template;
-            my $cls = pop @template_inheritance_class;
-            $LINE = "\ntypedef $tpl<$cls> ${tpl}${cls}Base;\n\n$LINE";
+            my $cls1 = pop @template_inheritance_class1;
+            my $cls2 = pop @template_inheritance_class2;
+            my $cls3 = pop @template_inheritance_class3;
+            if ( $cls2 eq ""){
+              $LINE = "\ntypedef $tpl<$cls1> ${tpl}${cls1}Base;\n\n$LINE";
+            } elsif ( $cls3 eq ""){
+              $LINE = "\ntypedef $tpl<$cls1,$cls2> ${tpl}${cls1}${cls2}Base;\n\n$LINE";
+            } else {
+              $LINE = "\ntypedef $tpl<$cls1,$cls2,$cls3> ${tpl}${cls1}${cls2}${cls3}Base;\n\n$LINE";
+            }
             if ( not $tpl ~~ @DECLARED_CLASSES ){
                 my $tpl_header = lc $tpl . ".h";
                 if ( exists $SIP_CONFIG->{class_headerfile}->{$tpl} ){
@@ -961,7 +984,13 @@ while ($LINE_IDX < $LINE_COUNT){
                 }
                 $LINE .= "\n#include \"" . $tpl_header . "\"";
             }
-            $LINE .= "\ntypedef $tpl<$cls> ${tpl}${cls}Base;";
+            if ( $cls2 eq ""){
+              $LINE .= "\ntypedef $tpl<$cls1> ${tpl}${cls1}Base;";
+            } elsif ( $cls3 eq ""){
+              $LINE .= "\ntypedef $tpl<$cls1,$cls2> ${tpl}${cls1}${cls2}Base;";
+            } else {
+              $LINE .= "\ntypedef $tpl<$cls1,$cls2,$cls3> ${tpl}${cls1}${cls2}${cls3}Base;";
+            }
         }
         if ( PRIVATE ~~ @ACCESS && $#ACCESS != 0){
             # do not write anything in PRIVATE context and not top level
@@ -1122,10 +1151,10 @@ while ($LINE_IDX < $LINE_COUNT){
                     my $enum_decl = $LINE =~ s/^(\s*(?<em>\w+))(\s+SIP_PYNAME(?:\(\s*(?<pyname>[^() ]+)\s*\)\s*)?)?(\s+SIP_MONKEY\w+(?:\(\s*(?<compat>[^() ]+)\s*\)\s*)?)?(?:\s*=\s*(?:[\w\s\d|+-]|::|<<)+)?(,?)(:?\s*\/\/!<\s*(?<co>.*)|.*)$/$1$3$7/r;
                     my $enum_member = $+{em};
                     my $comment = $+{co};
+                    my $compat_name = $+{compat} ? $+{compat} : $enum_member;
                     # replace :: with . (changes c++ style namespace/class directives to Python style)
                     $comment =~ s/::/./g;
                     $comment =~ s/\"/\\"/g;
-                    my $compat_name = $+{compat} ? $+{compat} : $enum_member;
                     dbg_info("is_scope_based:$is_scope_based enum_mk_base:$enum_mk_base monkeypatch:$monkeypatch");
                     if ($is_scope_based eq "1" and $enum_member ne "") {
                         if ( $monkeypatch eq 1 and $enum_mk_base ne ""){
@@ -1190,6 +1219,9 @@ while ($LINE_IDX < $LINE_COUNT){
     # keyword fixes
     do {no warnings 'uninitialized';
         $LINE =~ s/^(\s*template\s*<)(?:class|typename) (\w+>)(.*)$/$1$2$3/;
+        $LINE =~ s/^(\s*template\s*<)(?:class|typename) (\w+) *, *(?:class|typename) (\w+>)(.*)$/$1$2,$3$4/;
+        # https://regex101.com/r/EB1mpx/1
+        $LINE =~ s/^(\s*template\s*<)(?:class|typename) (\w+) *, *(?:class|typename) (\w+) *, *(?:class|typename) (\w+>)(.*)$/$1$2,$3,$4$5/;
         $LINE =~ s/\s*\boverride\b//;
         $LINE =~ s/\s*\bSIP_MAKE_PRIVATE\b//;
         $LINE =~ s/\s*\bFINAL\b/ \${SIP_FINAL}/;

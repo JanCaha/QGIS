@@ -18,6 +18,7 @@
 #include "qgspointcloudlayer.h"
 #include "qgspointcloudlayerrenderer.h"
 #include "qgspointcloudindex.h"
+#include "qgspointcloudsubindex.h"
 #include "qgsrectangle.h"
 #include "qgspointclouddataprovider.h"
 #include "qgsproviderregistry.h"
@@ -108,6 +109,9 @@ QgsMapLayerRenderer *QgsPointCloudLayer::createMapRenderer( QgsRenderContext &re
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
+  if ( mRenderer->type() != QLatin1String( "extent" ) )
+    loadIndexesForRenderContext( rendererContext );
+
   return new QgsPointCloudLayerRenderer( this, rendererContext );
 }
 
@@ -144,7 +148,7 @@ bool QgsPointCloudLayer::readXml( const QDomNode &layerNode, QgsReadWriteContext
   if ( !( mReadFlags & QgsMapLayer::FlagDontResolveLayers ) )
   {
     const QgsDataProvider::ProviderOptions providerOptions { context.transformContext() };
-    QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags();
+    QgsDataProvider::ReadFlags flags = providerReadFlags( layerNode, mReadFlags );
     // read extent
     if ( mReadFlags & QgsMapLayer::FlagReadExtentFromXml )
     {
@@ -156,19 +160,9 @@ bool QgsPointCloudLayer::readXml( const QDomNode &layerNode, QgsReadWriteContext
 
         // store the extent
         setExtent( mbr );
-
-        // skip get extent
-        flags |= QgsDataProvider::SkipGetExtent;
       }
     }
-    if ( mReadFlags & QgsMapLayer::FlagTrustLayerMetadata )
-    {
-      flags |= QgsDataProvider::FlagTrustDataSource;
-    }
-    if ( mReadFlags & QgsMapLayer::FlagForceReadOnly )
-    {
-      flags |= QgsDataProvider::ForceReadOnly;
-    }
+
     setDataSource( mDataSource, mLayerName, mProviderKey, providerOptions, flags );
     const QDomNode subset = layerNode.namedItem( QStringLiteral( "subset" ) );
     const QString subsetText = subset.toElement().text();
@@ -396,10 +390,21 @@ void QgsPointCloudLayer::setDataSourcePrivate( const QString &dataSource, const 
   mProviderKey = provider;
   mDataSource = dataSource;
 
-  mDataProvider.reset( qobject_cast<QgsPointCloudDataProvider *>( QgsProviderRegistry::instance()->createProvider( provider, dataSource, options, flags ) ) );
+  if ( mPreloadedProvider )
+  {
+    mDataProvider.reset( qobject_cast< QgsPointCloudDataProvider * >( mPreloadedProvider.release() ) );
+  }
+  else
+  {
+    std::unique_ptr< QgsScopedRuntimeProfile > profile;
+    if ( QgsApplication::profiler()->groupIsActive( QStringLiteral( "projectload" ) ) )
+      profile = std::make_unique< QgsScopedRuntimeProfile >( tr( "Create %1 provider" ).arg( provider ), QStringLiteral( "projectload" ) );
+    mDataProvider.reset( qobject_cast<QgsPointCloudDataProvider *>( QgsProviderRegistry::instance()->createProvider( provider, dataSource, options, flags ) ) );
+  }
+
   if ( !mDataProvider )
   {
-    QgsDebugMsg( QStringLiteral( "Unable to get point cloud data provider" ) );
+    QgsDebugError( QStringLiteral( "Unable to get point cloud data provider" ) );
     setValid( false );
     return;
   }
@@ -410,7 +415,7 @@ void QgsPointCloudLayer::setDataSourcePrivate( const QString &dataSource, const 
   setValid( mDataProvider->isValid() );
   if ( !isValid() )
   {
-    QgsDebugMsg( QStringLiteral( "Invalid point cloud provider plugin %1" ).arg( QString( mDataSource.toUtf8() ) ) );
+    QgsDebugError( QStringLiteral( "Invalid point cloud provider plugin %1" ).arg( QString( mDataSource.toUtf8() ) ) );
     setError( mDataProvider->error() );
     return;
   }
@@ -431,12 +436,19 @@ void QgsPointCloudLayer::setDataSourcePrivate( const QString &dataSource, const 
     loadDefaultStyleFlag = true;
   }
 
-  if ( !mLayerOptions.skipIndexGeneration && mDataProvider && mDataProvider->indexingState() != QgsPointCloudDataProvider::PointCloudIndexGenerationState::Indexed )
+  if ( !mLayerOptions.skipIndexGeneration &&
+       mDataProvider &&
+       mDataProvider->indexingState() != QgsPointCloudDataProvider::PointCloudIndexGenerationState::Indexed &&
+       mDataProvider->pointCount() > 0 )
   {
     mDataProvider->generateIndex();
   }
 
-  if ( !mLayerOptions.skipStatisticsCalculation && mDataProvider && !mDataProvider->hasStatisticsMetadata() && mDataProvider->indexingState() == QgsPointCloudDataProvider::PointCloudIndexGenerationState::Indexed )
+  if ( !mLayerOptions.skipStatisticsCalculation &&
+       mDataProvider &&
+       !mDataProvider->hasStatisticsMetadata() &&
+       mDataProvider->indexingState() == QgsPointCloudDataProvider::PointCloudIndexGenerationState::Indexed &&
+       mDataProvider->pointCount() > 0 )
   {
     calculateStatistics();
   }
@@ -948,4 +960,34 @@ void QgsPointCloudLayer::resetRenderer()
   triggerRepaint();
 
   emit rendererChanged();
+}
+
+void QgsPointCloudLayer::loadIndexesForRenderContext( QgsRenderContext &rendererContext ) const
+{
+  if ( mDataProvider->capabilities() & QgsPointCloudDataProvider::ContainSubIndexes )
+  {
+    QgsRectangle renderExtent;
+    try
+    {
+      renderExtent = rendererContext.coordinateTransform().transformBoundingBox( rendererContext.mapExtent(), Qgis::TransformDirection::Reverse );
+    }
+    catch ( QgsCsException & )
+    {
+      QgsDebugError( QStringLiteral( "Transformation of extent failed!" ) );
+    }
+
+    const QVector<QgsPointCloudSubIndex> subIndex = mDataProvider->subIndexes();
+    for ( int i = 0; i < subIndex.size(); ++i )
+    {
+      // no need to load as it's there
+      if ( subIndex.at( i ).index() )
+        continue;
+
+      if ( subIndex.at( i ).extent().intersects( renderExtent ) &&
+           renderExtent.width() < subIndex.at( i ).extent().width() )
+      {
+        mDataProvider->loadSubIndex( i );
+      }
+    }
+  }
 }

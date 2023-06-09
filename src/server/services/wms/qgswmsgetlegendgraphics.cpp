@@ -22,6 +22,7 @@
 #include "qgslegendrenderer.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerfeaturecounter.h"
+#include "qgslayertreefiltersettings.h"
 
 #include "qgswmsutils.h"
 #include "qgswmsrequest.h"
@@ -29,6 +30,7 @@
 #include "qgswmsgetlegendgraphics.h"
 #include "qgswmsrenderer.h"
 #include "qgsserverprojectutils.h"
+#include "qgsmapsettings.h"
 
 #include <QImage>
 #include <QJsonObject>
@@ -269,7 +271,10 @@ namespace QgsWms
       QList<QgsMapLayer *> layers = context.layersToRender();
       renderer.configureLayers( layers, mapSettings.get() );
       mapSettings->setLayers( context.layersToRender() );
-      model->setLegendFilterByMap( mapSettings.get() );
+
+      QgsLayerTreeFilterSettings filterSettings( *mapSettings );
+      filterSettings.setLayerFilterExpressionsFromLayerTree( model->rootGroup() );
+      model->setFilterSettings( &filterSettings );
     }
 
     // if legend is not based on rendering rules

@@ -47,6 +47,7 @@ class TestPyQgsOracleProvider(unittest.TestCase, ProviderTestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super(TestPyQgsOracleProvider, cls).setUpClass()
         cls.dbconn = "host=localhost dbname=XEPDB1 port=1521 user='QGIS' password='qgis'"
         if 'QGIS_ORACLETEST_DB' in os.environ:
             cls.dbconn = os.environ['QGIS_ORACLETEST_DB']
@@ -67,10 +68,6 @@ class TestPyQgsOracleProvider(unittest.TestCase, ProviderTestCase):
         cls.conn.setUserName('QGIS')
         cls.conn.setPassword('qgis')
         assert cls.conn.open()
-
-    @classmethod
-    def tearDownClass(cls):
-        """Run after all tests"""
 
     def execSQLCommand(self, sql, ignore_errors=False):
         self.assertTrue(self.conn)
@@ -733,6 +730,16 @@ class TestPyQgsOracleProvider(unittest.TestCase, ProviderTestCase):
         f['pk'] = NULL
         self.vl.addFeature(f)  # Should not deadlock during an active iteration
         f = next(it)
+        self.vl.rollBack()
+
+    def testTransactionEditing(self):
+        tg = QgsTransactionGroup()
+        tg.addLayer(self.vl)
+        self.vl.startEditing()
+        feat = QgsFeature(self.vl.fields())
+        feat.setAttribute("pk", 6)
+        self.assertTrue(self.vl.addFeature(feat))
+        self.vl.rollBack()
 
     def testTimeout(self):
         """

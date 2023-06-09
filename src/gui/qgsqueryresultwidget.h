@@ -170,6 +170,20 @@ class GUI_EXPORT QgsQueryResultWidget: public QWidget, private Ui::QgsQueryResul
      */
     void tokensReady( const QStringList &tokens );
 
+    /**
+     * Copies the query results to the clipboard, as a formatted table.
+     *
+     * \since QGIS 3.32
+     */
+    void copyResults();
+
+    /**
+     * Copies a range of the query results to the clipboard, as a formatted table.
+     *
+     * \since QGIS 3.32
+     */
+    void copyResults( int fromRow, int toRow, int fromColumn, int toColumn );
+
   signals:
 
     /**
@@ -193,6 +207,10 @@ class GUI_EXPORT QgsQueryResultWidget: public QWidget, private Ui::QgsQueryResul
      */
     void updateButtons();
 
+    void showCellContextMenu( QPoint point );
+
+    void copySelection();
+
   private:
 
     std::unique_ptr<QgsAbstractDatabaseProviderConnection> mConnection;
@@ -208,6 +226,7 @@ class GUI_EXPORT QgsQueryResultWidget: public QWidget, private Ui::QgsQueryResul
     long long mActualRowCount = -1;
     long long mFetchedRowsBatchCount = 0;
     QueryWidgetMode mQueryWidgetMode = QueryWidgetMode::SqlQueryMode;
+    long long mCurrentHistoryEntryId = -1;
 
     /**
      * Updates SQL layer columns.

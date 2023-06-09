@@ -103,7 +103,6 @@ class QgsGeometryValidationService;
 class QgsGeometryValidationDock;
 class QgsGeometryValidationModel;
 class QgsUserProfileManager;
-class QgsUserProfileManagerWidgetFactory;
 class QgsHandleBadLayersHandler;
 class QgsNetworkAccessManager;
 class QgsGpsConnection;
@@ -272,6 +271,11 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     QList< QgsMapCanvas * > mapCanvases();
 
     /**
+     * Returns the 2D map canvas dock widget named \a name
+     */
+    QgsMapCanvasDockWidget *getMapCanvas( const QString &name );
+
+    /**
      * Returns a map of all 3D map scenes (by name) open in the app.
      */
     QMap<QString, Qgs3DMapScene *> map3DScenes();
@@ -287,7 +291,7 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
      * unwanted map redraws. Callers must manually unfreeze the map canvas when they have finished
      * setting the initial state of the canvas and are ready for it to begin rendering.
      */
-    QgsMapCanvasDockWidget *createNewMapCanvasDock( const QString &name );
+    QgsMapCanvasDockWidget *createNewMapCanvasDock( const QString &name, bool isDocked = true );
 
     /**
      * Closes the additional map canvas with matching \a name.
@@ -1701,6 +1705,7 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 
     //! Creates a new map canvas view
     void newMapCanvas();
+
     //! Creates a new 3D map canvas view
     void new3DMapCanvas();
 
@@ -2238,7 +2243,7 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
                                          const QString &layerName,
                                          const QString &encoding,
                                          const QString &vectorFileName )> &onSuccess, const std::function< void ( int error, const QString &errorMessage ) > &onFailure,
-                                     QgsVectorLayerSaveAsDialog::Options dialogOptions = QgsVectorLayerSaveAsDialog::AllOptions,
+                                     QgsVectorLayerSaveAsDialog::Options dialogOptions = QgsVectorLayerSaveAsDialog::Option::AllOptions,
                                      const QString &dialogTitle = QString() );
 
     QString saveAsPointCloudLayer( QgsPointCloudLayer *pclayer );
@@ -2331,18 +2336,6 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     void setupDockWidget( QDockWidget *dockWidget, bool isFloating = false, QRect dockGeometry = QRect(),
                           Qt::DockWidgetArea area = Qt::RightDockWidgetArea );
 
-    /**
-     * Reads dock widget's position settings from a DOM element and calls setupDockWidget()
-     * \sa writeDockWidgetSettings()
-     */
-    void readDockWidgetSettings( QDockWidget *dockWidget, const QDomElement &elem );
-
-    /**
-     * Writes dock widget's position settings to a DOM element
-     * \sa readDockWidgetSettings()
-     */
-    void writeDockWidgetSettings( QDockWidget *dockWidget, QDomElement &elem );
-
 #ifdef HAVE_3D
 
     /**
@@ -2361,9 +2354,6 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 #endif
 
     QgsCoordinateReferenceSystem defaultCrsForNewLayers() const;
-
-    //! Attempts to choose a reasonable default icon size based on the window's screen DPI
-    int chooseReasonableDefaultIconSize() const;
 
     //! Populates project "load from" / "save to" menu based on project storages (when the menu is about to be shown)
     void populateProjectStorageMenu( QMenu *menu, bool saving );
@@ -2748,6 +2738,8 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 
     QMap< QString, QToolButton * > mAnnotationItemGroupToolButtons;
     QAction *mAnnotationsItemInsertBefore = nullptr; // Used to insert annotation items at the appropriate location in the annotations toolbar
+
+    QSet<QgsMapCanvasDockWidget *> mOpen2DMapViews;
 
 #ifdef HAVE_3D
     QSet<Qgs3DMapCanvasWidget *> mOpen3DMapViews;

@@ -44,6 +44,7 @@ Constructor for QgsProfilePlotRenderer, using the provided list of profile ``sou
 results.
 %End
 
+
     ~QgsProfilePlotRenderer();
 
     QStringList sourceIds() const;
@@ -137,7 +138,7 @@ Does nothing if the generation is already in progress.
 Returns the limits of the retrieved elevation values.
 %End
 
-    QImage renderToImage( int width, int height, double distanceMin, double distanceMax, double zMin, double zMax, const QString &sourceId = QString() );
+    QImage renderToImage( int width, int height, double distanceMin, double distanceMax, double zMin, double zMax, const QString &sourceId = QString(), double devicePixelRatio = 1.0 );
 %Docstring
 Renders a portion of the profile to an image with the given ``width`` and ``height``.
 
@@ -164,6 +165,13 @@ Identify results visible at the specified profile ``point``.
     QVector<QgsProfileIdentifyResults> identify( const QgsDoubleRange &distanceRange, const QgsDoubleRange &elevationRange, const QgsProfileIdentifyContext &context );
 %Docstring
 Identify results visible within the specified ranges.
+%End
+
+    QVector< QgsAbstractProfileResults::Feature > asFeatures( Qgis::ProfileExportType type, QgsFeedback *feedback = 0 );
+%Docstring
+Exports the profile results as a set of features.
+
+.. versionadded:: 3.32
 %End
 
   signals:

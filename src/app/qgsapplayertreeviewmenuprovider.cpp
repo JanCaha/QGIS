@@ -53,6 +53,10 @@
 #include "qgsmeshlayer.h"
 #include "qgsmapcanvasutils.h"
 #include "qgsmaplayeraction.h"
+#include "qgsvectortilelayer.h"
+#include "qgsvectortiledataprovider.h"
+#include "qgsproviderregistry.h"
+#include "qgsprovidermetadata.h"
 
 QgsAppLayerTreeViewMenuProvider::QgsAppLayerTreeViewMenuProvider( QgsLayerTreeView *view, QgsMapCanvas *canvas )
   : mView( view )
@@ -143,6 +147,7 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
       menu->addSeparator();
 
       QMenu *menuExportGroup = new QMenu( tr( "E&xport" ), menu );
+      menuExportGroup->setObjectName( QStringLiteral( "exportMenu" ) );
       QAction *actionSaveAsDefinitionGroup = new QAction( tr( "Save as Layer &Definition File…" ), menuExportGroup );
       connect( actionSaveAsDefinitionGroup, &QAction::triggered, QgisApp::instance(), &QgisApp::saveAsLayerDefinition );
       menuExportGroup->addAction( actionSaveAsDefinitionGroup );
@@ -156,6 +161,7 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
       QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer );
       QgsPointCloudLayer *pcLayer = qobject_cast<QgsPointCloudLayer * >( layer );
       QgsMeshLayer *meshLayer = qobject_cast<QgsMeshLayer * >( layer );
+      QgsVectorTileLayer *vectorTileLayer = qobject_cast<QgsVectorTileLayer * >( layer );
 
       if ( layer && layer->isSpatial() )
       {
@@ -380,8 +386,16 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
         menu->addAction( tr( "&Filter…" ), QgisApp::instance(), qOverload<>( &QgisApp::layerSubsetString ) );
       }
 
-      // change data source is only supported for vectors, rasters, point clouds, mesh
-      if ( vlayer || rlayer || pcLayer || meshLayer )
+      // change data source is only supported for vectors, rasters, point clouds, mesh, some vector tile layers
+      bool supportsChangeDataSource = vlayer || rlayer || pcLayer || meshLayer;
+      if ( vectorTileLayer )
+      {
+        if ( const QgsProviderMetadata *metadata = QgsProviderRegistry::instance()->providerMetadata( vectorTileLayer->providerType() ) )
+        {
+          supportsChangeDataSource = metadata->providerCapabilities() & QgsProviderMetadata::FileBasedUris;
+        }
+      }
+      if ( supportsChangeDataSource )
       {
 
         QAction *a = new QAction( layer->isValid() ? tr( "C&hange Data Source…" ) : tr( "Repair Data Source…" ), menu );
@@ -539,6 +553,7 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
               }
               // save as vector file
               QMenu *menuExportVector = new QMenu( tr( "E&xport" ), menu );
+              menuExportVector->setObjectName( QStringLiteral( "exportMenu" ) );
               QAction *actionSaveAs = new QAction( tr( "Save Features &As…" ), menuExportVector );
               connect( actionSaveAs, &QAction::triggered, QgisApp::instance(), [ = ] { QgisApp::instance()->saveAsFile(); } );
               actionSaveAs->setEnabled( vlayer->isValid() );
@@ -565,9 +580,10 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
           case Qgis::LayerType::VectorTile:
           case Qgis::LayerType::PointCloud:
           {
-            bool enableSaveAs = ( pcLayer && pcLayer->isValid() ) ||
+            bool enableSaveAs = ( pcLayer && pcLayer->isValid() && pcLayer->dataProvider()->hasValidIndex() ) ||
                                 ( rlayer && rlayer->isValid() );
             QMenu *menuExportRaster = new QMenu( tr( "E&xport" ), menu );
+            menuExportRaster->setObjectName( QStringLiteral( "exportMenu" ) );
             QAction *actionSaveAs = new QAction( tr( "Save &As…" ), menuExportRaster );
             QAction *actionSaveAsDefinitionLayer = new QAction( tr( "Save as Layer &Definition File…" ), menuExportRaster );
             QAction *actionSaveStyle = new QAction( tr( "Save as &QGIS Layer Style File…" ), menuExportRaster );

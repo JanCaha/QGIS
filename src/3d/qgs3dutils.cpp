@@ -29,6 +29,14 @@
 #include "qgsabstract3dengine.h"
 #include "qgsterraingenerator.h"
 #include "qgscameracontroller.h"
+#include "qgschunkedentity_p.h"
+#include "qgsterrainentity_p.h"
+#include "qgsraycastingutils_p.h"
+
+#include "qgsline3dsymbol.h"
+#include "qgspoint3dsymbol.h"
+#include "qgspolygon3dsymbol.h"
+
 #include "qgspointcloudrenderer.h"
 #include "qgspointcloud3dsymbol.h"
 #include "qgspointcloudlayer3drenderer.h"
@@ -555,7 +563,7 @@ QgsVector3D Qgs3DUtils::worldToMapCoordinates( const QgsVector3D &worldCoords, c
                       worldCoords.y() + origin.z() );
 }
 
-static QgsRectangle _tryReprojectExtent2D( const QgsRectangle &extent, const QgsCoordinateReferenceSystem &crs1, const QgsCoordinateReferenceSystem &crs2, const QgsCoordinateTransformContext &context )
+QgsRectangle Qgs3DUtils::tryReprojectExtent2D( const QgsRectangle &extent, const QgsCoordinateReferenceSystem &crs1, const QgsCoordinateReferenceSystem &crs2, const QgsCoordinateTransformContext &context )
 {
   QgsRectangle extentMapCrs( extent );
   if ( crs1 != crs2 )
@@ -570,7 +578,7 @@ static QgsRectangle _tryReprojectExtent2D( const QgsRectangle &extent, const Qgs
     catch ( const QgsCsException & )
     {
       // bad luck, can't reproject for some reason
-      QgsDebugMsg( QStringLiteral( "3D utils: transformation of extent failed: " ) + extentMapCrs.toString( -1 ) );
+      QgsDebugError( QStringLiteral( "3D utils: transformation of extent failed: " ) + extentMapCrs.toString( -1 ) );
     }
   }
   return extentMapCrs;
@@ -578,14 +586,14 @@ static QgsRectangle _tryReprojectExtent2D( const QgsRectangle &extent, const Qgs
 
 QgsAABB Qgs3DUtils::layerToWorldExtent( const QgsRectangle &extent, double zMin, double zMax, const QgsCoordinateReferenceSystem &layerCrs, const QgsVector3D &mapOrigin, const QgsCoordinateReferenceSystem &mapCrs, const QgsCoordinateTransformContext &context )
 {
-  const QgsRectangle extentMapCrs( _tryReprojectExtent2D( extent, layerCrs, mapCrs, context ) );
+  const QgsRectangle extentMapCrs( Qgs3DUtils::tryReprojectExtent2D( extent, layerCrs, mapCrs, context ) );
   return mapToWorldExtent( extentMapCrs, zMin, zMax, mapOrigin );
 }
 
 QgsRectangle Qgs3DUtils::worldToLayerExtent( const QgsAABB &bbox, const QgsCoordinateReferenceSystem &layerCrs, const QgsVector3D &mapOrigin, const QgsCoordinateReferenceSystem &mapCrs, const QgsCoordinateTransformContext &context )
 {
   const QgsRectangle extentMap = worldToMapExtent( bbox, mapOrigin );
-  return _tryReprojectExtent2D( extentMap, mapCrs, layerCrs, context );
+  return Qgs3DUtils::tryReprojectExtent2D( extentMap, mapCrs, layerCrs, context );
 }
 
 QgsAABB Qgs3DUtils::mapToWorldExtent( const QgsRectangle &extent, double zMin, double zMax, const QgsVector3D &mapOrigin )
@@ -783,4 +791,55 @@ std::unique_ptr<QgsPointCloudLayer3DRenderer> Qgs3DUtils::convert2DPointCloudRen
     return renderer3D;
   }
   return nullptr;
+}
+
+QHash<QgsMapLayer *, QVector<QgsRayCastingUtils::RayHit>> Qgs3DUtils::castRay( Qgs3DMapScene *scene, const QgsRay3D &ray, const QgsRayCastingUtils::RayCastContext &context )
+{
+  QgsRayCastingUtils::Ray3D r( ray.origin(), ray.direction(), context.maxDistance );
+  QHash<QgsMapLayer *, QVector<QgsRayCastingUtils:: RayHit>> results;
+  const QList<QgsMapLayer *> keys = scene->layers();
+  for ( QgsMapLayer *layer : keys )
+  {
+    Qt3DCore::QEntity *entity = scene->layerEntity( layer );
+
+    if ( QgsChunkedEntity *chunkedEntity = qobject_cast<QgsChunkedEntity *>( entity ) )
+    {
+      const QVector<QgsRayCastingUtils::RayHit> result = chunkedEntity->rayIntersection( r, context );
+      if ( !result.isEmpty() )
+        results[ layer ] = result;
+    }
+  }
+  if ( QgsTerrainEntity *terrain = scene->terrainEntity() )
+  {
+    const QVector<QgsRayCastingUtils::RayHit> result = terrain->rayIntersection( r, context );
+    if ( !result.isEmpty() )
+      results[ nullptr ] = result;  // Terrain hits are not tied to a layer so we use nullptr as their key here
+  }
+  return results;
+}
+
+float Qgs3DUtils::screenSpaceError( float epsilon, float distance, float screenSize, float fov )
+{
+  /* This routine approximately calculates how an error (epsilon) of an object in world coordinates
+   * at given distance (between camera and the object) will look like in screen coordinates.
+   *
+   * the math below simply uses triangle similarity:
+   *
+   *             epsilon                       phi
+   *   -----------------------------  = ----------------
+   *   [ frustum width at distance ]    [ screen width ]
+   *
+   * Then we solve for phi, substituting [frustum width at distance] = 2 * distance * tan(fov / 2)
+   *
+   *  ________xxx__      xxx = real world error (epsilon)
+   *  \     |     /        x = screen space error (phi)
+   *   \    |    /
+   *    \___|_x_/   near plane (screen space)
+   *     \  |  /
+   *      \ | /
+   *       \|/    angle = field of view
+   *       camera
+   */
+  float phi = epsilon * screenSize / ( 2 * distance * tan( fov * M_PI / ( 2 * 180 ) ) );
+  return phi;
 }

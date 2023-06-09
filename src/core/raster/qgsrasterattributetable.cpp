@@ -1106,12 +1106,13 @@ QgsRasterAttributeTable *QgsRasterAttributeTable::createFromRaster( QgsRasterLay
             rat->appendField( QStringLiteral( "BlueMax" ), Qgis::RasterAttributeTableFieldUsage::BlueMax, QVariant::Type::Int );
             rat->appendField( QStringLiteral( "AlphaMax" ), Qgis::RasterAttributeTableFieldUsage::AlphaMax, QVariant::Type::Int );
             const QList<QgsColorRampShader::ColorRampItem> rampItems { shaderFunction->colorRampItemList() };
-            if ( rampItems.count( ) > 1 )
+            if ( rampItems.size() > 1 )
             {
               QColor color1 { rampItems.at( 0 ).color };
               QString label1 { rampItems.at( 0 ).label };
               QVariant value1( rampItems.at( 0 ).value );
-              for ( int i = 1; i < rampItems.count( ); ++i )
+              const int rampItemSize = rampItems.size();
+              for ( int i = 1; i < rampItemSize; ++i )
               {
                 const QgsColorRampShader::ColorRampItem &rampItem { rampItems.at( i )};
                 rat->appendRow( QVariantList() << value1 << rampItem.value << QStringLiteral( "%1 - %2" ).arg( label1, rampItem.label ) << 0 << 0 << 0 << 255 << 0 << 0 << 0 << 255 );
@@ -1134,12 +1135,13 @@ QgsRasterAttributeTable *QgsRasterAttributeTable::createFromRaster( QgsRasterLay
             rat->appendField( QStringLiteral( "Blue" ), Qgis::RasterAttributeTableFieldUsage::Blue, QVariant::Type::Int );
             rat->appendField( QStringLiteral( "Alpha" ), Qgis::RasterAttributeTableFieldUsage::Alpha, QVariant::Type::Int );
             const QList<QgsColorRampShader::ColorRampItem> rampItems { shaderFunction->colorRampItemList() };
-            if ( rampItems.count( ) > 1 )
+            if ( rampItems.size( ) > 1 )
             {
               QColor color1 { rampItems.at( 0 ).color };
               QString label1 { rampItems.at( 0 ).label };
               QVariant value1( rampItems.at( 0 ).value );
-              for ( int i = 1; i < rampItems.count( ); ++i )
+              const int rampItemSize = rampItems.size();
+              for ( int i = 1; i < rampItemSize; ++i )
               {
                 const QgsColorRampShader::ColorRampItem &rampItem { rampItems.at( i )};
                 rat->appendRow( QVariantList() << value1 << rampItem.value << QStringLiteral( "%1 - %2" ).arg( label1, rampItem.label ) << 0 << 0 << 0 << 255 << 0 << 0 << 0 << 255 );
@@ -1251,7 +1253,7 @@ QList<QgsRasterAttributeTable::MinMaxClass> QgsRasterAttributeTable::minMaxClass
   QList<QgsRasterAttributeTable::MinMaxClass> classes;
   if ( !isValid() )
   {
-    QgsDebugMsg( "minMaxClasses was called on an invalid RAT" );
+    QgsDebugError( "minMaxClasses was called on an invalid RAT" );
     return classes;
   }
 
@@ -1259,7 +1261,7 @@ QList<QgsRasterAttributeTable::MinMaxClass> QgsRasterAttributeTable::minMaxClass
 
   if ( ! fieldUsages.contains( Qgis::RasterAttributeTableFieldUsage::MinMax ) )
   {
-    QgsDebugMsg( "minMaxClasses was called on a ramp raster" );
+    QgsDebugError( "minMaxClasses was called on a ramp raster" );
     return classes;
   }
 
@@ -1273,7 +1275,7 @@ QList<QgsRasterAttributeTable::MinMaxClass> QgsRasterAttributeTable::minMaxClass
     const Field classificationField { mFields.at( classificationIndex ) };
     if ( ( classificationField.usage != Qgis::RasterAttributeTableFieldUsage::Name && classificationField.usage != Qgis::RasterAttributeTableFieldUsage::Generic ) )
     {
-      QgsDebugMsg( "minMaxClasses was called with a classification column which is not suitable for classification" );
+      QgsDebugError( "minMaxClasses was called with a classification column which is not suitable for classification" );
       return classes;
     }
   }
@@ -1295,7 +1297,7 @@ QList<QgsRasterAttributeTable::MinMaxClass> QgsRasterAttributeTable::minMaxClass
   }
   else if ( classificationIndex >= mFields.count( ) )
   {
-    QgsDebugMsg( "minMaxClasses was called with a classification column out of range" );
+    QgsDebugError( "minMaxClasses was called with a classification column out of range" );
     return classes;
   }
 
@@ -1311,7 +1313,7 @@ QList<QgsRasterAttributeTable::MinMaxClass> QgsRasterAttributeTable::minMaxClass
       // This should never happen, could eventually become a Q_ASSERT
       if ( ! ok )
       {
-        QgsDebugMsg( "minMaxClasses could not convert a MinMax value to double" );
+        QgsDebugError( "minMaxClasses could not convert a MinMax value to double" );
         return classes;
       }
       if ( labels.contains( label ) )

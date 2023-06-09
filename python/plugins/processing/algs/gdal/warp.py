@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     self.py
@@ -182,7 +180,7 @@ class warp(GdalAlgorithm):
             nodata = None
         resolution = self.parameterAsDouble(parameters, self.TARGET_RESOLUTION, context)
 
-        arguments = []
+        arguments = ['-overwrite']
         if sourceCrs.isValid():
             arguments.append('-s_srs')
             arguments.append(GdalUtils.gdal_crs_string(sourceCrs))

@@ -177,7 +177,7 @@ QgsCategorizedSymbolRenderer::QgsCategorizedSymbolRenderer( const QString &attrN
   {
     if ( !cat.symbol() )
     {
-      QgsDebugMsg( QStringLiteral( "invalid symbol in a category! ignoring..." ) );
+      QgsDebugError( QStringLiteral( "invalid symbol in a category! ignoring..." ) );
     }
     mCategories << cat;
   }
@@ -228,7 +228,7 @@ QgsSymbol *QgsCategorizedSymbolRenderer::symbolForValue( const QVariant &value, 
   {
     if ( mSymbolHash.isEmpty() )
     {
-      QgsDebugMsg( QStringLiteral( "there are no hashed symbols!!!" ) );
+      QgsDebugError( QStringLiteral( "there are no hashed symbols!!!" ) );
     }
     else
     {
@@ -345,7 +345,7 @@ void QgsCategorizedSymbolRenderer::addCategory( const QgsRendererCategory &cat )
 {
   if ( !cat.symbol() )
   {
-    QgsDebugMsg( QStringLiteral( "invalid symbol in a category! ignoring..." ) );
+    QgsDebugError( QStringLiteral( "invalid symbol in a category! ignoring..." ) );
     return;
   }
 
@@ -1365,7 +1365,7 @@ int QgsCategorizedSymbolRenderer::matchToSymbols( QgsStyle *style, Qgis::SymbolT
   unmatchedSymbols = style->symbolNames();
   const QSet< QString > allSymbolNames( unmatchedSymbols.begin(), unmatchedSymbols.end() );
 
-  const QRegularExpression tolerantMatchRe( QStringLiteral( "[^\\w\\d ]" ), QRegularExpression::UseUnicodePropertiesOption );
+  const thread_local QRegularExpression tolerantMatchRe( QStringLiteral( "[^\\w\\d ]" ), QRegularExpression::UseUnicodePropertiesOption );
 
   for ( int catIdx = 0; catIdx < mCategories.count(); ++catIdx )
   {

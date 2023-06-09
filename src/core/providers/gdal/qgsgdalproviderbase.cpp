@@ -51,14 +51,14 @@ QList<QgsColorRampShader::ColorRampItem> QgsGdalProviderBase::colorTable( GDALDa
   //Invalid band number, segfault prevention
   if ( 0 >= bandNumber )
   {
-    QgsDebugMsg( QStringLiteral( "Invalid parameter" ) );
+    QgsDebugError( QStringLiteral( "Invalid parameter" ) );
     return ct;
   }
 
   GDALRasterBandH myGdalBand = GDALGetRasterBand( gdalDataset, bandNumber );
   if ( ! myGdalBand )
   {
-    QgsDebugMsg( QStringLiteral( "Could not get raster band %1" ).arg( bandNumber ) );
+    QgsDebugError( QStringLiteral( "Could not get raster band %1" ).arg( bandNumber ) );
     return ct;
   }
 
@@ -393,7 +393,7 @@ QVariantMap QgsGdalProviderBase::decodeGdalUri( const QString &uri )
   QString authcfg;
   QStringList openOptions;
 
-  const QRegularExpression authcfgRegex( " authcfg='([^']+)'" );
+  const thread_local QRegularExpression authcfgRegex( " authcfg='([^']+)'" );
   QRegularExpressionMatch match;
   if ( path.contains( authcfgRegex, &match ) )
   {
@@ -407,7 +407,7 @@ QVariantMap QgsGdalProviderBase::decodeGdalUri( const QString &uri )
   {
     path = path.mid( vsiPrefix.count() );
 
-    const QRegularExpression vsiRegex( QStringLiteral( "(?:\\.zip|\\.tar|\\.gz|\\.tar\\.gz|\\.tgz)([^|]+)" ) );
+    const thread_local QRegularExpression vsiRegex( QStringLiteral( "(?:\\.zip|\\.tar|\\.gz|\\.tar\\.gz|\\.tgz)([^|]+)" ) );
     const QRegularExpressionMatch match = vsiRegex.match( path );
     if ( match.hasMatch() )
     {
@@ -438,7 +438,7 @@ QVariantMap QgsGdalProviderBase::decodeGdalUri( const QString &uri )
 
   if ( path.contains( '|' ) )
   {
-    const QRegularExpression openOptionRegex( QStringLiteral( "\\|option:([^|]*)" ) );
+    const thread_local QRegularExpression openOptionRegex( QStringLiteral( "\\|option:([^|]*)" ) );
     while ( true )
     {
       const QRegularExpressionMatch match = openOptionRegex.match( path );

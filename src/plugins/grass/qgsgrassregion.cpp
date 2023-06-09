@@ -42,7 +42,7 @@ QgsGrassRegionEdit::QgsGrassRegionEdit( QgsMapCanvas *canvas )
   mSrcRubberBand = new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon );
   QString error;
   mCrs = QgsGrass::crs( QgsGrass::getDefaultGisdbase(), QgsGrass::getDefaultLocation(), error );
-  QgsDebugMsg( "mCrs: " + mCrs.toWkt() );
+  QgsDebugMsgLevel( "mCrs: " + mCrs.toWkt(), 3 );
   setTransform();
   connect( canvas, &QgsMapCanvas::destinationCrsChanged, this, &QgsGrassRegionEdit::setTransform );
 }
@@ -142,7 +142,7 @@ void QgsGrassRegionEdit::transform( QgsMapCanvas *, QVector<QgsPointXY> &points,
   catch ( QgsCsException &cse )
   {
     Q_UNUSED( cse )
-    QgsDebugMsg( QString( "transformation failed: %1" ).arg( cse.what() ) );
+    QgsDebugError( QString( "transformation failed: %1" ).arg( cse.what() ) );
   }
 }
 
@@ -192,7 +192,7 @@ QgsGrassRegion::QgsGrassRegion( QgisInterface *iface,
   , mY( 0 )
   , mUpdatingGui( false )
 {
-  QgsDebugMsg( "QgsGrassRegion()" );
+  QgsDebugMsgLevel( "QgsGrassRegion()", 3 );
   QgsGrass::initRegion( &mWindow );
 
   setupUi( this );

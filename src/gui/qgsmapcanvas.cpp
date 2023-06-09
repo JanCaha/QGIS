@@ -509,7 +509,7 @@ void QgsMapCanvas::setDestinationCrs( const QgsCoordinateReferenceSystem &crs )
     catch ( QgsCsException &e )
     {
       Q_UNUSED( e )
-      QgsDebugMsg( QStringLiteral( "Transform error caught: %1" ).arg( e.what() ) );
+      QgsDebugError( QStringLiteral( "Transform error caught: %1" ).arg( e.what() ) );
     }
   }
 
@@ -650,6 +650,11 @@ void QgsMapCanvas::clearCache()
     mPreviousRenderedItemResults.reset();
   if ( mRenderedItemResults )
     mRenderedItemResults.reset();
+}
+
+QgsMapRendererCache *QgsMapCanvas::cache()
+{
+  return mCache;
 }
 
 void QgsMapCanvas::setParallelRenderingEnabled( bool enabled )
@@ -1210,7 +1215,8 @@ void QgsMapCanvas::showContextMenu( QgsMapMouseEvent *event )
 
   emit contextMenuAboutToShow( &menu, event );
 
-  menu.exec( event->globalPos() );
+  if ( !menu.isEmpty() ) // menu can be empty after populateContextMenu() and contextMenuAboutToShow()
+    menu.exec( event->globalPos() );
 }
 
 void QgsMapCanvas::notifyRendererErrors( const QgsMapRendererJob::Errors &errors )
@@ -1238,7 +1244,7 @@ void QgsMapCanvas::notifyRendererErrors( const QgsMapRendererJob::Errors &errors
 
 void QgsMapCanvas::updateDevicePixelFromScreen()
 {
-  mSettings.setDevicePixelRatio( devicePixelRatio() );
+  mSettings.setDevicePixelRatio( static_cast<float>( devicePixelRatioF() ) );
   // TODO: QGIS 4 -> always respect screen dpi
   if ( QgsSettingsRegistryGui::settingsRespectScreenDPI->value() )
   {
@@ -1459,8 +1465,8 @@ void QgsMapCanvas::setExtent( const QgsRectangle &r, bool magnified )
     if ( mScaleLocked && magnified )
     {
       ScaleRestorer restorer( this );
-      const double ratio { extent().width() / extent().height() };
-      const double factor { r.width() / r.height() > ratio ? extent().width() / r.width() :  extent().height() / r.height() };
+      const double ratio { mapSettings().extent().width() / mapSettings().extent().height() };
+      const double factor { r.width() / r.height() > ratio ? mapSettings().extent().width() / r.width() :  mapSettings().extent().height() / r.height() };
       const double scaleFactor { std::clamp( mSettings.magnificationFactor() * factor, QgsGuiUtils::CANVAS_MAGNIFICATION_MIN, QgsGuiUtils::CANVAS_MAGNIFICATION_MAX ) };
       const QgsPointXY newCenter { r.center() };
       mSettings.setMagnificationFactor( scaleFactor, &newCenter );
@@ -1575,7 +1581,7 @@ void QgsMapCanvas::zoomToFullExtent()
   {
     // Add a 5% margin around the full extent
     extent.scale( 1.05 );
-    setExtent( extent );
+    setExtent( extent, true );
   }
   refresh();
 }
@@ -1589,7 +1595,7 @@ void QgsMapCanvas::zoomToProjectExtent()
   {
     // Add a 5% margin around the full extent
     extent.scale( 1.05 );
-    setExtent( extent );
+    setExtent( extent, true );
   }
   refresh();
 }
@@ -2595,7 +2601,10 @@ void QgsMapCanvas::wheelEvent( QWheelEvent *e )
     return;
   }
 
-  double zoomFactor = e->angleDelta().y() > 0 ? 1. / zoomInFactor() : zoomOutFactor();
+  QgsSettings settings;
+  bool reverseZoom = settings.value( QStringLiteral( "qgis/reverse_wheel_zoom" ), false ).toBool();
+  bool zoomIn = reverseZoom ? e->angleDelta().y() < 0 : e->angleDelta().y() > 0;
+  double zoomFactor = zoomIn ? 1. / zoomInFactor() : zoomOutFactor();
 
   // "Normal" mouse have an angle delta of 120, precision mouses provide data faster, in smaller steps
   zoomFactor = 1.0 + ( zoomFactor - 1.0 ) / 120.0 * std::fabs( e->angleDelta().y() );
@@ -2606,7 +2615,7 @@ void QgsMapCanvas::wheelEvent( QWheelEvent *e )
     zoomFactor = 1.0 + ( zoomFactor - 1.0 ) / 20.0;
   }
 
-  double signedWheelFactor = e->angleDelta().y() > 0 ? 1 / zoomFactor : zoomFactor;
+  double signedWheelFactor = zoomIn ? 1 / zoomFactor : zoomFactor;
 
   // zoom map to mouse cursor by scaling
   QgsPointXY oldCenter = center();
@@ -2620,7 +2629,7 @@ void QgsMapCanvas::wheelEvent( QWheelEvent *e )
 
 void QgsMapCanvas::setWheelFactor( double factor )
 {
-  mWheelZoomFactor = factor;
+  mWheelZoomFactor = std::max( factor, 1.01 );
 }
 
 void QgsMapCanvas::zoomIn()
@@ -2654,10 +2663,7 @@ void QgsMapCanvas::zoomWithCenter( int x, int y, bool zoomIn )
   }
   else
   {
-    QgsRectangle r = mapSettings().visibleExtent();
-    r.scale( scaleFactor, &center );
-    setExtent( r, true );
-    refresh();
+    zoomByFactor( scaleFactor, &center );
   }
 }
 
@@ -2706,6 +2712,12 @@ void QgsMapCanvas::setMapTool( QgsMapTool *tool, bool clean )
 {
   if ( !tool )
     return;
+
+  if ( tool == mMapTool )
+  {
+    mMapTool->reactivate();
+    return;
+  }
 
   if ( mMapTool )
   {
@@ -2923,7 +2935,7 @@ void QgsMapCanvas::setRenderFlag( bool flag )
 void QgsMapCanvas::connectNotify( const char *signal )
 {
   Q_UNUSED( signal )
-  QgsDebugMsg( "QgsMapCanvas connected to " + QString( signal ) );
+  QgsDebugMsgLevel( "QgsMapCanvas connected to " + QString( signal ), 2 );
 } //connectNotify
 #endif
 
@@ -3230,7 +3242,7 @@ void QgsMapCanvas::readProject( const QDomDocument &doc )
   }
   else
   {
-    QgsDebugMsg( QStringLiteral( "Couldn't read mapcanvas information from project" ) );
+    QgsDebugMsgLevel( QStringLiteral( "Couldn't read mapcanvas information from project" ), 2 );
     if ( !project->viewSettings()->defaultViewExtent().isNull() )
     {
       setReferencedExtent( project->viewSettings()->defaultViewExtent() );
@@ -3248,7 +3260,7 @@ void QgsMapCanvas::writeProject( QDomDocument &doc )
   QDomNodeList nl = doc.elementsByTagName( QStringLiteral( "qgis" ) );
   if ( !nl.count() )
   {
-    QgsDebugMsg( QStringLiteral( "Unable to find qgis element in project file" ) );
+    QgsDebugError( QStringLiteral( "Unable to find qgis element in project file" ) );
     return;
   }
   QDomNode qgisNode = nl.item( 0 );  // there should only be one, so zeroth element OK

@@ -69,6 +69,10 @@
 #include "qgscombinedstylemodel.h"
 #include "qgsprojectgpssettings.h"
 #include "qgsthreadingutils.h"
+#include "qgssensormanager.h"
+#include "qgsproviderregistry.h"
+#include "qgsrunnableprovidercreator.h"
+#include "qgssettingsregistrycore.h"
 
 #include <algorithm>
 #include <QApplication>
@@ -82,6 +86,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QRegularExpression>
+#include <QThreadPool>
 
 #ifdef _MSC_VER
 #include <sys/utime.h>
@@ -375,6 +380,7 @@ QgsProject::QgsProject( QObject *parent, Qgis::ProjectCapabilities capabilities 
   , mLayoutManager( new QgsLayoutManager( this ) )
   , m3DViewsManager( new QgsMapViewsManager( this ) )
   , mBookmarkManager( QgsBookmarkManager::createProjectBasedManager( this ) )
+  , mSensorManager( new QgsSensorManager( this ) )
   , mViewSettings( new QgsProjectViewSettings( this ) )
   , mStyleSettings( new QgsProjectStyleSettings( this ) )
   , mTimeSettings( new QgsProjectTimeSettings( this ) )
@@ -634,7 +640,7 @@ void QgsProject::registerTranslatableContainers( QgsTranslationContext *translat
 
   for ( QgsAttributeEditorElement *element : elements )
   {
-    if ( element->type() == QgsAttributeEditorElement::AeTypeContainer )
+    if ( element->type() == Qgis::AttributeEditorType::Container )
     {
       QgsAttributeEditorContainer *container = dynamic_cast<QgsAttributeEditorContainer *>( element );
 
@@ -1057,6 +1063,7 @@ void QgsProject::clear()
   mLayoutManager->clear();
   m3DViewsManager->clear();
   mBookmarkManager->clear();
+  mSensorManager->clear();
   mViewSettings->reset();
   mTimeSettings->reset();
   mElevationProperties->reset();
@@ -1170,13 +1177,13 @@ void _getProperties( const QDomDocument &doc, QgsProjectPropertyKey &project_pro
 
   if ( propertiesElem.firstChild().isNull() )
   {
-    QgsDebugMsg( QStringLiteral( "empty ``properties'' XML tag ... bailing" ) );
+    QgsDebugError( QStringLiteral( "empty ``properties'' XML tag ... bailing" ) );
     return;
   }
 
   if ( ! project_properties.readXml( propertiesElem ) )
   {
-    QgsDebugMsg( QStringLiteral( "Project_properties.readXml() failed" ) );
+    QgsDebugError( QStringLiteral( "Project_properties.readXml() failed" ) );
   }
 }
 
@@ -1195,7 +1202,7 @@ QgsPropertyCollection getDataDefinedServerProperties( const QDomDocument &doc, c
   {
     if ( !ddServerProperties.readXml( ddElem, dataDefinedServerPropertyDefinitions ) )
     {
-      QgsDebugMsg( QStringLiteral( "dataDefinedServerProperties.readXml() failed" ) );
+      QgsDebugError( QStringLiteral( "dataDefinedServerProperties.readXml() failed" ) );
     }
   }
   return ddServerProperties;
@@ -1243,7 +1250,7 @@ static void readProjectFileMetadata( const QDomDocument &doc, QString &lastUser,
 
   if ( !nl.count() )
   {
-    QgsDebugMsg( QStringLiteral( "unable to find qgis element" ) );
+    QgsDebugError( QStringLiteral( "unable to find qgis element" ) );
     return;
   }
 
@@ -1261,7 +1268,7 @@ QgsProjectVersion getVersion( const QDomDocument &doc )
 
   if ( !nl.count() )
   {
-    QgsDebugMsg( QStringLiteral( " unable to find qgis element in project file" ) );
+    QgsDebugError( QStringLiteral( " unable to find qgis element in project file" ) );
     return QgsProjectVersion( 0, 0, 0, QString() );
   }
 
@@ -1300,6 +1307,133 @@ void QgsProject::setAvoidIntersectionsMode( const Qgis::AvoidIntersectionsMode m
 
   mAvoidIntersectionsMode = mode;
   emit avoidIntersectionsModeChanged();
+}
+
+static  QgsMapLayer::ReadFlags projectFlagsToLayerReadFlags( Qgis::ProjectReadFlags projectReadFlags, Qgis::ProjectFlags projectFlags )
+{
+  QgsMapLayer::ReadFlags layerFlags = QgsMapLayer::ReadFlags();
+  if ( projectReadFlags & Qgis::ProjectReadFlag::DontResolveLayers )
+    layerFlags |= QgsMapLayer::FlagDontResolveLayers;
+  // Propagate trust layer metadata flag
+  if ( ( projectFlags & Qgis::ProjectFlag::TrustStoredLayerStatistics ) || ( projectReadFlags & Qgis::ProjectReadFlag::TrustLayerMetadata ) )
+    layerFlags |= QgsMapLayer::FlagTrustLayerMetadata;
+  // Propagate open layers in read-only mode
+  if ( ( projectReadFlags & Qgis::ProjectReadFlag::ForceReadOnlyLayers ) )
+    layerFlags |= QgsMapLayer::FlagForceReadOnly;
+
+  return layerFlags;
+}
+
+struct LayerToLoad
+{
+  QString layerId;
+  QString provider;
+  QString dataSource;
+  QgsDataProvider::ProviderOptions options;
+  QgsDataProvider::ReadFlags flags;
+  QDomElement layerElement;
+};
+
+void QgsProject::preloadProviders( const QVector<QDomNode> &parallelLayerNodes,
+                                   const QgsReadWriteContext &context,
+                                   QMap<QString, QgsDataProvider *> &loadedProviders,
+                                   QgsMapLayer::ReadFlags layerReadFlags,
+                                   int totalProviderCount )
+{
+  int i = 0;
+  QEventLoop loop;
+
+  QMap<QString, LayerToLoad> layersToLoad;
+
+  for ( const QDomNode &node : parallelLayerNodes )
+  {
+    LayerToLoad layerToLoad;
+
+    const QDomElement layerElement = node.toElement();
+    layerToLoad.layerElement = layerElement;
+    layerToLoad.layerId = layerElement.namedItem( QStringLiteral( "id" ) ).toElement().text();
+    layerToLoad.provider = layerElement.namedItem( QStringLiteral( "provider" ) ).toElement().text();
+    layerToLoad.dataSource = layerElement.namedItem( QStringLiteral( "datasource" ) ).toElement().text();
+
+    layerToLoad.dataSource = QgsProviderRegistry::instance()->relativeToAbsoluteUri( layerToLoad.provider, layerToLoad.dataSource, context );
+
+    layerToLoad.options = QgsDataProvider::ProviderOptions( {context.transformContext()} );
+    layerToLoad.flags = QgsMapLayer::providerReadFlags( node, layerReadFlags );
+
+    // Requesting credential from worker thread could lead to deadlocks because the main thread is waiting for worker thread to fininsh
+    layerToLoad.flags.setFlag( QgsDataProvider::SkipCredentialsRequest, true );
+
+    layersToLoad.insert( layerToLoad.layerId, layerToLoad );
+  }
+
+  while ( !layersToLoad.isEmpty() )
+  {
+    const QList<LayerToLoad> layersToAttemptInParallel = layersToLoad.values();
+    QString layerToAttemptInMainThread;
+
+    QHash<QString, QgsRunnableProviderCreator *> runnables;
+    QThreadPool threadPool;
+    threadPool.setMaxThreadCount( QgsSettingsRegistryCore::settingsLayerParallelLoadingMaxCount->value() );
+
+    for ( const LayerToLoad &lay : layersToAttemptInParallel )
+    {
+      QgsRunnableProviderCreator *run = new QgsRunnableProviderCreator( lay.layerId, lay.provider, lay.dataSource, lay.options, lay.flags );
+      runnables.insert( lay.layerId, run );
+
+      QObject::connect( run, &QgsRunnableProviderCreator::providerCreated, run, [&]( bool isValid, const QString & layId )
+      {
+        if ( isValid )
+        {
+          layersToLoad.remove( layId );
+          i++;
+          QgsRunnableProviderCreator *finishedRun = runnables.value( layId, nullptr );
+          Q_ASSERT( finishedRun );
+
+          std::unique_ptr<QgsDataProvider> provider( finishedRun->dataProvider() );
+          Q_ASSERT( provider && provider->isValid() );
+
+          loadedProviders.insert( layId, provider.release() );
+          emit layerLoaded( i, totalProviderCount );
+        }
+        else
+        {
+          if ( layerToAttemptInMainThread.isEmpty() )
+            layerToAttemptInMainThread = layId;
+          threadPool.clear(); //we have to stop all loading provider to try this layer in main thread and maybe have credentials
+        }
+
+        if ( i == parallelLayerNodes.count() || !isValid )
+          loop.quit();
+      } );
+      threadPool.start( run );
+    }
+    loop.exec();
+
+    threadPool.waitForDone(); // to be sure all threads are finished
+
+    qDeleteAll( runnables );
+
+    // We try with the first layer returned invalid but this time in the main thread to maybe have credentials and continue with others not loaded in parallel
+    QMap<QString, LayerToLoad>::ConstIterator it = layersToLoad.find( layerToAttemptInMainThread );
+    if ( it != layersToLoad.constEnd() )
+    {
+      const LayerToLoad &lay =  it.value();
+      QgsDataProvider::ReadFlags providerFlags = lay.flags;
+      providerFlags.setFlag( QgsDataProvider::SkipCredentialsRequest, false );
+      QgsScopedRuntimeProfile profile( "Create data providers/" + lay.layerId, QStringLiteral( "projectload" ) );
+      std::unique_ptr<QgsDataProvider> provider( QgsProviderRegistry::instance()->createProvider( lay.provider, lay.dataSource, lay.options, providerFlags ) );
+      i++;
+      if ( provider && provider->isValid() )
+      {
+        emit layerLoaded( i, totalProviderCount );
+      }
+      layersToLoad.remove( lay.layerId );
+      loadedProviders.insert( lay.layerId, provider.release() );
+    }
+
+    // if there still are some not loaded providers or some invalid in parallel thread we start again
+  }
+
 }
 
 bool QgsProject::_getMapLayers( const QDomDocument &doc, QList<QDomNode> &brokenNodes, Qgis::ProjectReadFlags flags )
@@ -1347,17 +1481,48 @@ bool QgsProject::_getMapLayers( const QDomDocument &doc, QList<QDomNode> &broken
   const QVector<QDomNode> sortedLayerNodes = depSorter.sortedLayerNodes();
   const int totalLayerCount = sortedLayerNodes.count();
 
-  int i = 0;
-  for ( const QDomNode &node : sortedLayerNodes )
+  QVector<QDomNode> parallelLoading;
+  QMap<QString, QgsDataProvider *> loadedProviders;
+
+  if ( QgsSettingsRegistryCore::settingsLayerParallelLoading->value() )
+  {
+    profile.switchTask( tr( "Load providers in parallel" ) );
+    for ( const QDomNode &node : sortedLayerNodes )
+    {
+      const QDomElement element = node.toElement();
+      if ( element.attribute( QStringLiteral( "embedded" ) ) != QLatin1String( "1" ) )
+      {
+        const QString layerId = node.namedItem( QStringLiteral( "id" ) ).toElement().text();
+        if ( !depSorter.isLayerDependent( layerId ) )
+        {
+          const QDomNode mnl = element.namedItem( QStringLiteral( "provider" ) );
+          const QDomElement mne = mnl.toElement();
+          const QString provider = mne.text();
+          QgsProviderMetadata *meta = QgsProviderRegistry::instance()->providerMetadata( provider );
+          if ( meta && meta->providerCapabilities().testFlag( QgsProviderMetadata::ParallelCreateProvider ) )
+          {
+            parallelLoading.append( node );
+            continue;
+          }
+        }
+      }
+    }
+
+    QgsReadWriteContext context;
+    context.setPathResolver( pathResolver() );
+    if ( !parallelLoading.isEmpty() )
+      preloadProviders( parallelLoading, context, loadedProviders, projectFlagsToLayerReadFlags( flags, mFlags ), sortedLayerNodes.count() );
+  }
+
+  int i = loadedProviders.count();
+  for ( const QDomNode &node : std::as_const( sortedLayerNodes ) )
   {
     const QDomElement element = node.toElement();
-
     const QString name = translate( QStringLiteral( "project:layers:%1" ).arg( node.namedItem( QStringLiteral( "id" ) ).toElement().text() ), node.namedItem( QStringLiteral( "layername" ) ).toElement().text() );
     if ( !name.isNull() )
       emit loadingLayer( tr( "Loading layer %1" ).arg( name ) );
 
     profile.switchTask( name );
-
     if ( element.attribute( QStringLiteral( "embedded" ) ) == QLatin1String( "1" ) )
     {
       createEmbeddedLayer( element.attribute( QStringLiteral( "id" ) ), readPath( element.attribute( QStringLiteral( "project" ) ) ), brokenNodes, true, flags );
@@ -1368,8 +1533,9 @@ bool QgsProject::_getMapLayers( const QDomDocument &doc, QList<QDomNode> &broken
       context.setPathResolver( pathResolver() );
       context.setProjectTranslator( this );
       context.setTransformContext( transformContext() );
+      QString layerId = element.namedItem( QStringLiteral( "id" ) ).toElement().text();
 
-      if ( !addLayer( element, brokenNodes, context, flags ) )
+      if ( !addLayer( element, brokenNodes, context, flags, loadedProviders.take( layerId ) ) )
       {
         returnStatus = false;
       }
@@ -1386,7 +1552,11 @@ bool QgsProject::_getMapLayers( const QDomDocument &doc, QList<QDomNode> &broken
   return returnStatus;
 }
 
-bool QgsProject::addLayer( const QDomElement &layerElem, QList<QDomNode> &brokenNodes, QgsReadWriteContext &context, Qgis::ProjectReadFlags flags )
+bool QgsProject::addLayer( const QDomElement &layerElem,
+                           QList<QDomNode> &brokenNodes,
+                           QgsReadWriteContext &context,
+                           Qgis::ProjectReadFlags flags,
+                           QgsDataProvider *provider )
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
@@ -1400,7 +1570,7 @@ bool QgsProject::addLayer( const QDomElement &layerElem, QList<QDomNode> &broken
   const Qgis::LayerType layerType( QgsMapLayerFactory::typeFromString( type, ok ) );
   if ( !ok )
   {
-    QgsDebugMsg( QStringLiteral( "Unknown layer type \"%1\"" ).arg( type ) );
+    QgsDebugError( QStringLiteral( "Unknown layer type \"%1\"" ).arg( type ) );
     return false;
   }
 
@@ -1450,7 +1620,7 @@ bool QgsProject::addLayer( const QDomElement &layerElem, QList<QDomNode> &broken
 
   if ( !mapLayer )
   {
-    QgsDebugMsg( QStringLiteral( "Unable to create layer" ) );
+    QgsDebugError( QStringLiteral( "Unable to create layer" ) );
     return false;
   }
 
@@ -1463,18 +1633,10 @@ bool QgsProject::addLayer( const QDomElement &layerElem, QList<QDomNode> &broken
   const bool layerWasStored { layerStore()->mapLayer( layerId ) != nullptr };
 
   // have the layer restore state that is stored in Dom node
-  QgsMapLayer::ReadFlags layerFlags = QgsMapLayer::ReadFlags();
-  if ( flags & Qgis::ProjectReadFlag::DontResolveLayers )
-    layerFlags |= QgsMapLayer::FlagDontResolveLayers;
-  // Propagate trust layer metadata flag
-  if ( ( mFlags & Qgis::ProjectFlag::TrustStoredLayerStatistics ) || ( flags & Qgis::ProjectReadFlag::TrustLayerMetadata ) )
-    layerFlags |= QgsMapLayer::FlagTrustLayerMetadata;
-  // Propagate open layers in read-only mode
-  if ( ( flags & Qgis::ProjectReadFlag::ForceReadOnlyLayers ) )
-    layerFlags |= QgsMapLayer::FlagForceReadOnly;
+  QgsMapLayer::ReadFlags layerFlags = projectFlagsToLayerReadFlags( flags, mFlags );
 
   profile.switchTask( tr( "Load layer source" ) );
-  const bool layerIsValid = mapLayer->readLayerXml( layerElem, context, layerFlags ) && mapLayer->isValid();
+  const bool layerIsValid = mapLayer->readLayerXml( layerElem, context, layerFlags, provider ) && mapLayer->isValid();
 
   // apply specific settings to vector layer
   if ( QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( mapLayer.get() ) )
@@ -1508,7 +1670,7 @@ bool QgsProject::addLayer( const QDomElement &layerElem, QList<QDomNode> &broken
     // It's a bad layer: do not add to legend (the user will decide if she wants to do so)
     addMapLayers( newLayers, false );
     newLayers.first();
-    QgsDebugMsg( "Unable to load " + type + " layer" );
+    QgsDebugError( "Unable to load " + type + " layer" );
     brokenNodes.push_back( layerElem );
   }
 
@@ -1653,7 +1815,7 @@ bool QgsProject::readProjectFile( const QString &filename, Qgis::ProjectReadFlag
     const QString errorString = tr( "Project file read error in file %1: %2 at line %3 column %4" )
                                 .arg( projectFile.fileName(), errorMsg ).arg( line ).arg( column );
 
-    QgsDebugMsg( errorString );
+    QgsDebugError( errorString );
 
     projectFile.close();
 
@@ -1912,11 +2074,11 @@ bool QgsProject::readProjectFile( const QString &filename, Qgis::ProjectReadFlag
   // review the integrity of the retrieved map layers
   if ( !clean && !( flags & Qgis::ProjectReadFlag::DontResolveLayers ) )
   {
-    QgsDebugMsg( QStringLiteral( "Unable to get map layers from project file." ) );
+    QgsDebugError( QStringLiteral( "Unable to get map layers from project file." ) );
 
     if ( !brokenNodes.isEmpty() )
     {
-      QgsDebugMsg( "there are " + QString::number( brokenNodes.size() ) + " broken layers" );
+      QgsDebugError( "there are " + QString::number( brokenNodes.size() ) + " broken layers" );
     }
 
     // we let a custom handler decide what to do with missing layers
@@ -2077,6 +2239,9 @@ bool QgsProject::readProjectFile( const QString &filename, Qgis::ProjectReadFlag
 
   profile.switchTask( tr( "Loading bookmarks" ) );
   mBookmarkManager->readXml( doc->documentElement(), *doc );
+
+  profile.switchTask( tr( "Loading sensors" ) );
+  mSensorManager->readXml( doc->documentElement(), *doc );
 
   // reassign change dependencies now that all layers are loaded
   QMap<QString, QgsMapLayer *> existingMaps = mapLayers();
@@ -2374,9 +2539,14 @@ QgsExpressionContextScope *QgsProject::createExpressionContextScope() const
   if ( mProjectScope )
   {
     std::unique_ptr< QgsExpressionContextScope > projectScope = std::make_unique< QgsExpressionContextScope >( *mProjectScope );
-    // we can't cache these
+
+    // we can't cache these variables
     projectScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "project_distance_units" ), QgsUnitTypes::toString( distanceUnits() ), true, true ) );
     projectScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "project_area_units" ), QgsUnitTypes::toString( areaUnits() ), true, true ) );
+
+    // neither this function
+    projectScope->addFunction( QStringLiteral( "sensor_data" ), new GetSensorData( sensorManager()->sensorsData() ) );
+
     return projectScope.release();
   }
 
@@ -2845,7 +3015,7 @@ bool QgsProject::writeProjectFile( const QString &filename )
           }
           else
           {
-            QgsDebugMsg( QStringLiteral( "Could not restore layer properties for layer %1" ).arg( ml->id() ) );
+            QgsDebugError( QStringLiteral( "Could not restore layer properties for layer %1" ).arg( ml->id() ) );
           }
         }
 
@@ -2939,6 +3109,11 @@ bool QgsProject::writeProjectFile( const QString &filename )
   {
     const QDomElement bookmarkElem = mBookmarkManager->writeXml( *doc );
     qgisNode.appendChild( bookmarkElem );
+  }
+
+  {
+    const QDomElement sensorElem = mSensorManager->writeXml( *doc );
+    qgisNode.appendChild( sensorElem );
   }
 
   {
@@ -3745,6 +3920,20 @@ QgsBookmarkManager *QgsProject::bookmarkManager()
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
   return mBookmarkManager;
+}
+
+const QgsSensorManager *QgsProject::sensorManager() const
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS_NON_FATAL
+
+  return mSensorManager;
+}
+
+QgsSensorManager *QgsProject::sensorManager()
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return mSensorManager;
 }
 
 const QgsProjectViewSettings *QgsProject::viewSettings() const
@@ -4799,5 +4988,36 @@ QVariant GetNamedProjectColor::func( const QVariantList &values, const QgsExpres
 QgsScopedExpressionFunction *GetNamedProjectColor::clone() const
 {
   return new GetNamedProjectColor( mColors );
+}
+
+// ----------------
+
+GetSensorData::GetSensorData( const QMap<QString, QgsAbstractSensor::SensorData> &sensorData )
+  : QgsScopedExpressionFunction( QStringLiteral( "sensor_data" ),
+                                 QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "name" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "expiration" ), true, 0 ),
+                                 QStringLiteral( "Sensors" ) )
+  , mSensorData( sensorData )
+{
+}
+
+QVariant GetSensorData::func( const QVariantList &values, const QgsExpressionContext *, QgsExpression *, const QgsExpressionNodeFunction * )
+{
+  const QString sensorName = values.at( 0 ).toString();
+  const int expiration = values.at( 1 ).toInt();
+  const qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
+  if ( mSensorData.contains( sensorName ) )
+  {
+    if ( expiration <= 0 || ( timestamp - mSensorData[sensorName].lastTimestamp.toMSecsSinceEpoch() ) < expiration )
+    {
+      return mSensorData[sensorName].lastValue;
+    }
+  }
+
+  return QVariant();
+}
+
+QgsScopedExpressionFunction *GetSensorData::clone() const
+{
+  return new GetSensorData( mSensorData );
 }
 ///@endcond

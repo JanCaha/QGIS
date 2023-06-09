@@ -147,6 +147,26 @@ void QgsProcessingContext::setLogLevel( LogLevel level )
   mLogLevel = level;
 }
 
+QString QgsProcessingContext::temporaryFolder() const
+{
+  return mTemporaryFolderOverride;
+}
+
+void QgsProcessingContext::setTemporaryFolder( const QString &folder )
+{
+  mTemporaryFolderOverride = folder;
+}
+
+int QgsProcessingContext::maximumThreads() const
+{
+  return mMaximumThreads;
+}
+
+void QgsProcessingContext::setMaximumThreads( int threads )
+{
+  mMaximumThreads = threads;
+}
+
 QVariantMap QgsProcessingContext::exportToMap() const
 {
   QVariantMap res;

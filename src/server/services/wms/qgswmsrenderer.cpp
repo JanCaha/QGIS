@@ -630,8 +630,37 @@ namespace QgsWms
       exportSettings.flags |= QgsLayoutRenderContext::FlagDrawSelection;
       // Print as raster
       exportSettings.rasterizeWholeImage = layout->customProperty( QStringLiteral( "rasterize" ), false ).toBool();
-      // Set scales
-      exportSettings.predefinedMapScales = QgsLayoutUtils::predefinedScales( layout.get( ) );
+      // Set scales. 1. Prio: request, 2. Prio: predefined mapscales in layout
+      QVector<qreal> requestMapScales = mWmsParameters.pdfPredefinedMapScales();
+      if ( requestMapScales.size() > 0 )
+      {
+        exportSettings.predefinedMapScales = requestMapScales;
+      }
+      else
+      {
+        exportSettings.predefinedMapScales = QgsLayoutUtils::predefinedScales( layout.get( ) );
+      }
+      // Export themes
+      QStringList exportThemes = mWmsParameters.pdfExportMapThemes();
+      if ( exportThemes.size() > 0 )
+      {
+        exportSettings.exportThemes = exportThemes;
+      }
+      exportSettings.writeGeoPdf = mWmsParameters.writeGeoPdf();
+      exportSettings.textRenderFormat = mWmsParameters.pdfTextRenderFormat();
+      exportSettings.forceVectorOutput = mWmsParameters.pdfForceVectorOutput();
+      exportSettings.appendGeoreference = mWmsParameters.pdfAppendGeoreference();
+      exportSettings.simplifyGeometries = mWmsParameters.pdfSimplifyGeometries();
+      exportSettings.useIso32000ExtensionFormatGeoreferencing = mWmsParameters.pdfUseIso32000ExtensionFormatGeoreferencing();
+      exportSettings.useOgcBestPracticeFormatGeoreferencing = mWmsParameters.pdfUseOgcBestPracticeFormatGeoreferencing();
+      if ( mWmsParameters.pdfLosslessImageCompression() )
+      {
+        exportSettings.flags |= QgsLayoutRenderContext::FlagLosslessImageRendering;
+      }
+      if ( mWmsParameters.pdfDisableTiledRasterRendering() )
+      {
+        exportSettings.flags |= QgsLayoutRenderContext::FlagDisableTiledRasterLayerRenders;
+      }
 
       // Export all pages
       if ( atlas )
@@ -1079,7 +1108,7 @@ namespace QgsWms
     dxf->addLayers( dxfLayers );
     dxf->setLayerTitleAsName( mWmsParameters.dxfUseLayerTitleAsName() );
     dxf->setSymbologyExport( mWmsParameters.dxfMode() );
-    if ( mWmsParameters.dxfFormatOptions().contains( QgsWmsParameters::DxfFormatOption::SCALE ) )
+    if ( mWmsParameters.formatOptions<QgsWmsParameters::DxfFormatOption>().contains( QgsWmsParameters::DxfFormatOption::SCALE ) )
     {
       dxf->setSymbologyScale( mWmsParameters.dxfScale() );
     }
@@ -1835,7 +1864,7 @@ namespace QgsWms
 
         featureAttributes = feature.attributes();
         QgsEditFormConfig editConfig = layer->editFormConfig();
-        if ( QgsServerProjectUtils::wmsFeatureInfoUseAttributeFormSettings( *mProject ) && editConfig.layout() == QgsEditFormConfig::TabLayout )
+        if ( QgsServerProjectUtils::wmsFeatureInfoUseAttributeFormSettings( *mProject ) && editConfig.layout() == Qgis::AttributeFormLayout::DragAndDrop )
         {
           writeAttributesTabLayout( editConfig, layer, fields, featureAttributes, infoDocument, featureElement, renderContext
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
@@ -1865,6 +1894,18 @@ namespace QgsWms
           context.appendScope( QgsExpressionContextUtils::layerScope( layer ) );
           maptipElem.setAttribute( QStringLiteral( "value" ),  QgsExpression::replaceExpressionText( mapTip, &context ) );
           featureElement.appendChild( maptipElem );
+        }
+
+        QgsExpression displayExpression = layer->displayExpression();
+        if ( displayExpression.isValid() && mWmsParameters.withDisplayName() )
+        {
+          QDomElement displayElem = infoDocument.createElement( QStringLiteral( "Attribute" ) );
+          displayElem.setAttribute( QStringLiteral( "name" ), QStringLiteral( "displayName" ) );
+          QgsExpressionContext context { renderContext.expressionContext() };
+          context.appendScope( QgsExpressionContextUtils::layerScope( layer ) );
+          displayExpression.prepare( &context );
+          displayElem.setAttribute( QStringLiteral( "value" ),  displayExpression.evaluate( &context ).toString() );
+          featureElement.appendChild( displayElem );
         }
 
         //append feature bounding box to feature info xml
@@ -1939,11 +1980,11 @@ namespace QgsWms
       const QList<QgsAttributeEditorElement *> children =  container->children();
       for ( const QgsAttributeEditorElement *child : children )
       {
-        if ( child->type() == QgsAttributeEditorElement::AeTypeContainer )
+        if ( child->type() == Qgis::AttributeEditorType::Container )
         {
           writeAttributesTabGroup( child, layer, fields, featureAttributes, doc, nameElem.isNull() ? parentElem : nameElem, renderContext );
         }
-        else if ( child->type() == QgsAttributeEditorElement::AeTypeField )
+        else if ( child->type() == Qgis::AttributeEditorType::Field )
         {
           const QgsAttributeEditorField *editorField = dynamic_cast<const QgsAttributeEditorField *>( child );
           if ( editorField )
@@ -2992,7 +3033,7 @@ namespace QgsWms
             if ( param.mHali.isEmpty() || param.mVali.isEmpty() || QgsWkbTypes::flatType( param.mGeom.wkbType() ) != Qgis::WkbType::Point )
             {
               placement = Qgis::LabelPlacement::AroundPoint;
-              palSettings.lineSettings().setPlacementFlags( QgsLabeling::LinePlacementFlags() );
+              palSettings.lineSettings().setPlacementFlags( Qgis::LabelLinePlacementFlags() );
             }
             else //set label directly on point if there is hali/vali
             {
@@ -3037,7 +3078,7 @@ namespace QgsWms
           default:
           {
             placement = Qgis::LabelPlacement::Line;
-            palSettings.lineSettings().setPlacementFlags( QgsLabeling::LinePlacementFlag::AboveLine | QgsLabeling::LinePlacementFlag::MapOrientation );
+            palSettings.lineSettings().setPlacementFlags( Qgis::LabelLinePlacementFlag::AboveLine | Qgis::LabelLinePlacementFlag::MapOrientation );
             break;
           }
         }

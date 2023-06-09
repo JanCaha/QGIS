@@ -53,11 +53,37 @@ class CORE_EXPORT QgsTileXYZ
     //! Returns tile coordinates in a formatted string
     QString toString() const { return QStringLiteral( "X=%1 Y=%2 Z=%3" ).arg( mColumn ).arg( mRow ).arg( mZoomLevel ); }
 
+    bool operator==( const QgsTileXYZ &other ) const { return mColumn == other.mColumn && mRow == other.mRow && mZoomLevel == other.mZoomLevel; }
+    bool operator!=( const QgsTileXYZ &other ) const { return !( *this == other ); }
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    const QString str = QStringLiteral( "<QgsTileXYZ: %1, %2, %3>" ).arg( sipCpp->column() ).arg( sipCpp->row() ).arg( sipCpp->zoomLevel() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
+
   private:
-    int mColumn;
-    int mRow;
-    int mZoomLevel;
+    int mColumn = -1;
+    int mRow = -1;
+    int mZoomLevel = -1;
 };
+
+/**
+ * Returns a hash for a tile \a id.
+ *
+ * \since QGIS 3.32
+ */
+CORE_EXPORT inline uint qHash( QgsTileXYZ id ) SIP_SKIP
+{
+  return id.column() + id.row() + id.zoomLevel();
+
+  const uint h1 = qHash( static_cast< quint64 >( id.column( ) ) );
+  const uint h2 = qHash( static_cast< quint64 >( id.row() ) );
+  const uint h3 = qHash( static_cast< quint64 >( id.zoomLevel() ) );
+  return h1 ^ ( h2 << 1 ) ^ ( h3 );
+}
 
 
 /**
@@ -87,10 +113,10 @@ class CORE_EXPORT QgsTileRange
     int endRow() const { return mEndRow; }
 
   private:
-    int mStartColumn;
-    int mEndColumn;
-    int mStartRow;
-    int mEndRow;
+    int mStartColumn = -1;
+    int mEndColumn = -1;
+    int mStartRow = -1;
+    int mEndRow = -1;
 };
 
 
@@ -198,17 +224,17 @@ class CORE_EXPORT QgsTileMatrix
     //! Zoom level index associated with the tile matrix
     int mZoomLevel = -1;
     //! Number of columns of the tile matrix
-    int mMatrixWidth;
+    int mMatrixWidth = 0;
     //! Number of rows of the tile matrix
-    int mMatrixHeight;
+    int mMatrixHeight = 0;
     //! Matrix extent in map units in the CRS of tile matrix set
     QgsRectangle mExtent;
     //! Scale denominator of the map scale associated with the tile matrix
-    double mScaleDenom;
+    double mScaleDenom = 0;
     //! Width of a single tile in map units (derived from extent and matrix size)
-    double mTileXSpan;
+    double mTileXSpan = 0;
     //! Height of a single tile in map units (derived from extent and matrix size)
-    double mTileYSpan;
+    double mTileYSpan = 0;
 
     friend class QgsTileMatrixSet;
 };
@@ -224,6 +250,8 @@ class CORE_EXPORT QgsTileMatrixSet
 {
 
   public:
+
+    QgsTileMatrixSet();
 
     virtual ~QgsTileMatrixSet() = default;
 
@@ -282,6 +310,19 @@ class CORE_EXPORT QgsTileMatrixSet
      * by \a minimumZoom to \a maximumZoom, inclusive.
      */
     void dropMatricesOutsideZoomRange( int minimumZoom, int maximumZoom );
+
+    /**
+     * Returns the availability of the given tile in this matrix.
+     *
+     * This method can be used to determine whether a particular tile actually
+     * exists within the matrix, or is not available (e.g. due to holes within the matrix).
+     *
+     * This method returns Qgis::TileAvailability::Available by default, unless specific
+     * tile availability is known for the given \a id.
+     *
+     * \since QGIS 3.32
+     */
+    Qgis::TileAvailability tileAvailability( QgsTileXYZ id ) const;
 
     /**
      * Returns the coordinate reference system associated with the tiles.
@@ -350,7 +391,16 @@ class CORE_EXPORT QgsTileMatrixSet
      */
     void setScaleToTileZoomMethod( Qgis::ScaleToTileZoomLevelMethod method ) { mScaleToTileZoomMethod = method; }
 
-  private:
+    /**
+     * Returns a list of tiles in the given tile range.
+     *
+     * \since QGIS 3.32
+     */
+    QVector<QgsTileXYZ> tilesInRange( QgsTileRange range, int zoomLevel ) const;
+
+  protected:
+    std::function< Qgis::TileAvailability( QgsTileXYZ id ) > mTileAvailabilityFunction;
+    std::function< Qgis::TileAvailability( QgsTileXYZ id, QgsTileXYZ &replacement ) > mTileReplacementFunction;
 
     // Usually corresponds to zoom level 0, even if that zoom level is NOT present in the actual tile matrices for this set
     QgsTileMatrix mRootMatrix;

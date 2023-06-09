@@ -516,7 +516,41 @@ static QVariant fcnLinearScale( const QVariantList &values, const QgsExpressionC
   return QVariant( m * val + c );
 }
 
-static QVariant fcnExpScale( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+static QVariant fcnPolynomialScale( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  double val = QgsExpressionUtils::getDoubleValue( values.at( 0 ), parent );
+  double domainMin = QgsExpressionUtils::getDoubleValue( values.at( 1 ), parent );
+  double domainMax = QgsExpressionUtils::getDoubleValue( values.at( 2 ), parent );
+  double rangeMin = QgsExpressionUtils::getDoubleValue( values.at( 3 ), parent );
+  double rangeMax = QgsExpressionUtils::getDoubleValue( values.at( 4 ), parent );
+  double exponent = QgsExpressionUtils::getDoubleValue( values.at( 5 ), parent );
+
+  if ( domainMin >= domainMax )
+  {
+    parent->setEvalErrorString( QObject::tr( "Domain max must be greater than domain min" ) );
+    return QVariant();
+  }
+  if ( exponent <= 0 )
+  {
+    parent->setEvalErrorString( QObject::tr( "Exponent must be greater than 0" ) );
+    return QVariant();
+  }
+
+  // outside of domain?
+  if ( val >= domainMax )
+  {
+    return rangeMax;
+  }
+  else if ( val <= domainMin )
+  {
+    return rangeMin;
+  }
+
+  // Return polynomially scaled value
+  return QVariant( ( ( rangeMax - rangeMin ) / std::pow( domainMax - domainMin, exponent ) ) * std::pow( val - domainMin, exponent ) + rangeMin );
+}
+
+static QVariant fcnExponentialScale( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
   double val = QgsExpressionUtils::getDoubleValue( values.at( 0 ), parent );
   double domainMin = QgsExpressionUtils::getDoubleValue( values.at( 1 ), parent );
@@ -547,7 +581,8 @@ static QVariant fcnExpScale( const QVariantList &values, const QgsExpressionCont
   }
 
   // Return exponentially scaled value
-  return QVariant( ( ( rangeMax - rangeMin ) / std::pow( domainMax - domainMin, exponent ) ) * std::pow( val - domainMin, exponent ) + rangeMin );
+  double ratio = ( std::pow( exponent, val - domainMin ) - 1 ) / ( std::pow( exponent, domainMax - domainMin ) - 1 );
+  return QVariant( ( rangeMax - rangeMin ) * ratio + rangeMin );
 }
 
 static QVariant fcnMax( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
@@ -5996,7 +6031,7 @@ static QVariant fncColorPart( const QVariantList &values, const QgsExpressionCon
 static QVariant fcnCreateRamp( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
   const QVariantMap map = QgsExpressionUtils::getMapValue( values.at( 0 ), parent );
-  if ( map.count() < 1 )
+  if ( map.empty() )
   {
     parent->setEvalErrorString( QObject::tr( "A minimum of two colors is required to create a ramp" ) );
     return QVariant();
@@ -6030,6 +6065,9 @@ static QVariant fcnCreateRamp( const QVariantList &values, const QgsExpressionCo
     }
   }
   bool discrete = values.at( 1 ).toBool();
+
+  if ( colors.empty() )
+    return QVariant();
 
   return QVariant::fromValue( QgsGradientColorRamp( colors.first(), colors.last(), discrete, stops ) );
 }
@@ -8019,7 +8057,8 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
         << new QgsStaticExpressionFunction( QStringLiteral( "min" ), -1, fcnMin, QStringLiteral( "Math" ), QString(), false, QSet<QString>(), false, QStringList(), /* handlesNull = */ true )
         << new QgsStaticExpressionFunction( QStringLiteral( "clamp" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "max" ) ), fcnClamp, QStringLiteral( "Math" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "scale_linear" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) )  << QgsExpressionFunction::Parameter( QStringLiteral( "domain_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "domain_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_max" ) ), fcnLinearScale, QStringLiteral( "Math" ) )
-        << new QgsStaticExpressionFunction( QStringLiteral( "scale_exp" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) )  << QgsExpressionFunction::Parameter( QStringLiteral( "domain_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "domain_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "exponent" ) ), fcnExpScale, QStringLiteral( "Math" ) )
+        << new QgsStaticExpressionFunction( QStringLiteral( "scale_polynomial" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) )  << QgsExpressionFunction::Parameter( QStringLiteral( "domain_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "domain_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "exponent" ) ), fcnPolynomialScale, QStringLiteral( "Math" ), QString(), false, QSet<QString>(), false, QStringList() << QStringLiteral( "scale_exp" ) )
+        << new QgsStaticExpressionFunction( QStringLiteral( "scale_exponential" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) )  << QgsExpressionFunction::Parameter( QStringLiteral( "domain_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "domain_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_min" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "range_max" ) ) << QgsExpressionFunction::Parameter( QStringLiteral( "exponent" ) ), fcnExponentialScale, QStringLiteral( "Math" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "floor" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) ), fcnFloor, QStringLiteral( "Math" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "ceil" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "value" ) ), fcnCeil, QStringLiteral( "Math" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "pi" ), 0, fcnPi, QStringLiteral( "Math" ), QString(), false, QSet<QString>(), false, QStringList() << QStringLiteral( "$pi" ) )

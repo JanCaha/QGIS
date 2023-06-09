@@ -56,7 +56,8 @@ class CORE_EXPORT QgsProcessing
       TypeMesh = 6, //!< Mesh layers \since QGIS 3.6
       TypePlugin = 7, //!< Plugin layers \since QGIS 3.22
       TypePointCloud = 8, //!< Point cloud layers \since QGIS 3.22
-      TypeAnnotation = 9 //!< Annotation layers \since QGIS 3.22
+      TypeAnnotation = 9, //!< Annotation layers \since QGIS 3.22
+      TypeVectorTile = 10 //!< Vector tile layers \since QGIS 3.32
     };
 
     //! Available Python output types
@@ -64,6 +65,17 @@ class CORE_EXPORT QgsProcessing
     {
       PythonQgsProcessingAlgorithmSubclass, //!< Full Python QgsProcessingAlgorithm subclass
     };
+
+    /**
+     * Layer options flags
+     *
+     * \since QGIS 3.32
+     */
+    enum class LayerOptionsFlag : int
+    {
+      SkipIndexGeneration = 1 << 0, //!< Do not generate index when creating a layer. Makes sense only for point cloud layers
+    };
+    Q_DECLARE_FLAGS( LayerOptionsFlags, LayerOptionsFlag )
 
     /**
      * Converts a source \a type to a string representation.
@@ -98,6 +110,8 @@ class CORE_EXPORT QgsProcessing
           return QStringLiteral( "TypePointCloud" );
         case QgsProcessing::TypeAnnotation:
           return QStringLiteral( "TypeAnnotation" );
+        case QgsProcessing::TypeVectorTile:
+          return QStringLiteral( "TypeVectorTile" );
       }
       return QString();
     }

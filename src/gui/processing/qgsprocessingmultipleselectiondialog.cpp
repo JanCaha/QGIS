@@ -23,6 +23,7 @@
 #include "qgspluginlayer.h"
 #include "qgspointcloudlayer.h"
 #include "qgsannotationlayer.h"
+#include "qgsvectortilelayer.h"
 #include "qgsproject.h"
 #include "processing/models/qgsprocessingmodelchildparametersource.h"
 #include <QStandardItemModel>
@@ -32,6 +33,8 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QDirIterator>
+#include "qgsmimedatautils.h"
+#include <QDragEnterEvent>
 
 ///@cond NOT_STABLE
 
@@ -196,6 +199,63 @@ void QgsProcessingMultipleSelectionPanelWidget::populateList( const QVariantList
   mSelectionList->setModel( mModel );
 }
 
+QList< int> QgsProcessingMultipleSelectionPanelWidget::existingMapLayerFromMimeData( const QMimeData *data ) const
+{
+  const QgsMimeDataUtils::UriList uriList = QgsMimeDataUtils::decodeUriList( data );
+  QList<int> indexes;
+  for ( const QgsMimeDataUtils::Uri &u : uriList )
+  {
+    // is this uri from the current project?
+    if ( QgsMapLayer *layer = u.mapLayer() )
+    {
+      for ( int i = 0; i < mModel->rowCount(); ++i )
+      {
+        // try to match project layers to current layers
+        QString userRole = mModel->item( i )->data( Qt::UserRole ).toString();
+        if ( userRole == layer->id() || userRole == layer->source() )
+        {
+          indexes.append( i );
+        }
+      }
+    }
+  }
+  return indexes;
+}
+
+void QgsProcessingMultipleSelectionPanelWidget::dragEnterEvent( QDragEnterEvent *event )
+{
+  if ( !( event->possibleActions() & Qt::CopyAction ) )
+    return;
+
+  const QList< int> indexes = existingMapLayerFromMimeData( event->mimeData() );
+  if ( !indexes.isEmpty() )
+  {
+    // dragged an acceptable layer, phew
+    event->setDropAction( Qt::CopyAction );
+    event->accept();
+  }
+}
+
+void QgsProcessingMultipleSelectionPanelWidget::dropEvent( QDropEvent *event )
+{
+  if ( !( event->possibleActions() & Qt::CopyAction ) )
+    return;
+
+  const QList< int> indexes = existingMapLayerFromMimeData( event->mimeData() );
+  if ( !indexes.isEmpty() )
+  {
+    // dropped an acceptable layer, phew
+    setFocus( Qt::MouseFocusReason );
+    event->setDropAction( Qt::CopyAction );
+    event->accept();
+
+    for ( const int i : indexes )
+    {
+      mModel->item( i )->setCheckState( Qt::Checked );
+    }
+    emit selectionChanged();
+  }
+}
 
 void QgsProcessingMultipleSelectionPanelWidget::addOption( const QVariant &value, const QString &title, bool selected, bool updateExistingTitle )
 {
@@ -270,7 +330,7 @@ QgsProcessingMultipleInputPanelWidget::QgsProcessingMultipleInputPanelWidget( co
   QPushButton *addDirButton = new QPushButton( tr( "Add Directory…" ) );
   connect( addDirButton, &QPushButton::clicked, this, &QgsProcessingMultipleInputPanelWidget::addDirectory );
   buttonBox()->addButton( addDirButton, QDialogButtonBox::ActionRole );
-
+  setAcceptDrops( true );
   for ( const QgsProcessingModelChildParameterSource &source : modelSources )
   {
     addOption( QVariant::fromValue( source ), source.friendlyIdentifier( model ), false, true );
@@ -338,6 +398,64 @@ void QgsProcessingMultipleInputPanelWidget::addDirectory()
     addOption( fullPath, fullPath, true );
   }
   emit selectionChanged();
+}
+
+QList< int> QgsProcessingMultipleInputPanelWidget::existingMapLayerFromMimeData( const QMimeData *data ) const
+{
+  const QgsMimeDataUtils::UriList uriList = QgsMimeDataUtils::decodeUriList( data );
+  QList<int> indexes;
+  for ( const QgsMimeDataUtils::Uri &u : uriList )
+  {
+    // is this uri from the current project?
+    if ( QgsMapLayer *layer = u.mapLayer() )
+    {
+      for ( int i = 0; i < mModel->rowCount(); ++i )
+      {
+        // try to match project layers to current layers
+        const QString userRole = mModel->item( i )->data( Qt::UserRole ).toString();
+        if ( userRole == layer->id() || userRole == layer->source() )
+        {
+          indexes.append( i );
+        }
+      }
+    }
+  }
+  return indexes;
+}
+
+void QgsProcessingMultipleInputPanelWidget::dragEnterEvent( QDragEnterEvent *event )
+{
+  if ( !( event->possibleActions() & Qt::CopyAction ) )
+    return;
+
+  const QList< int> indexes = existingMapLayerFromMimeData( event->mimeData() );
+  if ( !indexes.isEmpty() )
+  {
+    // dragged an acceptable layer, phew
+    event->setDropAction( Qt::CopyAction );
+    event->accept();
+  }
+}
+
+void QgsProcessingMultipleInputPanelWidget::dropEvent( QDropEvent *event )
+{
+  if ( !( event->possibleActions() & Qt::CopyAction ) )
+    return;
+
+  const QList< int> indexes = existingMapLayerFromMimeData( event->mimeData() );
+  if ( !indexes.isEmpty() )
+  {
+    // dropped an acceptable layer, phew
+    setFocus( Qt::MouseFocusReason );
+    event->setDropAction( Qt::CopyAction );
+    event->accept();
+
+    for ( const int i : indexes )
+    {
+      mModel->item( i )->setCheckState( Qt::Checked );
+    }
+    emit selectionChanged();
+  }
 }
 
 void QgsProcessingMultipleInputPanelWidget::populateFromProject( QgsProject *project )
@@ -452,6 +570,17 @@ void QgsProcessingMultipleInputPanelWidget::populateFromProject( QgsProject *pro
       break;
     }
 
+    case QgsProcessing::TypeVectorTile:
+    {
+      const QList<QgsVectorTileLayer *> options = QgsProcessingUtils::compatibleVectorTileLayers( project, false );
+      for ( const QgsVectorTileLayer *layer : options )
+      {
+        addLayer( layer );
+      }
+
+      break;
+    }
+
     case QgsProcessing::TypeVector:
     case QgsProcessing::TypeVectorAnyGeometry:
     {
@@ -530,6 +659,7 @@ QgsProcessingMultipleInputDialog::QgsProcessingMultipleInputDialog( const QgsPro
   connect( mWidget->buttonBox(), &QDialogButtonBox::accepted, this, &QDialog::accept );
   connect( mWidget->buttonBox(), &QDialogButtonBox::rejected, this, &QDialog::reject );
   setLayout( vLayout );
+  setAcceptDrops( true );
 }
 
 QVariantList QgsProcessingMultipleInputDialog::selectedOptions() const

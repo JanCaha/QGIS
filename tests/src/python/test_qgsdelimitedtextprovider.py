@@ -26,6 +26,7 @@ import re
 import tempfile
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import qgis  # NOQA
 
@@ -143,6 +144,7 @@ class TestQgsDelimitedTextProviderXY(unittest.TestCase, ProviderTestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super(TestQgsDelimitedTextProviderXY, cls).setUpClass()
         # Create test layer
         srcpath = os.path.join(TEST_DATA_DIR, 'provider')
         cls.basetestfile = os.path.join(srcpath, 'delimited_xy.csv')
@@ -160,10 +162,6 @@ class TestQgsDelimitedTextProviderXY(unittest.TestCase, ProviderTestCase):
         assert cls.vl.isValid(), f"{cls.basetestfile} is invalid"
         cls.source = cls.vl.dataProvider()
 
-    @classmethod
-    def tearDownClass(cls):
-        """Run after all tests"""
-
     def treat_time_as_string(self):
         return False
 
@@ -179,6 +177,7 @@ class TestQgsDelimitedTextProviderWKT(unittest.TestCase, ProviderTestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super(TestQgsDelimitedTextProviderWKT, cls).setUpClass()
         # Create test layer
         srcpath = os.path.join(TEST_DATA_DIR, 'provider')
         cls.basetestfile = os.path.join(srcpath, 'delimited_wkt.csv')
@@ -209,10 +208,6 @@ class TestQgsDelimitedTextProviderWKT(unittest.TestCase, ProviderTestCase):
         assert cls.vl_poly.isValid(), f"{cls.basetestpolyfile} is invalid"
         cls.poly_provider = cls.vl_poly.dataProvider()
 
-    @classmethod
-    def tearDownClass(cls):
-        """Run after all tests"""
-
     def treat_time_as_string(self):
         return False
 
@@ -228,6 +223,7 @@ class TestQgsDelimitedTextProviderOther(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super().setUpClass()
         # toggle full ctest output to debug flaky CI test
         print('CTEST_FULL_OUTPUT')
         cls.tmp_dir = QTemporaryDir()
@@ -1410,6 +1406,16 @@ class TestQgsDelimitedTextProviderOther(unittest.TestCase):
 
         self.assertEqual(meta.absoluteToRelativeUri(absolute_uri, context), relative_uri)
         self.assertEqual(meta.relativeToAbsoluteUri(relative_uri, context), absolute_uri)
+
+    def test_special_characters_in_filepath(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for basename in ("test.csv", "t e s t .csv", "tèst.csv", "teẞt.csv", "Ťest.csv"):
+                filepath = Path(tmpdir) / basename
+                filepath.write_text("id,name\n1,name1\n2,name2\n")
+                self.assertTrue(filepath.exists())
+                uri = f"file:///{filepath}"
+                vl = QgsVectorLayer(uri, "test", "delimitedtext")
+                self.assertTrue(vl.isValid())
 
 
 if __name__ == '__main__':

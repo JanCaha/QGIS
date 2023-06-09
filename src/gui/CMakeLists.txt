@@ -141,12 +141,14 @@ set(QGIS_GUI_SRCS
   codeeditors/qgscodeeditorcolorscheme.cpp
   codeeditors/qgscodeeditorcolorschemeregistry.cpp
   codeeditors/qgscodeeditorcss.cpp
+  codeeditors/qgscodeeditordockwidget.cpp
   codeeditors/qgscodeeditorhistorydialog.cpp
   codeeditors/qgscodeeditorhtml.cpp
   codeeditors/qgscodeeditorjs.cpp
   codeeditors/qgscodeeditorjson.cpp
   codeeditors/qgscodeeditorpython.cpp
   codeeditors/qgscodeeditorr.cpp
+  codeeditors/qgscodeeditorshell.cpp
   codeeditors/qgscodeeditorsql.cpp
   codeeditors/qgscodeeditorexpression.cpp
 
@@ -235,8 +237,13 @@ set(QGIS_GUI_SRCS
   elevation/qgselevationprofilecanvas.cpp
   elevation/qgselevationprofilelayertreeview.cpp
 
+  history/qgshistoryentry.cpp
+  history/qgshistoryentrymodel.cpp
+  history/qgshistoryentrynode.cpp
   history/qgshistoryprovider.cpp
   history/qgshistoryproviderregistry.cpp
+  history/qgshistorywidget.cpp
+  history/qgshistorywidgetcontext.cpp
 
   labeling/qgslabelengineconfigdialog.cpp
   labeling/qgslabelinggui.cpp
@@ -367,6 +374,7 @@ set(QGIS_GUI_SRCS
   processing/qgsprocessingguiregistry.cpp
   processing/qgsprocessinghelpeditorwidget.cpp
   processing/qgsprocessinghistoryprovider.cpp
+  processing/qgsprocessinghistorywidget.cpp
   processing/qgsprocessingmaplayercombobox.cpp
   processing/qgsprocessingmatrixmodelerwidget.cpp
   processing/qgsprocessingmatrixparameterdialog.cpp
@@ -376,6 +384,7 @@ set(QGIS_GUI_SRCS
   processing/qgsprocessingoutputdestinationwidget.cpp
   processing/qgsprocessingparameterdefinitionwidget.cpp
   processing/qgsprocessingparameterswidget.cpp
+  processing/qgsprocessingpointcloudexpressionlineedit.cpp
   processing/qgsprocessingrecentalgorithmlog.cpp
   processing/qgsprocessingtininputlayerswidget.cpp
   processing/qgsprocessingtoolboxmodel.cpp
@@ -393,6 +402,7 @@ set(QGIS_GUI_SRCS
   processing/models/qgsmodelgraphicsview.cpp
   processing/models/qgsmodelgroupboxdefinitionwidget.cpp
   processing/models/qgsmodelinputreorderwidget.cpp
+  processing/models/qgsmodeloutputreorderwidget.cpp
   processing/models/qgsmodelsnapper.cpp
   processing/models/qgsmodelundocommand.cpp
   processing/models/qgsmodelviewmouseevent.cpp
@@ -414,6 +424,9 @@ set(QGIS_GUI_SRCS
   providers/gdal/qgsgdalsourceselect.cpp
   providers/gdal/qgsgdalguiprovider.cpp
 
+  providers/mbtilesvectortiles/qgsmbtilesvectortileguiprovider.cpp
+  providers/mbtilesvectortiles/qgsmbtilesvectortilesourcewidget.cpp
+
   providers/ogr/qgsogrguiprovider.cpp
   providers/ogr/qgsogrdbsourceselect.cpp
   providers/ogr/qgsogrdbtablemodel.cpp
@@ -423,7 +436,18 @@ set(QGIS_GUI_SRCS
   providers/ogr/qgsogritemguiprovider.cpp
   providers/ogr/qgsgeopackageprojectstorageguiprovider.cpp
 
+  providers/vtpkvectortiles/qgsvtpkvectortileguiprovider.cpp
+  providers/vtpkvectortiles/qgsvtpkvectortilesourcewidget.cpp
+
+  sensor/qgssensorguiregistry.cpp
+  sensor/qgssensorwidget.cpp
+
+  settings/qgssettingseditorwidgetwrapper.cpp
+  settings/qgssettingseditorwidgetwrapperimpl.cpp
+  settings/qgssettingseditorwidgetregistry.cpp
   settings/qgssettingsregistrygui.cpp
+  settings/qgssettingstreemodel.cpp
+  settings/qgssettingstreewidget.cpp
 
   tableeditor/qgstableeditordialog.cpp
   tableeditor/qgstableeditorformattingwidget.cpp
@@ -490,6 +514,7 @@ set(QGIS_GUI_SRCS
   qgsdataitemguiproviderregistry.cpp
   qgsdatumtransformdialog.cpp
   qgsdatasourceselectdialog.cpp
+  qgsdbqueryhistoryprovider.cpp
   qgsdbrelationshipwidget.cpp
   qgsdetaileditemdata.cpp
   qgsdetaileditemdelegate.cpp
@@ -497,6 +522,7 @@ set(QGIS_GUI_SRCS
   qgsdial.cpp
   qgsdialog.cpp
   qgsdirectionallightwidget.cpp
+  qgsdockablewidgethelper.cpp
   qgsdoublevalidator.cpp
   qgsdockwidget.cpp
   qgsencodingfiledialog.cpp
@@ -686,6 +712,7 @@ set(QGIS_GUI_SRCS
   qgstemporalcontrollerwidget.cpp
   qgstextformatwidget.cpp
   qgstextpreview.cpp
+  qgstooltipcombobox.cpp
   qgstreewidgetitem.cpp
   qgsunitselectionwidget.cpp
   qgsuserinputwidget.cpp
@@ -757,6 +784,7 @@ set(QGIS_GUI_HDRS
   qgsdataitemguiproviderregistry.h
   qgsdatasourcemanagerdialog.h
   qgsdatasourceselectdialog.h
+  qgsdbqueryhistoryprovider.h
   qgsdbrelationshipwidget.h
   qgsnewdatabasetablenamewidget.h
   qgsdatumtransformdialog.h
@@ -766,6 +794,7 @@ set(QGIS_GUI_HDRS
   qgsdial.h
   qgsdialog.h
   qgsdirectionallightwidget.h
+  qgsdockablewidgethelper.h
   qgsdockwidget.h
   qgsdoublevalidator.h
   qgsencodingfiledialog.h
@@ -961,6 +990,7 @@ set(QGIS_GUI_HDRS
   qgstemporalcontrollerwidget.h
   qgstextformatwidget.h
   qgstextpreview.h
+  qgstooltipcombobox.h
   qgstreewidgetitem.h
   qgsunitselectionwidget.h
   qgsuserinputwidget.h
@@ -1031,6 +1061,7 @@ set(QGIS_GUI_HDRS
   codeeditors/qgscodeeditorcolorscheme.h
   codeeditors/qgscodeeditorcolorschemeregistry.h
   codeeditors/qgscodeeditorcss.h
+  codeeditors/qgscodeeditordockwidget.h
   codeeditors/qgscodeeditorexpression.h
   codeeditors/qgscodeeditorhistorydialog.h
   codeeditors/qgscodeeditorhtml.h
@@ -1038,6 +1069,7 @@ set(QGIS_GUI_HDRS
   codeeditors/qgscodeeditorjson.h
   codeeditors/qgscodeeditorpython.h
   codeeditors/qgscodeeditorr.h
+  codeeditors/qgscodeeditorshell.h
   codeeditors/qgscodeeditorsql.h
 
   devtools/qgsdevtoolwidget.h
@@ -1129,8 +1161,13 @@ set(QGIS_GUI_HDRS
   elevation/qgselevationprofilecanvas.h
   elevation/qgselevationprofilelayertreeview.h
 
+  history/qgshistoryentry.h
+  history/qgshistoryentrymodel.h
+  history/qgshistoryentrynode.h
   history/qgshistoryprovider.h
   history/qgshistoryproviderregistry.h
+  history/qgshistorywidget.h
+  history/qgshistorywidgetcontext.h
 
   labeling/qgslabelengineconfigdialog.h
   labeling/qgslabelinggui.h
@@ -1263,6 +1300,7 @@ set(QGIS_GUI_HDRS
   processing/qgsprocessingguiregistry.h
   processing/qgsprocessinghelpeditorwidget.h
   processing/qgsprocessinghistoryprovider.h
+  processing/qgsprocessinghistorywidget.h
   processing/qgsprocessingmaplayercombobox.h
   processing/qgsprocessingmatrixmodelerwidget.h
   processing/qgsprocessingmatrixparameterdialog.h
@@ -1272,6 +1310,7 @@ set(QGIS_GUI_HDRS
   processing/qgsprocessingoutputdestinationwidget.h
   processing/qgsprocessingparameterdefinitionwidget.h
   processing/qgsprocessingparameterswidget.h
+  processing/qgsprocessingpointcloudexpressionlineedit.h
   processing/qgsprocessingrecentalgorithmlog.h
   processing/qgsprocessingtininputlayerswidget.h
   processing/qgsprocessingtoolboxmodel.h
@@ -1289,6 +1328,7 @@ set(QGIS_GUI_HDRS
   processing/models/qgsmodelgraphicsview.h
   processing/models/qgsmodelgroupboxdefinitionwidget.h
   processing/models/qgsmodelinputreorderwidget.h
+  processing/models/qgsmodeloutputreorderwidget.h
   processing/models/qgsmodelsnapper.h
   processing/models/qgsmodelundocommand.h
   processing/models/qgsmodelviewmouseevent.h
@@ -1310,6 +1350,9 @@ set(QGIS_GUI_HDRS
   providers/gdal/qgsgdalguiprovider.h
   providers/gdal/qgsgdalsourceselect.h
 
+  providers/mbtilesvectortiles/qgsmbtilesvectortileguiprovider.h
+  providers/mbtilesvectortiles/qgsmbtilesvectortilesourcewidget.h
+
   providers/ogr/qgsgeopackageitemguiprovider.h
   providers/ogr/qgsgeopackageprojectstoragedialog.h
   providers/ogr/qgsgeopackageprojectstorageguiprovider.h
@@ -1318,6 +1361,9 @@ set(QGIS_GUI_HDRS
   providers/ogr/qgsogrguiprovider.h
   providers/ogr/qgsogritemguiprovider.h
   providers/ogr/qgsogrsourceselect.h
+
+  providers/vtpkvectortiles/qgsvtpkvectortileguiprovider.h
+  providers/vtpkvectortiles/qgsvtpkvectortilesourcewidget.h
 
   raster/qgsrasterattributetablewidget.h
   raster/qgscreaterasterattributetabledialog.h
@@ -1396,7 +1442,15 @@ set(QGIS_GUI_HDRS
   symbology/qgssymbolwidgetcontext.h
   symbology/qgsvectorfieldsymbollayerwidget.h
 
+  sensor/qgssensorguiregistry.h
+  sensor/qgssensorwidget.h
+
+  settings/qgssettingseditorwidgetwrapper.h
+  settings/qgssettingseditorwidgetwrapperimpl.h
+  settings/qgssettingseditorwidgetregistry.h
   settings/qgssettingsregistrygui.h
+  settings/qgssettingstreemodel.h
+  settings/qgssettingstreewidget.h
 
   tableeditor/qgstableeditordialog.h
   tableeditor/qgstableeditorformattingwidget.h
@@ -1540,9 +1594,12 @@ target_include_directories(qgis_gui PUBLIC
   ${CMAKE_SOURCE_DIR}/src/gui/processing/models
   ${CMAKE_SOURCE_DIR}/src/gui/providers
   ${CMAKE_SOURCE_DIR}/src/gui/providers/gdal
+  ${CMAKE_SOURCE_DIR}/src/gui/providers/mbtilesvectortiles
   ${CMAKE_SOURCE_DIR}/src/gui/providers/ogr
+  ${CMAKE_SOURCE_DIR}/src/gui/providers/vtpkvectortiles
   ${CMAKE_SOURCE_DIR}/src/gui/pointcloud
   ${CMAKE_SOURCE_DIR}/src/gui/raster
+  ${CMAKE_SOURCE_DIR}/src/gui/sensor
   ${CMAKE_SOURCE_DIR}/src/gui/settings
   ${CMAKE_SOURCE_DIR}/src/gui/tableeditor
   ${CMAKE_SOURCE_DIR}/src/gui/vector

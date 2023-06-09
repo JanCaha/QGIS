@@ -24,6 +24,8 @@ import os
 import re
 import sys
 import traceback
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from qgis.PyQt.Qsci import QsciScintilla
 from qgis.PyQt.QtCore import Qt, QCoreApplication
@@ -36,6 +38,8 @@ from qgis.gui import (
     QgsCodeEditor,
     QgsCodeInterpreter
 )
+
+from .process_wrapper import ProcessWrapper
 
 _init_statements = [
     # Python
@@ -64,15 +68,88 @@ except ModuleNotFoundError:
     "from qgis.PyQt.QtWidgets import *",
     "from qgis.PyQt.QtNetwork import *",
     "from qgis.PyQt.QtXml import *",
+
+    r"""
+def __parse_object(object=None):
+    if not object:
+        return None
+    import inspect
+    if inspect.isclass(object):
+        str_class = str(object)
+    else:
+        str_class = str(object.__class__)
+
+    qgis_api_pattern = r".*qgis\._(\w+)\.(\w+).*"
+    match = re.match(qgis_api_pattern, str_class)
+    if match:
+        module = match[1]
+        obj = match[2]
+        return 'qgis', module, obj
+
+    pyqt_pattern = r".*PyQt5\.(\w+)\.(\w+).*"
+    match = re.match(pyqt_pattern, str_class)
+    if match:
+        module = match[1]
+        obj = match[2]
+        return 'qt', module, obj
+""",
+    r"""
+def _api(object=None):
+    '''
+    Link to the QGIS API documentation for the given object.
+    If no object is given, the main API page is opened.
+    If the object is not part of the QGIS API but is a Qt object the Qt documentation is opened.
+    '''
+    import webbrowser
+    api = __parse_object(object)
+
+    version = '' if 'master' in Qgis.QGIS_VERSION.lower() else re.findall(r'^\d.[0-9]*', Qgis.QGIS_VERSION)[0]
+
+    if not api:
+        webbrowser.open(f"https://qgis.org/api/{version}")
+    elif api[0] == 'qgis':
+        webbrowser.open(f"https://api.qgis.org/api/{version}/class{api[2]}.html")
+    elif api[0] == 'qt':
+        qtversion = '.'.join(qVersion().split(".")[:2])
+        webbrowser.open(f"https://doc.qt.io/qt-{qtversion}/{api[2].lower()}.html")
+""",
+    r"""
+def _pyqgis(object=None):
+    '''
+    Link to the PyQGIS API documentation for the given object.
+    If no object is given, the main PyQGIS API page is opened.
+    If the object is not part of the QGIS API but is a Qt object the Qt documentation is opened.
+    '''
+    import webbrowser
+    api = __parse_object(object)
+
+    version = 'master' if 'master' in Qgis.QGIS_VERSION.lower() else re.findall(r'^\d.[0-9]*', Qgis.QGIS_VERSION)[0]
+
+    if not api:
+        webbrowser.open(f"https://qgis.org/pyqgis/{version}")
+    elif api[0] == 'qgis':
+        webbrowser.open(f"https://qgis.org/pyqgis/{version}/{api[1]}/{api[2]}.html")
+    elif api[0] == 'qt':
+        qtversion = '.'.join(qVersion().split(".")[:2])
+        webbrowser.open(f"https://doc.qt.io/qt-{qtversion}/{api[2].lower()}.html")
+"""
 ]
+
+
+# States of the interpreter
+PS1 = 0  # Writing a new command
+PS2 = 1  # Continuation of a multi-line command
+SUBPROCESS = 2  # Sending input to a subprocess
 
 
 class PythonInterpreter(QgsCodeInterpreter, code.InteractiveInterpreter):
 
-    def __init__(self):
+    def __init__(self, shell):
         super(QgsCodeInterpreter, self).__init__()
         code.InteractiveInterpreter.__init__(self, locals=None)
 
+        self.shell = shell
+        self.sub_process = None
         self.buffer = []
 
         for statement in _init_statements:
@@ -81,23 +158,70 @@ class PythonInterpreter(QgsCodeInterpreter, code.InteractiveInterpreter):
             except ModuleNotFoundError:
                 pass
 
-    def execCommandImpl(self, cmd):
-        res = self.currentState()
+    def execCommandImpl(self, cmd, show_input=True):
 
-        self.writeCMD(cmd)
+        # Child process running, input should be sent to it
+        if self.currentState() == SUBPROCESS:
+            sys.stdout.write(cmd + "\n")
+            self.sub_process.write(cmd)
+            return 0
+
+        if show_input:
+            self.writeCMD(cmd)
+
+        if self.currentState() == PS1:
+
+            # This line makes single line commands with leading spaces work
+            cmd = cmd.strip()
+
+            # User entered: varname = !cmd
+            # Run the command and assign the output to varname
+            # Mimics IPython's behavior
+            assignment_pattern = r"(\w+)\s*=\s*!(.+)"
+            match = re.match(assignment_pattern, cmd)
+            if match:
+                varname = match[1]
+                cmd = match[2]
+                # Run the command in non-interactive mode
+                self.sub_process = ProcessWrapper(cmd, interactive=False)
+                # Concatenate stdout and stderr
+                res = (self.sub_process.stdout + self.sub_process.stderr).strip()
+
+                # Use a temporary file to communicate the result to the inner interpreter
+                tmp = Path(NamedTemporaryFile(delete=False).name)
+                tmp.write_text(res, encoding="utf-8")
+                self.runsource(f'{varname} = Path("{tmp}").read_text(encoding="utf-8").split("\\n")')
+                tmp.unlink()
+                self.sub_process = None
+                return 0
+
+            # User entered: !cmd
+            # Run the command and stream the output to the console
+            # While the process is running, the console is in state 2 meaning
+            # that all input is sent to the child process
+            # Mimics IPython's behavior
+            elif cmd.startswith("!"):
+                cmd = cmd[1:]
+                self.sub_process = ProcessWrapper(cmd)
+                self.sub_process.finished.connect(self.processFinished)
+                return 0
+
+        res = 0
+
         import webbrowser
         version = 'master' if 'master' in Qgis.QGIS_VERSION.lower() else \
             re.findall(r'^\d.[0-9]*', Qgis.QGIS_VERSION)[0]
-        if cmd in ('_pyqgis', '_api', '_cookbook'):
-            if cmd == '_pyqgis':
-                webbrowser.open("https://qgis.org/pyqgis/{}".format(version))
-            elif cmd == '_api':
-                webbrowser.open(
-                    "https://qgis.org/api/{}".format('' if version == 'master' else version))
-            elif cmd == '_cookbook':
-                webbrowser.open(
-                    "https://docs.qgis.org/{}/en/docs/pyqgis_developer_cookbook/".format(
-                        'testing' if version == 'master' else version))
+
+        if cmd == "?":
+            self.shell.parent.shellOut.insertHelp()
+        elif cmd == '_pyqgis':
+            webbrowser.open("https://qgis.org/pyqgis/{}".format(version))
+        elif cmd == '_api':
+            webbrowser.open("https://qgis.org/api/{}".format('' if version == 'master' else version))
+        elif cmd == '_cookbook':
+            webbrowser.open(
+                "https://docs.qgis.org/{}/en/docs/pyqgis_developer_cookbook/".format(
+                    'testing' if version == 'master' else version))
         else:
             self.buffer.append(cmd)
             src = "\n".join(self.buffer)
@@ -111,8 +235,7 @@ class PythonInterpreter(QgsCodeInterpreter, code.InteractiveInterpreter):
         if sys.stdout:
             sys.stdout.fire_keyboard_interrupt = False
         if len(txt) > 0:
-            prompt = "... " if self.currentState() == 1 else ">>> "
-            sys.stdout.write(prompt + txt + '\n')
+            sys.stdout.write(f'{self.promptForState()} {txt}\n')
 
     def runsource(self, source, filename='<input>', symbol='single'):
         if sys.stdout:
@@ -129,17 +252,37 @@ class PythonInterpreter(QgsCodeInterpreter, code.InteractiveInterpreter):
         finally:
             sys.excepthook = hook
 
-    def promptForState(self, state):
-        return "..." if state == 1 else ">>>"
+    def currentState(self):
+        if self.sub_process:
+            return SUBPROCESS
+        return super().currentState()
+
+    def promptForState(self, state=-1):
+        if state == -1:
+            state = self.currentState()
+        if state == SUBPROCESS:
+            return " : "
+        elif state == PS2:
+            return "..."
+        else:
+            return ">>>"
+
+    def processFinished(self, errorcode):
+        self.sub_process = None
+        self.shell.updatePrompt()
 
 
 class ShellScintilla(QgsCodeEditorPython):
 
     def __init__(self, parent=None):
-        super().__init__(parent, [], QgsCodeEditor.Mode.CommandInput)
+        # We set the ImmediatelyUpdateHistory flag here, as users can easily
+        # crash QGIS by entering a Python command, and we don't want the
+        # history leading to the crash lost..
+        super().__init__(parent, [], QgsCodeEditor.Mode.CommandInput,
+                         flags=QgsCodeEditor.Flags(QgsCodeEditor.Flag.CodeFolding | QgsCodeEditor.Flag.ImmediatelyUpdateHistory))
 
         self.parent = parent
-        self._interpreter = PythonInterpreter()
+        self._interpreter = PythonInterpreter(self)
         self.setInterpreter(self._interpreter)
 
         self.opening = ['(', '{', '[', "'", '"']
@@ -196,25 +339,19 @@ class ShellScintilla(QgsCodeEditorPython):
         self.parent.callWidgetMessageBar(msgText)
 
     def keyPressEvent(self, e):
-        # update the live history
-        self.updateSoftHistory()
 
-        # keyboard interrupt
-        if e.modifiers() & (
-                Qt.ControlModifier | Qt.MetaModifier) and e.key() == Qt.Key_C and not self.hasSelectedText():
-            sys.stdout.fire_keyboard_interrupt = True
+        if e.modifiers() & (Qt.ControlModifier | Qt.MetaModifier) and e.key() == Qt.Key_C and not self.hasSelectedText():
+            if self._interpreter.sub_process:
+                sys.stderr.write("Terminate child process\n")
+                self._interpreter.sub_process.kill()
+                self._interpreter.sub_process = None
+                self.updatePrompt()
             return
 
-        QgsCodeEditorPython.keyPressEvent(self, e)
+        # update the live history
+        self.updateSoftHistory()
+        super().keyPressEvent(e)
         self.updatePrompt()
-
-    def populateContextMenu(self, menu):
-        pyQGISHelpAction = menu.addAction(
-            QgsApplication.getThemeIcon("console/iconHelpConsole.svg"),
-            QCoreApplication.translate("PythonConsole", "Search Selected in PyQGIS docs"),
-            self.searchSelectedTextInPyQGISDocs
-        )
-        pyQGISHelpAction.setEnabled(self.hasSelectedText())
 
     def mousePressEvent(self, e):
         """
@@ -291,3 +428,19 @@ class ShellScintilla(QgsCodeEditorPython):
     def write(self, txt):
         if sys.stderr:
             sys.stderr.write(txt)
+
+    def runFile(self, filename):
+        filename = filename.replace("\\", "/")
+        dirname = os.path.dirname(filename)
+
+        # Append the directory of the file to the path and set __file__ to the filename
+        self._interpreter.execCommandImpl("sys.path.append('{0}')".format(dirname), False)
+        self._interpreter.execCommandImpl("__file__ = '{0}'".format(filename), False)
+
+        try:
+            # Run the file
+            self.runCommand("exec(Path('{0}').read_text())".format(filename), skipHistory=True)
+        finally:
+            # Remove the directory from the path and delete the __file__ variable
+            self._interpreter.execCommandImpl("del __file__", False)
+            self._interpreter.execCommandImpl("sys.path.remove('{0}')".format(dirname), False)

@@ -278,7 +278,7 @@ int QgsMeshVertexCirculator::degree() const
 
 int QgsMeshVertexCirculator::positionInCurrentFace() const
 {
-  if ( mCurrentFace < 0 || mCurrentFace > mFaces.count() )
+  if ( mCurrentFace < 0 || mCurrentFace >= mFaces.count() )
     return -1;
 
   return vertexPositionInFace( mVertexIndex, mFaces.at( mCurrentFace ) );
@@ -2238,6 +2238,8 @@ QgsTopologicalMesh::Changes QgsTopologicalMesh::splitFace( int faceIndex )
   }
 
   Changes changes;
+  if ( splitVertexPos == -1 )
+    return changes;
 
   const QgsMeshFace newFace1 = {face.at( splitVertexPos ),
                                 face.at( ( splitVertexPos + 1 ) % faceSize ),

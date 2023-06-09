@@ -14,10 +14,8 @@
  ***************************************************************************/
 
 #include "qgslayertreegrouppropertieswidget.h"
-#include "qgsstyle.h"
 #include "qgsapplication.h"
 #include "qgsmaplayer.h"
-#include "qgsgui.h"
 #include "qgspainteffect.h"
 #include "qgsmapcanvas.h"
 #include "qgspainteffectregistry.h"
@@ -107,6 +105,7 @@ void QgsLayerTreeGroupPropertiesWidget::apply()
     groupLayer->setPaintEffect( mPaintEffect->clone() );
 
     groupLayer->triggerRepaint();
+    QgsProject::instance()->setDirty( true );
   }
   else if ( mMapLayerConfigWidgetContext.mapCanvas() )
   {

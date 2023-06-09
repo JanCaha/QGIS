@@ -45,6 +45,7 @@ set(QGIS_3D_SRCS
 
   qgspointcloudlayer3drenderer.cpp
   qgspointcloudlayerchunkloader_p.cpp
+  qgsvirtualpointcloudentity_p.cpp
 
   chunks/qgschunkboundsentity_p.cpp
   chunks/qgschunkedentity_p.cpp
@@ -94,8 +95,6 @@ set(QGIS_3D_SRCS
   terrain/qgsterraintexturegenerator_p.cpp
   terrain/qgsterraintextureimage_p.cpp
   terrain/qgsterraintileloader_p.cpp
-  #terrain/quantizedmeshgeometry.cpp
-  #terrain/quantizedmeshterraingenerator.cpp
 
   mesh/qgsmesh3dgeometry_p.cpp
   mesh/qgsmesh3dentity_p.cpp
@@ -176,6 +175,8 @@ set(QGIS_3D_PRIVATE_HDRS
   qgsrulebasedchunkloader_p.h
   qgsvectorlayerchunkloader_p.h
   qgspointcloudlayerchunkloader_p.h
+  qgsvirtualpointcloudentity_p.h
+  qgs3dmapsceneentity_p.h
   chunks/qgschunkboundsentity_p.h
   chunks/qgschunkedentity_p.h
   chunks/qgschunklist_p.h

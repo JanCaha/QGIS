@@ -82,6 +82,7 @@
 #include "qgsprocessingfeaturesourceoptionswidget.h"
 #include "qgsextentwidget.h"
 #include "qgsrasterbandcombobox.h"
+#include "qgspointcloudattributecombobox.h"
 #include "qgsmeshlayertemporalproperties.h"
 #include "qgsmodelgraphicsscene.h"
 #include "qgsmodelgraphicsview.h"
@@ -96,10 +97,10 @@
 #include "qgsprocessingdxflayerswidgetwrapper.h"
 #include "qgsprocessingmeshdatasetwidget.h"
 #include "qgsabstractdatabaseproviderconnection.h"
+#include "qgsprocessingpointcloudexpressionlineedit.h"
 #include "qgspluginlayer.h"
 #include "qgspointcloudlayer.h"
 #include "qgsannotationlayer.h"
-
 
 class TestParamType : public QgsProcessingParameterDefinition
 {
@@ -295,6 +296,7 @@ class TestProcessingGui : public QObject
     void testDatabaseTableWrapper();
     void testPointCloudLayerWrapper();
     void testAnnotationLayerWrapper();
+    void testPointCloudAttributeWrapper();
     void testFieldMapWidget();
     void testFieldMapWrapper();
     void testAggregateWidget();
@@ -324,7 +326,6 @@ class TestProcessingGui : public QObject
 
     void cleanupTempDir();
 };
-
 
 void TestProcessingGui::initTestCase()
 {
@@ -384,14 +385,13 @@ void TestProcessingGui::cleanupTestCase()
 {
   QgsApplication::exitQgis();
 }
+
 void TestProcessingGui::init()
 {
-
 }
 
 void TestProcessingGui::cleanup()
 {
-
 }
 
 void TestProcessingGui::testModelUndo()
@@ -620,7 +620,6 @@ class TestProcessingContextGenerator : public QgsProcessingContextGenerator
 
     QgsProcessingContext &mContext;
 };
-
 
 class TestLayerWrapper : public QgsAbstractProcessingParameterWidgetWrapper // clazy:exclude=missing-qobject-macro
 {
@@ -2855,9 +2854,10 @@ void TestProcessingGui::testMatrixWrapper()
 void TestProcessingGui::testExpressionWrapper()
 {
   const QgsProcessingAlgorithm *centroidAlg = QgsApplication::processingRegistry()->algorithmById( QStringLiteral( "native:centroids" ) );
-  const QgsProcessingParameterDefinition *layerDef = centroidAlg->parameterDefinition( QStringLiteral( "INPUT" ) );
+  const QgsProcessingParameterDefinition *vLayerDef = centroidAlg->parameterDefinition( QStringLiteral( "INPUT" ) );
+  const QgsProcessingParameterDefinition *pcLayerDef = new QgsProcessingParameterPointCloudLayer( "INPUT", QStringLiteral( "input" ), QVariant(), false );
 
-  auto testWrapper = [layerDef]( QgsProcessingGui::WidgetType type )
+  auto testWrapper = [vLayerDef, pcLayerDef]( QgsProcessingGui::WidgetType type )
   {
     QgsProcessingParameterExpression param( QStringLiteral( "expression" ), QStringLiteral( "expression" ) );
 
@@ -2914,24 +2914,24 @@ void TestProcessingGui::testExpressionWrapper()
     static_cast< QgsFieldExpressionWidget * >( wrapper2.wrappedWidget() )->setExpression( QStringLiteral( "3+4" ) );
     QCOMPARE( spy2.count(), 3 );
 
-    TestLayerWrapper layerWrapper( layerDef );
+    TestLayerWrapper vLayerWrapper( vLayerDef );
     QgsProject p;
     QgsVectorLayer *vl = new QgsVectorLayer( QStringLiteral( "LineString" ), QStringLiteral( "x" ), QStringLiteral( "memory" ) );
     p.addMapLayer( vl );
 
     QVERIFY( !wrapper2.mFieldExpWidget->layer() );
-    layerWrapper.setWidgetValue( QVariant::fromValue( vl ), context );
-    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    vLayerWrapper.setWidgetValue( QVariant::fromValue( vl ), context );
+    wrapper2.setParentLayerWrapperValue( &vLayerWrapper );
     QCOMPARE( wrapper2.mFieldExpWidget->layer(), vl );
 
     // should not be owned by wrapper
     QVERIFY( !wrapper2.mParentLayer.get() );
-    layerWrapper.setWidgetValue( QVariant(), context );
-    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    vLayerWrapper.setWidgetValue( QVariant(), context );
+    wrapper2.setParentLayerWrapperValue( &vLayerWrapper );
     QVERIFY( !wrapper2.mFieldExpWidget->layer() );
 
-    layerWrapper.setWidgetValue( vl->id(), context );
-    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    vLayerWrapper.setWidgetValue( vl->id(), context );
+    wrapper2.setParentLayerWrapperValue( &vLayerWrapper );
     QVERIFY( !wrapper2.mFieldExpWidget->layer() );
     QVERIFY( !wrapper2.mParentLayer.get() );
 
@@ -2940,18 +2940,99 @@ void TestProcessingGui::testExpressionWrapper()
     TestProcessingContextGenerator generator( context );
     wrapper2.registerProcessingContextGenerator( &generator );
 
-    layerWrapper.setWidgetValue( vl->id(), context );
-    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    vLayerWrapper.setWidgetValue( vl->id(), context );
+    wrapper2.setParentLayerWrapperValue( &vLayerWrapper );
     QCOMPARE( wrapper2.mFieldExpWidget->layer(), vl );
     QVERIFY( !wrapper2.mParentLayer.get() );
 
     // non-project layer
     QString pointFileName = TEST_DATA_DIR + QStringLiteral( "/points.shp" );
-    layerWrapper.setWidgetValue( pointFileName, context );
-    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    vLayerWrapper.setWidgetValue( pointFileName, context );
+    wrapper2.setParentLayerWrapperValue( &vLayerWrapper );
     QCOMPARE( wrapper2.mFieldExpWidget->layer()->publicSource(), pointFileName );
     // must be owned by wrapper, or layer may be deleted while still required by wrapper
     QCOMPARE( wrapper2.mParentLayer->publicSource(), pointFileName );
+
+    //
+    // point cloud expression
+    //
+    param.setExpressionType( Qgis::ExpressionType::PointCloud );
+    param.setParentLayerParameterName( QStringLiteral( "pointcloud" ) );
+    QgsProcessingExpressionWidgetWrapper wrapper3( &param, type );
+    w = wrapper3.createWrappedWidget( context );
+
+    QSignalSpy spy3( &wrapper3, &QgsProcessingExpressionWidgetWrapper::widgetValueHasChanged );
+    wrapper3.setWidgetValue( QStringLiteral( "Intensity+100" ), context );
+    QCOMPARE( spy3.count(), 1 );
+    QCOMPARE( wrapper3.widgetValue().toString(),  QStringLiteral( "Intensity+100" ) );
+    QCOMPARE( static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper3.wrappedWidget() )->expression(),  QStringLiteral( "Intensity+100" ) );
+    wrapper3.setWidgetValue( QString(), context );
+    QCOMPARE( spy3.count(), 2 );
+    QVERIFY( wrapper3.widgetValue().toString().isEmpty() );
+    QVERIFY( static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper3.wrappedWidget() )->expression().isEmpty() );
+
+    // check signal
+    static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper3.wrappedWidget() )->setExpression( QStringLiteral( "Red+4" ) );
+    QCOMPARE( spy3.count(), 3 );
+
+    delete w;
+
+    // with layer
+    param.setParentLayerParameterName( QStringLiteral( "other" ) );
+    QgsProcessingExpressionWidgetWrapper wrapper4( &param, type );
+    w = wrapper4.createWrappedWidget( context );
+
+    QSignalSpy spy4( &wrapper4, &QgsProcessingExpressionWidgetWrapper::widgetValueHasChanged );
+    wrapper4.setWidgetValue( QStringLiteral( "Intensity+100" ), context );
+    QCOMPARE( spy4.count(), 1 );
+    QCOMPARE( wrapper4.widgetValue().toString(),  QStringLiteral( "Intensity+100" ) );
+    QCOMPARE( static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper4.wrappedWidget() )->expression(),  QStringLiteral( "Intensity+100" ) );
+
+    wrapper4.setWidgetValue( QString(), context );
+    QCOMPARE( spy4.count(), 2 );
+    QVERIFY( wrapper4.widgetValue().toString().isEmpty() );
+    QVERIFY( static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper4.wrappedWidget() )->expression().isEmpty() );
+
+    static_cast< QgsProcessingPointCloudExpressionLineEdit * >( wrapper4.wrappedWidget() )->setExpression( QStringLiteral( "Red+4" ) );
+    QCOMPARE( spy4.count(), 3 );
+
+    TestLayerWrapper pcLayerWrapper( pcLayerDef );
+    QgsPointCloudLayer *pcl = new QgsPointCloudLayer( QStringLiteral( TEST_DATA_DIR ) + "/point_clouds/copc/rgb.copc.laz", QStringLiteral( "x" ), QStringLiteral( "copc" ) );
+    p.addMapLayer( pcl );
+
+    QVERIFY( !wrapper4.mPointCloudExpLineEdit->layer() );
+    pcLayerWrapper.setWidgetValue( QVariant::fromValue( pcl ), context );
+    wrapper4.setParentLayerWrapperValue( &pcLayerWrapper );
+    QCOMPARE( wrapper4.mPointCloudExpLineEdit->layer(), pcl );
+
+    // should not be owned by wrapper
+    QVERIFY( !wrapper4.mParentLayer.get() );
+    pcLayerWrapper.setWidgetValue( QVariant(), context );
+    wrapper4.setParentLayerWrapperValue( &pcLayerWrapper );
+    QVERIFY( !wrapper4.mPointCloudExpLineEdit->layer() );
+
+    pcLayerWrapper.setWidgetValue( pcl->id(), context );
+    wrapper4.setParentLayerWrapperValue( &pcLayerWrapper );
+    QVERIFY( !wrapper4.mPointCloudExpLineEdit->layer() );
+    QVERIFY( !wrapper4.mParentLayer.get() );
+
+    // with project layer
+    context.setProject( &p );
+    TestProcessingContextGenerator generator2( context );
+    wrapper4.registerProcessingContextGenerator( &generator2 );
+
+    pcLayerWrapper.setWidgetValue( pcl->id(), context );
+    wrapper4.setParentLayerWrapperValue( &pcLayerWrapper );
+    QCOMPARE( wrapper4.mPointCloudExpLineEdit->layer(), pcl );
+    QVERIFY( !wrapper4.mParentLayer.get() );
+
+    // non-project layer
+    QString pointCloudFileName = TEST_DATA_DIR + QStringLiteral( "/point_clouds/copc/sunshine-coast.copc.laz" );
+    pcLayerWrapper.setWidgetValue( pointCloudFileName, context );
+    wrapper4.setParentLayerWrapperValue( &pcLayerWrapper );
+    QCOMPARE( wrapper4.mPointCloudExpLineEdit->layer()->publicSource(), pointCloudFileName );
+    // must be owned by wrapper, or layer may be deleted while still required by wrapper
+    QCOMPARE( wrapper4.mParentLayer->publicSource(), pointCloudFileName );
   };
 
   // standard wrapper
@@ -2971,6 +3052,7 @@ void TestProcessingGui::testExpressionWrapper()
   QCOMPARE( def->name(), QStringLiteral( "param_name" ) );
   QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagOptional ) ); // should default to mandatory
   QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced ) );
+  QCOMPARE( static_cast< QgsProcessingParameterExpression * >( def.get() )->expressionType(), Qgis::ExpressionType::Qgis );
 
   // using a parameter definition as initial values
   QgsProcessingParameterExpression exprParam( QStringLiteral( "n" ), QStringLiteral( "test desc" ), QVariant(), QStringLiteral( "parent" ) );
@@ -2981,7 +3063,9 @@ void TestProcessingGui::testExpressionWrapper()
   QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagOptional ) );
   QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced ) );
   QCOMPARE( static_cast< QgsProcessingParameterExpression * >( def.get() )->parentLayerParameterName(), QStringLiteral( "parent" ) );
+  QCOMPARE( static_cast< QgsProcessingParameterExpression * >( def.get() )->expressionType(), Qgis::ExpressionType::Qgis );
   exprParam.setFlags( QgsProcessingParameterDefinition::FlagAdvanced | QgsProcessingParameterDefinition::FlagOptional );
+  exprParam.setExpressionType( Qgis::ExpressionType::PointCloud );
   exprParam.setParentLayerParameterName( QString() );
   widget = std::make_unique< QgsProcessingParameterDefinitionWidget >( QStringLiteral( "expression" ), context, widgetContext, &exprParam );
   def.reset( widget->createParameter( QStringLiteral( "param_name" ) ) );
@@ -2990,6 +3074,7 @@ void TestProcessingGui::testExpressionWrapper()
   QVERIFY( def->flags() & QgsProcessingParameterDefinition::FlagOptional );
   QVERIFY( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced );
   QVERIFY( static_cast< QgsProcessingParameterExpression * >( def.get() )->parentLayerParameterName().isEmpty() );
+  QCOMPARE( static_cast< QgsProcessingParameterExpression * >( def.get() )->expressionType(), Qgis::ExpressionType::PointCloud );
 }
 
 void TestProcessingGui::testFieldSelectionPanel()
@@ -8200,6 +8285,8 @@ void TestProcessingGui::testFieldMapWidget()
   map2.insert( QStringLiteral( "name" ), QStringLiteral( "n2" ) );
   map2.insert( QStringLiteral( "type" ), static_cast< int >( QVariant::String ) );
   map2.insert( QStringLiteral( "expression" ), QStringLiteral( "'abc' || \"def\"" ) );
+  map2.insert( QStringLiteral( "alias" ), QStringLiteral( "my alias" ) );
+  map2.insert( QStringLiteral( "comment" ), QStringLiteral( "my comment" ) );
 
   QSignalSpy spy( &widget, &QgsProcessingFieldMapPanelWidget::changed );
   widget.setValue( QVariantList() << map << map2 );
@@ -8214,6 +8301,8 @@ void TestProcessingGui::testFieldMapWidget()
   QCOMPARE( widget.value().toList().at( 1 ).toMap().value( QStringLiteral( "name" ) ).toString(), QStringLiteral( "n2" ) );
   QCOMPARE( widget.value().toList().at( 1 ).toMap().value( QStringLiteral( "type" ) ).toInt(), static_cast< int >( QVariant::String ) );
   QCOMPARE( widget.value().toList().at( 1 ).toMap().value( QStringLiteral( "expression" ) ).toString(), QStringLiteral( "'abc' || \"def\"" ) );
+  QCOMPARE( widget.value().toList().at( 1 ).toMap().value( QStringLiteral( "alias" ) ).toString(), QStringLiteral( "my alias" ) );
+  QCOMPARE( widget.value().toList().at( 1 ).toMap().value( QStringLiteral( "comment" ) ).toString(), QStringLiteral( "my comment" ) );
 }
 
 void TestProcessingGui::testFieldMapWrapper()
@@ -8239,6 +8328,8 @@ void TestProcessingGui::testFieldMapWrapper()
     map2.insert( QStringLiteral( "name" ), QStringLiteral( "n2" ) );
     map2.insert( QStringLiteral( "type" ), static_cast< int >( QVariant::String ) );
     map2.insert( QStringLiteral( "expression" ), QStringLiteral( "'abc' || \"def\"" ) );
+    map2.insert( QStringLiteral( "alias" ), QStringLiteral( "my alias" ) );
+    map2.insert( QStringLiteral( "comment" ), QStringLiteral( "my comment" ) );
 
     QSignalSpy spy( &wrapper, &QgsProcessingFieldMapWidgetWrapper::widgetValueHasChanged );
     wrapper.setWidgetValue( QVariantList() << map << map2, context );
@@ -8251,6 +8342,8 @@ void TestProcessingGui::testFieldMapWrapper()
     QCOMPARE( wrapper.widgetValue().toList().at( 1 ).toMap().value( QStringLiteral( "name" ) ).toString(), QStringLiteral( "n2" ) );
     QCOMPARE( wrapper.widgetValue().toList().at( 1 ).toMap().value( QStringLiteral( "type" ) ).toInt(), static_cast< int >( QVariant::String ) );
     QCOMPARE( wrapper.widgetValue().toList().at( 1 ).toMap().value( QStringLiteral( "expression" ) ).toString(), QStringLiteral( "'abc' || \"def\"" ) );
+    QCOMPARE( wrapper.widgetValue().toList().at( 1 ).toMap().value( QStringLiteral( "alias" ) ).toString(), QStringLiteral( "my alias" ) );
+    QCOMPARE( wrapper.widgetValue().toList().at( 1 ).toMap().value( QStringLiteral( "comment" ) ).toString(), QStringLiteral( "my comment" ) );
 
     QCOMPARE( static_cast< QgsProcessingFieldMapPanelWidget * >( wrapper.wrappedWidget() )->value().toList().count(), 2 );
     QCOMPARE( static_cast< QgsProcessingFieldMapPanelWidget * >( wrapper.wrappedWidget() )->value().toList().at( 0 ).toMap().value( QStringLiteral( "name" ) ).toString(), QStringLiteral( "n" ) );
@@ -10447,6 +10540,296 @@ void TestProcessingGui::testAnnotationLayerWrapper()
 
   // modeler wrapper
   testWrapper( QgsProcessingGui::Modeler );
+}
+
+void TestProcessingGui::testPointCloudAttributeWrapper()
+{
+  const QgsProcessingParameterDefinition *layerDef = new QgsProcessingParameterPointCloudLayer( "INPUT", QStringLiteral( "input" ), QVariant(), false );
+
+  auto testWrapper = [layerDef]( QgsProcessingGui::WidgetType type )
+  {
+    TestLayerWrapper layerWrapper( layerDef );
+    QgsProject p;
+    QgsPointCloudLayer *pcl = new QgsPointCloudLayer( QStringLiteral( TEST_DATA_DIR ) + "/point_clouds/copc/rgb.copc.laz", QStringLiteral( "x" ), QStringLiteral( "copc" ) );
+    p.addMapLayer( pcl );
+
+    QgsProcessingParameterPointCloudAttribute param( QStringLiteral( "attribute" ), QStringLiteral( "attribute" ), QVariant(), QStringLiteral( "INPUT" ) );
+
+    QgsProcessingPointCloudAttributeWidgetWrapper wrapper( &param, type );
+
+    QgsProcessingContext context;
+
+    QWidget *w = wrapper.createWrappedWidget( context );
+    ( void )w;
+    layerWrapper.setWidgetValue( QVariant::fromValue( pcl ), context );
+    wrapper.setParentLayerWrapperValue( &layerWrapper );
+
+    QSignalSpy spy( &wrapper, &QgsProcessingPointCloudAttributeWidgetWrapper::widgetValueHasChanged );
+    wrapper.setWidgetValue( QStringLiteral( "Red" ), context );
+    QCOMPARE( spy.count(), 1 );
+    QCOMPARE( wrapper.widgetValue().toString(),  QStringLiteral( "Red" ) );
+
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( static_cast< QgsPointCloudAttributeComboBox * >( wrapper.wrappedWidget() )->currentAttribute(),  QStringLiteral( "Red" ) );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        QCOMPARE( static_cast< QLineEdit * >( wrapper.wrappedWidget() )->text(),  QStringLiteral( "Red" ) );
+        break;
+    }
+
+    wrapper.setWidgetValue( QString(), context );
+    QCOMPARE( spy.count(), 2 );
+    QVERIFY( wrapper.widgetValue().toString().isEmpty() );
+
+    delete w;
+
+    // optional
+    param = QgsProcessingParameterPointCloudAttribute( QStringLiteral( "attribute" ), QStringLiteral( "attribute" ), QVariant(), QStringLiteral( "INPUT" ), false, true );
+
+    QgsProcessingPointCloudAttributeWidgetWrapper wrapper2( &param, type );
+
+    w = wrapper2.createWrappedWidget( context );
+    layerWrapper.setWidgetValue( QVariant::fromValue( pcl ), context );
+    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    QSignalSpy spy2( &wrapper2, &QgsProcessingPointCloudAttributeWidgetWrapper::widgetValueHasChanged );
+    wrapper2.setWidgetValue( QStringLiteral( "Intensity" ), context );
+    QCOMPARE( spy2.count(), 1 );
+    QCOMPARE( wrapper2.widgetValue().toString(),  QStringLiteral( "Intensity" ) );
+
+    wrapper2.setWidgetValue( QString(), context );
+    QCOMPARE( spy2.count(), 2 );
+    QVERIFY( wrapper2.widgetValue().toString().isEmpty() );
+
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( static_cast< QgsPointCloudAttributeComboBox * >( wrapper2.wrappedWidget() )->currentAttribute(), QString() );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        QCOMPARE( static_cast< QLineEdit * >( wrapper2.wrappedWidget() )->text(),  QString() );
+        break;
+    }
+
+    QLabel *l = wrapper.createWrappedLabel();
+    if ( wrapper.type() != QgsProcessingGui::Batch )
+    {
+      QVERIFY( l );
+      QCOMPARE( l->text(), QStringLiteral( "attribute [optional]" ) );
+      QCOMPARE( l->toolTip(), param.toolTip() );
+      delete l;
+    }
+    else
+    {
+      QVERIFY( !l );
+    }
+
+    // check signal
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        static_cast< QgsPointCloudAttributeComboBox * >( wrapper2.wrappedWidget() )->setAttribute( QStringLiteral( "Red" ) );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        static_cast< QLineEdit * >( wrapper2.wrappedWidget() )->setText( QStringLiteral( "Red" ) );
+        break;
+    }
+
+    QCOMPARE( spy2.count(), 3 );
+
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( wrapper2.mComboBox->layer(), pcl );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+
+    // should not be owned by wrapper
+    QVERIFY( !wrapper2.mParentLayer.get() );
+    layerWrapper.setWidgetValue( QVariant(), context );
+    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QVERIFY( !wrapper2.mComboBox->layer() );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+
+    layerWrapper.setWidgetValue( pcl->id(), context );
+    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QVERIFY( !wrapper2.mComboBox->layer() );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+    QVERIFY( !wrapper2.mParentLayer.get() );
+
+    // with project layer
+    context.setProject( &p );
+    TestProcessingContextGenerator generator( context );
+    wrapper2.registerProcessingContextGenerator( &generator );
+
+    layerWrapper.setWidgetValue( pcl->id(), context );
+    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( wrapper2.mComboBox->layer(), pcl );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+    QVERIFY( !wrapper2.mParentLayer.get() );
+
+    // non-project layer
+    QString pointCloudFileName = TEST_DATA_DIR + QStringLiteral( "/point_clouds/copc/sunshine-coast.copc.laz" );
+    layerWrapper.setWidgetValue( pointCloudFileName, context );
+    wrapper2.setParentLayerWrapperValue( &layerWrapper );
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( wrapper2.mComboBox->layer()->publicSource(), pointCloudFileName );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+
+    // must be owned by wrapper, or layer may be deleted while still required by wrapper
+    QCOMPARE( wrapper2.mParentLayer->publicSource(), pointCloudFileName );
+
+    delete w;
+
+    // multiple
+    param = QgsProcessingParameterPointCloudAttribute( QStringLiteral( "attribute" ), QStringLiteral( "attribute" ), QVariant(), QStringLiteral( "INPUT" ), true, true );
+
+    QgsProcessingPointCloudAttributeWidgetWrapper wrapper3( &param, type );
+
+    w = wrapper3.createWrappedWidget( context );
+    layerWrapper.setWidgetValue( QVariant::fromValue( pcl ), context );
+    wrapper3.setParentLayerWrapperValue( &layerWrapper );
+    QSignalSpy spy3( &wrapper3, &QgsProcessingPointCloudAttributeWidgetWrapper::widgetValueHasChanged );
+    wrapper3.setWidgetValue( QStringLiteral( "Intensity" ), context );
+    QCOMPARE( spy3.count(), 1 );
+    QCOMPARE( wrapper3.widgetValue().toStringList(), QStringList() << QStringLiteral( "Intensity" ) );
+
+    wrapper3.setWidgetValue( QString(), context );
+    QCOMPARE( spy3.count(), 2 );
+    QVERIFY( wrapper3.widgetValue().toString().isEmpty() );
+
+    wrapper3.setWidgetValue( QStringLiteral( "Intensity;Red" ), context );
+    QCOMPARE( spy3.count(), 3 );
+    QCOMPARE( wrapper3.widgetValue().toStringList(), QStringList() << QStringLiteral( "Intensity" ) << QStringLiteral( "Red" ) );
+
+    delete w;
+
+    // default to all fields
+    param = QgsProcessingParameterPointCloudAttribute( QStringLiteral( "attribute" ), QStringLiteral( "attribute" ), QVariant(), QStringLiteral( "INPUT" ), true, true );
+    param.setDefaultToAllAttributes( true );
+    QgsProcessingPointCloudAttributeWidgetWrapper wrapper4( &param, type );
+    w = wrapper4.createWrappedWidget( context );
+    wrapper4.setParentLayerWrapperValue( &layerWrapper );
+    switch ( type )
+    {
+      case QgsProcessingGui::Standard:
+      case QgsProcessingGui::Batch:
+        QCOMPARE( wrapper4.widgetValue().toList(), QVariantList()
+                  << QStringLiteral( "X" )
+                  << QStringLiteral( "Y" )
+                  << QStringLiteral( "Z" )
+                  << QStringLiteral( "Intensity" )
+                  << QStringLiteral( "ReturnNumber" )
+                  << QStringLiteral( "NumberOfReturns" )
+                  << QStringLiteral( "ScanDirectionFlag" )
+                  << QStringLiteral( "EdgeOfFlightLine" )
+                  << QStringLiteral( "Classification" )
+                  << QStringLiteral( "ScanAngleRank" )
+                  << QStringLiteral( "UserData" )
+                  << QStringLiteral( "PointSourceId" )
+                  << QStringLiteral( "ScannerChannel" )
+                  << QStringLiteral( "ClassificationFlags" )
+                  << QStringLiteral( "GpsTime" )
+                  << QStringLiteral( "Red" )
+                  << QStringLiteral( "Green" )
+                  << QStringLiteral( "Blue" ) );
+        break;
+
+      case QgsProcessingGui::Modeler:
+        break;
+    }
+    delete w;
+  };
+
+  // standard wrapper
+  testWrapper( QgsProcessingGui::Standard );
+
+  // batch wrapper
+  testWrapper( QgsProcessingGui::Batch );
+
+  // modeler wrapper
+  testWrapper( QgsProcessingGui::Modeler );
+
+  // config widget
+  QgsProcessingParameterWidgetContext widgetContext;
+  QgsProcessingContext context;
+  std::unique_ptr< QgsProcessingParameterDefinitionWidget > widget = std::make_unique< QgsProcessingParameterDefinitionWidget >( QStringLiteral( "attribute" ), context, widgetContext );
+  std::unique_ptr< QgsProcessingParameterDefinition > def( widget->createParameter( QStringLiteral( "param_name" ) ) );
+  QCOMPARE( def->name(), QStringLiteral( "param_name" ) );
+  QVERIFY( !def->defaultValue().isValid() );
+  QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagOptional ) ); // should default to mandatory
+  QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced ) );
+
+  // using a parameter definition as initial values
+  QgsProcessingParameterPointCloudAttribute attrParam( QStringLiteral( "n" ), QStringLiteral( "test desc" ), QStringLiteral( "attribute_name" ), QStringLiteral( "parent" ) );
+  widget = std::make_unique< QgsProcessingParameterDefinitionWidget >( QStringLiteral( "attribute" ), context, widgetContext, &attrParam );
+  def.reset( widget->createParameter( QStringLiteral( "param_name" ) ) );
+  QCOMPARE( def->name(), QStringLiteral( "param_name" ) );
+  QCOMPARE( def->description(), QStringLiteral( "test desc" ) );
+  QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagOptional ) );
+  QVERIFY( !( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced ) );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->defaultValue().toString(), QStringLiteral( "attribute_name" ) );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->parentLayerParameterName(), QStringLiteral( "parent" ) );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->allowMultiple(), false );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->defaultToAllAttributes(), false );
+  attrParam.setFlags( QgsProcessingParameterDefinition::FlagAdvanced | QgsProcessingParameterDefinition::FlagOptional );
+  attrParam.setParentLayerParameterName( QString() );
+  attrParam.setAllowMultiple( true );
+  attrParam.setDefaultToAllAttributes( true );
+  attrParam.setDefaultValue( QStringLiteral( "Intensity;Red" ) );
+  widget = std::make_unique< QgsProcessingParameterDefinitionWidget >( QStringLiteral( "attribute" ), context, widgetContext, &attrParam );
+  def.reset( widget->createParameter( QStringLiteral( "param_name" ) ) );
+  QCOMPARE( def->name(), QStringLiteral( "param_name" ) );
+  QCOMPARE( def->description(), QStringLiteral( "test desc" ) );
+  QVERIFY( def->flags() & QgsProcessingParameterDefinition::FlagOptional );
+  QVERIFY( def->flags() & QgsProcessingParameterDefinition::FlagAdvanced );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->defaultValue().toString(), QStringLiteral( "Intensity;Red" ) );
+  QVERIFY( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->parentLayerParameterName().isEmpty() );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->allowMultiple(), true );
+  QCOMPARE( static_cast< QgsProcessingParameterPointCloudAttribute * >( def.get() )->defaultToAllAttributes(), true );
 }
 
 void TestProcessingGui::testModelGraphicsView()

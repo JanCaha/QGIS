@@ -91,6 +91,9 @@ LayerRenderJob &LayerRenderJob::operator=( LayerRenderJob &&other )
 
   maskRequiresLayerRasterization = other.maskRequiresLayerRasterization;
 
+  elevationMap = other.elevationMap;
+  maskPainter = std::move( other.maskPainter );
+
   return *this;
 }
 
@@ -106,6 +109,7 @@ LayerRenderJob::LayerRenderJob( LayerRenderJob &&other )
   , estimatedRenderingTime( other.estimatedRenderingTime )
   , errors( other.errors )
   , layerId( other.layerId )
+  , maskPainter( nullptr ) // should this be other.maskPainter??
   , maskRequiresLayerRasterization( other.maskRequiresLayerRasterization )
   , maskJobs( other.maskJobs )
 {
@@ -385,7 +389,7 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
   }
   catch ( QgsCsException & )
   {
-    QgsDebugMsg( QStringLiteral( "Transform error caught" ) );
+    QgsDebugError( QStringLiteral( "Transform error caught" ) );
     extent = QgsRectangle( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() );
     r2 = QgsRectangle( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() );
     res = false;

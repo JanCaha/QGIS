@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     r_proj.py
@@ -31,7 +29,7 @@ def processInputs(alg, parameters, context, feedback):
     layer = alg.parameterAsLayer(parameters, 'input', context)
 
     # Creates a new location with this Crs
-    wkt_file_name = Grass7Utils.exportCrsWktToFile(layer.crs())
+    wkt_file_name = Grass7Utils.exportCrsWktToFile(layer.crs(), context)
     newLocation = 'newProj{}'.format(alg.uniqueSuffix)
     alg.commands.append('g.proj wkt="{}" location={}'.format(
         wkt_file_name, newLocation))
@@ -49,7 +47,7 @@ def processInputs(alg, parameters, context, feedback):
 
     # Grab the projected Crs
     crs = alg.parameterAsCrs(parameters, 'crs', context)
-    wkt_file_name = Grass7Utils.exportCrsWktToFile(crs)
+    wkt_file_name = Grass7Utils.exportCrsWktToFile(crs, context)
     alg.commands.append('g.proj -c wkt="{}"'.format(wkt_file_name))
 
     # Remove crs parameter

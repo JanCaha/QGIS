@@ -330,7 +330,7 @@ Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
   saveOptions.datasourceOptions = dsOptions;
   saveOptions.layerOptions = layerOptions;
   saveOptions.actionOnExistingFile = action;
-  saveOptions.symbologyExport = QgsVectorFileWriter::NoSymbology;
+  saveOptions.symbologyExport = Qgis::FeatureSymbologyExport::NoSymbology;
   std::unique_ptr< QgsVectorFileWriter > writer( QgsVectorFileWriter::create( uri, cleanedFields, wkbType, srs, QgsCoordinateTransformContext(), saveOptions, QgsFeatureSink::SinkFlags(), nullptr, &newLayerName ) );
   layerName = newLayerName;
 
@@ -434,7 +434,7 @@ QgsOgrProvider::QgsOgrProvider( QString const &uri, const ProviderOptions &optio
 
   if ( uri.contains( QLatin1String( "authcfg" ) ) )
   {
-    QRegularExpression authcfgRe( QStringLiteral( " authcfg='([^']+)'" ) );
+    const thread_local QRegularExpression authcfgRe( QStringLiteral( " authcfg='([^']+)'" ) );
     QRegularExpressionMatch match;
     if ( uri.contains( authcfgRe, &match ) )
     {
@@ -814,6 +814,16 @@ void QgsOgrProvider::loadFields()
       newField.setAlias( alias );
     }
 
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+    {
+      const QString comment = textEncoding()->toUnicode( OGR_Fld_GetComment( fldDef ) );
+      if ( !comment.isEmpty() )
+      {
+        newField.setComment( comment );
+      }
+    }
+#endif
+
     // check if field is nullable
     bool nullable = OGR_Fld_IsNullable( fldDef );
     if ( !nullable )
@@ -1054,13 +1064,13 @@ void QgsOgrProvider::loadMetadata()
           }
           else
           {
-            QgsDebugMsg( QStringLiteral( "Error reading %1: %2 at line %3 column %4" ).arg( sidecarPath, errorMessage ).arg( line ).arg( column ) );
+            QgsDebugError( QStringLiteral( "Error reading %1: %2 at line %3 column %4" ).arg( sidecarPath, errorMessage ).arg( line ).arg( column ) );
           }
           file.close();
         }
         else
         {
-          QgsDebugMsg( QStringLiteral( "Error reading %1 - could not open file for read" ).arg( sidecarPath ) );
+          QgsDebugError( QStringLiteral( "Error reading %1 - could not open file for read" ).arg( sidecarPath ) );
         }
       }
     }
@@ -1845,6 +1855,14 @@ bool QgsOgrProvider::addAttributeOGRLevel( const QgsField &field, bool &ignoreEr
       break;
   }
 
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,6,0)
+  OGR_Fld_SetAlternativeName( fielddefn.get(), textEncoding()->fromUnicode( field.alias() ).constData() );
+#endif
+
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+  OGR_Fld_SetComment( fielddefn.get(), textEncoding()->fromUnicode( field.comment() ).constData() );
+#endif
+
   if ( mOgrLayer->CreateField( fielddefn.get(), true ) != OGRERR_NONE )
   {
     pushError( tr( "OGR error creating field %1: %2" ).arg( field.name(), CPLGetLastErrorMsg() ) );
@@ -2183,7 +2201,6 @@ bool QgsOgrProvider::_setSubsetString( const QString &theSQL, bool updateFeature
   return true;
 
 }
-
 
 bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_map )
 {
@@ -2566,16 +2583,8 @@ bool QgsOgrProvider::changeGeometryValues( const QgsGeometryMap &geometry_map )
   return returnvalue;
 }
 
-bool QgsOgrProvider::createSpatialIndex()
+bool QgsOgrProvider::createSpatialIndexImpl()
 {
-  QgsCPLHTTPFetchOverrider oCPLHTTPFetcher( mAuthCfg );
-  QgsSetCPLHTTPFetchOverriderInitiatorClass( oCPLHTTPFetcher, QStringLiteral( "QgsOgrProvider" ) );
-
-  if ( !mOgrOrigLayer )
-    return false;
-  if ( !doInitialActionsForEdition() )
-    return false;
-
   QByteArray layerName = mOgrOrigLayer->name();
   if ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) )
   {
@@ -2603,9 +2612,24 @@ bool QgsOgrProvider::createSpatialIndex()
   return false;
 }
 
+
+bool QgsOgrProvider::createSpatialIndex()
+{
+  QgsCPLHTTPFetchOverrider oCPLHTTPFetcher( mAuthCfg );
+  QgsSetCPLHTTPFetchOverriderInitiatorClass( oCPLHTTPFetcher, QStringLiteral( "QgsOgrProvider" ) );
+
+  if ( !mOgrOrigLayer )
+    return false;
+  if ( !doInitialActionsForEdition() )
+    return false;
+
+  return createSpatialIndexImpl();
+
+}
+
 QString QgsOgrProvider::createIndexName( QString tableName, QString field )
 {
-  QRegularExpression safeExp( QStringLiteral( "[^a-zA-Z0-9]" ) );
+  const thread_local QRegularExpression safeExp( QStringLiteral( "[^a-zA-Z0-9]" ) );
   tableName.replace( safeExp, QStringLiteral( "_" ) );
   field.replace( safeExp, QStringLiteral( "_" ) );
   return tableName + "_" + field + "_idx";
@@ -2746,12 +2770,19 @@ bool QgsOgrProvider::doInitialActionsForEdition()
       return false;
   }
 
+  mShapefileHadSpatialIndex = ( mGDALDriverName == QLatin1String( "ESRI Shapefile" ) && hasSpatialIndex() );
+
   return true;
 }
 
 QgsVectorDataProvider::Capabilities QgsOgrProvider::capabilities() const
 {
   return mCapabilities;
+}
+
+Qgis::VectorDataProviderAttributeEditCapabilities QgsOgrProvider::attributeEditCapabilities() const
+{
+  return mAttributeEditCapabilities;
 }
 
 void QgsOgrProvider::computeCapabilities()
@@ -2905,6 +2936,22 @@ void QgsOgrProvider::computeCapabilities()
       ability |= FeatureSymbology;
       ability |= CreateRenderer;
     }
+
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
+    if ( const char *pszAlterFieldDefnFlags = GDALGetMetadataItem( mOgrLayer->driver(), GDAL_DMD_CREATION_FIELD_DEFN_FLAGS, nullptr ) )
+    {
+      char **papszTokens = CSLTokenizeString2( pszAlterFieldDefnFlags, " ", 0 );
+      if ( CSLFindString( papszTokens, "AlternativeName" ) >= 0 )
+      {
+        mAttributeEditCapabilities |= Qgis::VectorDataProviderAttributeEditCapability::EditAlias;
+      }
+      if ( CSLFindString( papszTokens, "Comment" ) >= 0 )
+      {
+        mAttributeEditCapabilities |= Qgis::VectorDataProviderAttributeEditCapability::EditComment;
+      }
+      CSLDestroy( papszTokens );
+    }
+#endif
   }
 
   ability |= ReadLayerMetadata;
@@ -2944,7 +2991,7 @@ QgsCoordinateReferenceSystem QgsOgrProvider::crs() const
   }
   else
   {
-    QgsDebugMsg( QStringLiteral( "no spatial reference found" ) );
+    QgsDebugMsgLevel( QStringLiteral( "no spatial reference found" ), 2 );
   }
 
   return srs;
@@ -2996,7 +3043,7 @@ QSet<QVariant> QgsOgrProvider::uniqueValues( int index, int limit ) const
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
   if ( !l )
   {
-    QgsDebugMsg( QStringLiteral( "Failed to execute SQL" ) );
+    QgsDebugError( QStringLiteral( "Failed to execute SQL" ) );
     return QgsVectorDataProvider::uniqueValues( index, limit );
   }
 
@@ -3074,7 +3121,7 @@ QStringList QgsOgrProvider::uniqueStringsMatching( int index, const QString &sub
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
   if ( !l )
   {
-    QgsDebugMsg( QStringLiteral( "Failed to execute SQL" ) );
+    QgsDebugError( QStringLiteral( "Failed to execute SQL" ) );
     return QgsVectorDataProvider::uniqueStringsMatching( index, substring, limit, feedback );
   }
 
@@ -3329,7 +3376,7 @@ QVariant QgsOgrProvider::minimumValue( int index ) const
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
   if ( !l )
   {
-    QgsDebugMsg( QStringLiteral( "Failed to execute SQL: %1" ).arg( textEncoding()->toUnicode( sql ) ) );
+    QgsDebugError( QStringLiteral( "Failed to execute SQL: %1" ).arg( textEncoding()->toUnicode( sql ) ) );
     return QgsVectorDataProvider::minimumValue( index );
   }
 
@@ -3389,7 +3436,7 @@ QVariant QgsOgrProvider::maximumValue( int index ) const
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
   if ( !l )
   {
-    QgsDebugMsg( QStringLiteral( "Failed to execute SQL: %1" ).arg( textEncoding()->toUnicode( sql ) ) );
+    QgsDebugError( QStringLiteral( "Failed to execute SQL: %1" ).arg( textEncoding()->toUnicode( sql ) ) );
     return QgsVectorDataProvider::maximumValue( index );
   }
 
@@ -3635,7 +3682,7 @@ void QgsOgrProvider::open( OpenMode mode )
     mWriteAccess = false;
     if ( !openReadOnly )
     {
-      QgsDebugMsg( QStringLiteral( "OGR failed to opened in update mode, trying in read-only mode" ) );
+      QgsDebugMsgLevel( QStringLiteral( "OGR failed to opened in update mode, trying in read-only mode" ), 2 );
     }
 
     QStringList options( mOpenOptions );
@@ -3872,7 +3919,14 @@ bool QgsOgrProvider::leaveUpdateMode()
   {
     // Only repack once update mode is inactive
     if ( mShapefileMayBeCorrupted )
+    {
       repack();
+    }
+
+    if ( mShapefileHadSpatialIndex )
+    {
+      createSpatialIndexImpl();
+    }
 
     mShapefileMayBeCorrupted = false;
     mDeferRepack = false;
@@ -3919,6 +3973,7 @@ bool QgsOgrProvider::leaveUpdateMode()
       return false;
     }
   }
+
   return true;
 }
 

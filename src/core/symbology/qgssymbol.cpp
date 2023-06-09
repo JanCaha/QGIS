@@ -104,13 +104,13 @@ QPolygonF QgsSymbol::_getLineString3d( QgsRenderContext &context, const QgsCurve
     const QgsBox3d clipRect( e.xMinimum() - cw, e.yMinimum() - ch, -HUGE_VAL, e.xMaximum() + cw, e.yMaximum() + ch, HUGE_VAL ); // TODO also need to be clipped according to z axis
 
     const QgsLineString *lineString = nullptr;
+    std::unique_ptr< QgsLineString > segmentized;
     if ( const QgsLineString *ls = qgsgeometry_cast< const QgsLineString * >( &curve ) )
     {
       lineString = ls;
     }
     else
     {
-      std::unique_ptr< QgsLineString > segmentized;
       segmentized.reset( qgsgeometry_cast< QgsLineString * >( curve.segmentize( ) ) );
       lineString = segmentized.get();
     }
@@ -736,10 +736,13 @@ QgsSymbol *QgsSymbol::defaultSymbol( Qgis::GeometryType geomType )
         s = std::make_unique< QgsFillSymbol >();
         break;
       default:
-        QgsDebugMsg( QStringLiteral( "unknown layer's geometry type" ) );
-        return nullptr;
+        QgsDebugError( QStringLiteral( "unknown layer's geometry type" ) );
+        break;
     }
   }
+
+  if ( !s )
+    return nullptr;
 
   // set opacity
   s->setOpacity( QgsProject::instance()->styleSettings()->defaultSymbolOpacity() );
@@ -1463,7 +1466,7 @@ void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &cont
     if ( !processedGeometry )
     {
       // shouldn't happen!
-      QgsDebugMsg( QStringLiteral( "No processed geometry to render for part!" ) );
+      QgsDebugError( QStringLiteral( "No processed geometry to render for part!" ) );
       return;
     }
 
@@ -1514,7 +1517,7 @@ void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &cont
         info.originalPartIndex = partIndex;
         if ( !qgsgeometry_cast<const QgsPolygon *>( processedGeometry )->exteriorRing() )
         {
-          QgsDebugMsg( QStringLiteral( "cannot render polygon with no exterior ring" ) );
+          QgsDebugError( QStringLiteral( "cannot render polygon with no exterior ring" ) );
           break;
         }
 
@@ -1586,10 +1589,10 @@ void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &cont
       }
 
       default:
-        QgsDebugMsg( QStringLiteral( "feature %1: unsupported wkb type %2/%3 for rendering" )
-                     .arg( feature.id() )
-                     .arg( QgsWkbTypes::displayString( part->wkbType() ) )
-                     .arg( static_cast< quint32>( part->wkbType() ), 0, 16 ) );
+        QgsDebugError( QStringLiteral( "feature %1: unsupported wkb type %2/%3 for rendering" )
+                       .arg( feature.id() )
+                       .arg( QgsWkbTypes::displayString( part->wkbType() ) )
+                       .arg( static_cast< quint32>( part->wkbType() ), 0, 16 ) );
     }
   };
 

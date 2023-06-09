@@ -459,8 +459,8 @@ bool QgsGmlStreamingParser::processData( const QByteArray &pdata, bool atEnd, QS
     {
       // Specified encoding is unknown, Expat only accepts UTF-8, UTF-16, ISO-8859-1
       // Try to get encoding string and convert data to utf-8
-      QRegularExpression reEncoding( QStringLiteral( "<?xml.*encoding=['\"]([^'\"]*)['\"].*?>" ),
-                                     QRegularExpression::CaseInsensitiveOption );
+      const thread_local QRegularExpression reEncoding( QStringLiteral( "<?xml.*encoding=['\"]([^'\"]*)['\"].*?>" ),
+          QRegularExpression::CaseInsensitiveOption );
       QRegularExpressionMatch match = reEncoding.match( pdata );
       const QString encoding = match.hasMatch() ? match.captured( 1 ) : QString();
       mCodec = !encoding.isEmpty() ? QTextCodec::codecForName( encoding.toLatin1() ) : nullptr;
@@ -843,7 +843,7 @@ void QgsGmlStreamingParser::startElement( const XML_Char *el, const XML_Char **a
             !LOCALNAME_EQUALS( "segments" ) &&
             !LOCALNAME_EQUALS( "LineStringSegment" ) )
   {
-    //QgsDebugMsg( "Found unhandled geometry element " + QString::fromUtf8( pszLocalName, localNameLen ) );
+    //QgsDebugError( "Found unhandled geometry element " + QString::fromUtf8( pszLocalName, localNameLen ) );
     mFoundUnhandledGeometryElement = true;
   }
 
@@ -876,7 +876,7 @@ void QgsGmlStreamingParser::startElement( const XML_Char *el, const XML_Char **a
   {
     if ( readEpsgFromAttribute( mEpsg, attr ) != 0 )
     {
-      QgsDebugMsg( QStringLiteral( "error, could not get epsg id" ) );
+      QgsDebugError( QStringLiteral( "error, could not get epsg id" ) );
     }
     else
     {
@@ -933,7 +933,7 @@ void QgsGmlStreamingParser::endElement( const XML_Char *el )
     if ( mFoundUnhandledGeometryElement )
     {
       const gdal::ogr_geometry_unique_ptr hGeom( OGR_G_CreateFromGML( mGeometryString.c_str() ) );
-      //QgsDebugMsg( QStringLiteral("for OGR: %1 -> %2").arg(mGeometryString.c_str()).arg(hGeom != nullptr));
+      //QgsDebugMsgLevel( QStringLiteral("for OGR: %1 -> %2").arg(mGeometryString.c_str()).arg(hGeom != nullptr), 2);
       if ( hGeom )
       {
         const int wkbSize = OGR_G_WkbSize( hGeom.get() );
@@ -958,7 +958,7 @@ void QgsGmlStreamingParser::endElement( const XML_Char *el )
          !mBoundedByNullFound &&
          !createBBoxFromCoordinateString( mCurrentExtent, mStringCash ) )
     {
-      QgsDebugMsg( QStringLiteral( "creation of bounding box failed" ) );
+      QgsDebugError( QStringLiteral( "creation of bounding box failed" ) );
     }
     if ( !mCurrentExtent.isNull() && mLayerExtent.isNull() &&
          !mCurrentFeature && mFeatureCount == 0 )
@@ -1070,7 +1070,7 @@ void QgsGmlStreamingParser::endElement( const XML_Char *el )
       }
       else
       {
-        QgsDebugMsg( QStringLiteral( "No wkb fragments" ) );
+        QgsDebugError( QStringLiteral( "No wkb fragments" ) );
         delete [] wkbPtr;
       }
     }
@@ -1109,7 +1109,7 @@ void QgsGmlStreamingParser::endElement( const XML_Char *el )
       }
       else
       {
-        QgsDebugMsg( QStringLiteral( "no wkb fragments" ) );
+        QgsDebugError( QStringLiteral( "no wkb fragments" ) );
         delete [] wkbPtr;
       }
     }
@@ -1136,7 +1136,7 @@ void QgsGmlStreamingParser::endElement( const XML_Char *el )
     else
     {
       delete[] wkbPtr;
-      QgsDebugMsg( QStringLiteral( "no wkb fragments" ) );
+      QgsDebugError( QStringLiteral( "no wkb fragments" ) );
     }
   }
   else if ( ( parseMode == Geometry || parseMode == MultiPolygon ) && isGMLNS &&
@@ -1379,7 +1379,7 @@ int QgsGmlStreamingParser::pointsFromPosListString( QList<QgsPointXY> &points, c
 
   if ( coordinates.size() % dimension != 0 )
   {
-    QgsDebugMsg( QStringLiteral( "Wrong number of coordinates" ) );
+    QgsDebugError( QStringLiteral( "Wrong number of coordinates" ) );
   }
 
   const int ncoor = coordinates.size() / dimension;

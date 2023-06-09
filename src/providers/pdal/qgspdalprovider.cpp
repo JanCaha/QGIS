@@ -79,7 +79,17 @@ QgsPointCloudAttributeCollection QgsPdalProvider::attributes() const
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
-  return mIndex ? mIndex->attributes() : QgsPointCloudAttributeCollection();
+  if ( mIndex )
+  {
+    return mIndex->attributes();
+  }
+
+  if ( mDummyAttributes.count() > 0 )
+  {
+    return mDummyAttributes;
+  }
+
+  return QgsPointCloudAttributeCollection();
 }
 
 static QString _outEptDir( const QString &filename )
@@ -302,12 +312,17 @@ bool QgsPdalProvider::load( const QString &uri )
       mExtent = QgsRectangle( xmin, ymin, xmax, ymax );
 
       mPointCount = quickInfo.m_pointCount;
-      if ( mPointCount == 0 )
-        throw pdal::pdal_error( "File contains no points" );
 
       // projection
       const QString wkt = QString::fromStdString( quickInfo.m_srs.getWKT() );
       mCrs = QgsCoordinateReferenceSystem::fromWkt( wkt );
+
+      // attribute names
+      for ( auto &dim : quickInfo.m_dimNames )
+      {
+        mDummyAttributes.push_back( QgsPointCloudAttribute( QString::fromStdString( dim ), QgsPointCloudAttribute::DataType::Float ) );
+      }
+
       return quickInfo.valid();
     }
     else
@@ -318,14 +333,14 @@ bool QgsPdalProvider::load( const QString &uri )
   catch ( json::exception &error )
   {
     const QString errorString = QStringLiteral( "Error parsing table metadata: %1" ).arg( error.what() );
-    QgsDebugMsg( errorString );
+    QgsDebugError( errorString );
     appendError( errorString );
     return false;
   }
   catch ( pdal::pdal_error &error )
   {
     const QString errorString = QString::fromStdString( error.what() );
-    QgsDebugMsg( errorString );
+    QgsDebugError( errorString );
     appendError( errorString );
     return false;
   }
@@ -411,17 +426,18 @@ QList<QgsProviderSublayerDetails> QgsPdalProviderMetadata::querySublayers( const
   }
 }
 
-QString QgsPdalProviderMetadata::filters( QgsProviderMetadata::FilterType type )
+QString QgsPdalProviderMetadata::filters( Qgis::FileFilterType type )
 {
   switch ( type )
   {
-    case QgsProviderMetadata::FilterType::FilterVector:
-    case QgsProviderMetadata::FilterType::FilterRaster:
-    case QgsProviderMetadata::FilterType::FilterMesh:
-    case QgsProviderMetadata::FilterType::FilterMeshDataset:
+    case Qgis::FileFilterType::Vector:
+    case Qgis::FileFilterType::Raster:
+    case Qgis::FileFilterType::Mesh:
+    case Qgis::FileFilterType::MeshDataset:
+    case Qgis::FileFilterType::VectorTile:
       return QString();
 
-    case QgsProviderMetadata::FilterType::FilterPointCloud:
+    case Qgis::FileFilterType::PointCloud:
       buildSupportedPointCloudFileFilterAndExtensions();
 
       return sFilterString;

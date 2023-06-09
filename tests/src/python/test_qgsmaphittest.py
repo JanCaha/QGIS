@@ -31,10 +31,11 @@ from qgis.core import (
     QgsRuleBasedRenderer,
     QgsApplication,
     QgsVectorLayer,
-    QgsMapHitTestTask
+    QgsMapHitTestTask,
+    QgsLayerTreeFilterSettings,
+    QgsLayoutChecker
 )
 from qgis.testing import start_app, unittest
-from qgslayoutchecker import QgsLayoutChecker
 from test_qgslayoutitem import LayoutItemTestCase
 from utilities import unitTestDataPath
 
@@ -154,7 +155,8 @@ class TestQgsMapHitTest(unittest.TestCase):
         map_settings.setExtent(QgsRectangle(-12360166, 3146940, -11269206, 3816372))
         map_settings.setLayers([point_layer])
 
-        map_hit_test_task = QgsMapHitTestTask(map_settings)
+        filter_settings = QgsLayerTreeFilterSettings(map_settings)
+        map_hit_test_task = QgsMapHitTestTask(filter_settings)
 
         def catch_results():
             TestQgsMapHitTest.results = map_hit_test_task.results()

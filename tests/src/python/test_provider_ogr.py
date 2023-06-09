@@ -94,6 +94,7 @@ class PyQgsOGRProvider(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
+        super().setUpClass()
         # Create test layer
         cls.basetestpath = tempfile.mkdtemp()
         cls.datasource = os.path.join(cls.basetestpath, 'test.csv')
@@ -108,6 +109,7 @@ class PyQgsOGRProvider(unittest.TestCase):
         """Run after all tests"""
         for dirname in cls.dirs_to_cleanup:
             shutil.rmtree(dirname, True)
+        super().tearDownClass()
 
     def testUpdateMode(self):
 
@@ -3184,6 +3186,251 @@ class PyQgsOGRProvider(unittest.TestCase):
             2: ['2', 'feat 2', 'fid 2'],
             3: ['3', 'feat 3', 'fid 3']
         })
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7 required")
+    def test_provider_connection_set_field_alias(self):
+        """
+        Test setting field alias via the connections api
+        """
+        metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmpfile = os.path.join(temp_dir, 'test_gdb.gdb')
+
+            ok, err = metadata.createDatabase(tmpfile)
+            self.assertTrue(ok)
+            self.assertFalse(err)
+
+            conn = metadata.createConnection(tmpfile, {})
+            self.assertTrue(conn)
+
+            fields = QgsFields()
+            field = QgsField('my_field', QVariant.String)
+            fields.append(field)
+            conn.createVectorTable('', 'test', fields, QgsWkbTypes.Point, QgsCoordinateReferenceSystem('EPSG:4326'), False, {})
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            del layer
+
+            self.assertTrue(
+                conn.capabilities2() & Qgis.DatabaseProviderConnectionCapability2.SetFieldAlias)
+
+            # field does not exist
+            with self.assertRaises(QgsProviderConnectionException):
+                conn.setFieldAlias('not field', '', 'test', 'my alias')
+
+            conn.setFieldAlias('my_field', '', 'test', 'my alias')
+
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].alias(), 'my alias')
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7 required")
+    def test_provider_connection_set_field_comment(self):
+        """
+        Test setting field comments via the connections api
+        """
+        metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmpfile = os.path.join(temp_dir, 'test_gpkg.gpkg')
+
+            ok, err = metadata.createDatabase(tmpfile)
+            self.assertTrue(ok)
+            self.assertFalse(err)
+
+            conn = metadata.createConnection(tmpfile, {})
+            self.assertTrue(conn)
+
+            fields = QgsFields()
+            field = QgsField('my_field', QVariant.String)
+            fields.append(field)
+            conn.createVectorTable('', 'test', fields, QgsWkbTypes.Point, QgsCoordinateReferenceSystem('EPSG:4326'), False, {})
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            del layer
+
+            self.assertTrue(
+                conn.capabilities2() & Qgis.DatabaseProviderConnectionCapability2.SetFieldComment)
+
+            # field does not exist
+            with self.assertRaises(QgsProviderConnectionException):
+                conn.setFieldComment('not field', '', 'test', 'my comment')
+
+            conn.setFieldComment('my_field', '', 'test', 'my comment')
+
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].comment(), 'my comment')
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7 required")
+    def test_provider_set_field_alias(self):
+        """
+        Test setting field alias via the vector data provider api
+        """
+        metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmpfile = os.path.join(temp_dir, 'test_gdb.gdb')
+
+            ok, err = metadata.createDatabase(tmpfile)
+            self.assertTrue(ok)
+            self.assertFalse(err)
+
+            conn = metadata.createConnection(tmpfile, {})
+            self.assertTrue(conn)
+
+            fields = QgsFields()
+            field = QgsField('my_field', QVariant.String)
+            field.setAlias('my alias')
+            fields.append(field)
+            conn.createVectorTable('', 'test', fields, QgsWkbTypes.Point, QgsCoordinateReferenceSystem('EPSG:4326'), False, {})
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].alias(), 'my alias')
+
+            self.assertTrue(
+                layer.dataProvider().attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditAlias)
+
+            field2 = QgsField('my_field2', QVariant.String)
+            field2.setAlias('my alias2')
+
+            self.assertTrue(layer.dataProvider().addAttributes([field2]))
+
+            del layer
+
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].alias(), 'my alias')
+            self.assertEqual(fields['my_field2'].alias(), 'my alias2')
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7 required")
+    def test_provider_set_field_comment(self):
+        """
+        Test setting field comments via the vector data provider api
+        """
+        metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmpfile = os.path.join(temp_dir, 'test_gpkg.gpkg')
+
+            ok, err = metadata.createDatabase(tmpfile)
+            self.assertTrue(ok)
+            self.assertFalse(err)
+
+            conn = metadata.createConnection(tmpfile, {})
+            self.assertTrue(conn)
+
+            fields = QgsFields()
+            field = QgsField('my_field', QVariant.String)
+            field.setComment('my comment')
+            fields.append(field)
+            conn.createVectorTable('', 'test', fields, QgsWkbTypes.Point, QgsCoordinateReferenceSystem('EPSG:4326'), False, {})
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].comment(), 'my comment')
+
+            self.assertTrue(
+                layer.dataProvider().attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditComment)
+
+            field2 = QgsField('my_field2', QVariant.String)
+            field2.setComment('my comment2')
+
+            self.assertTrue(layer.dataProvider().addAttributes([field2]))
+
+            del layer
+
+            layer = QgsVectorLayer(tmpfile + '|layername=test')
+            self.assertTrue(layer.isValid())
+
+            fields = layer.fields()
+            self.assertEqual(fields['my_field'].comment(), 'my comment')
+            self.assertEqual(fields['my_field2'].comment(), 'my comment2')
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7.0 required")
+    def testFieldComment(self):
+        """Test reading field comments"""
+        with tempfile.TemporaryDirectory() as dest_dir:
+            database_path = os.path.join(dest_dir, 'new_gpkg.gpkg')
+            ds = ogr.GetDriverByName('GPKG').CreateDataSource(database_path)
+            lyr = ds.CreateLayer('test', geom_type=ogr.wkbPoint)
+            lyr.CreateField(ogr.FieldDefn('field1', ogr.OFTString))
+            lyr.CreateField(ogr.FieldDefn('field2', ogr.OFTString))
+
+            ds.ExecuteSQL(
+                """CREATE TABLE gpkg_data_columns (
+          table_name TEXT NOT NULL,
+          column_name TEXT NOT NULL,
+          name TEXT,
+          title TEXT,
+          description TEXT,
+          mime_type TEXT,
+          constraint_name TEXT,
+          CONSTRAINT pk_gdc PRIMARY KEY (table_name, column_name),
+          CONSTRAINT gdc_tn UNIQUE (table_name, name)
+        )"""
+            )
+
+            ds.ExecuteSQL(
+                "INSERT INTO gpkg_data_columns('table_name', 'column_name', 'description') VALUES ('test', 'field1', 'my description')"
+            )
+
+            ds = None
+
+            vl = QgsVectorLayer(f'{database_path}|layername=test', 'test')
+            self.assertTrue(vl.isValid())
+
+            fields = vl.fields()
+
+            self.assertEqual(fields[0].name(), 'fid')
+
+            self.assertEqual(fields[1].name(), 'field1')
+            self.assertEqual(fields[1].comment(), 'my description')
+
+            self.assertEqual(fields[2].name(), 'field2')
+            self.assertEqual(fields[2].comment(), '')
+
+    @unittest.skipIf(int(gdal.VersionInfo('VERSION_NUM')) < GDAL_COMPUTE_VERSION(3, 7, 0), "GDAL 3.7 required")
+    def test_exporter_capabilities(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_file_name = os.path.join(temp_dir,
+                                          'test_gpkg.gpkg')
+
+            layer = QgsVectorLayer("point?crs=epsg:4326&field=id:integer",
+                                   "Scratch point layer", "memory")
+
+            exporter = QgsVectorLayerExporter(dest_file_name,
+                                              'ogr',
+                                              layer.fields(),
+                                              layer.wkbType(),
+                                              layer.crs())
+
+            self.assertTrue(
+                exporter.attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditAlias)
+            self.assertTrue(
+                exporter.attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditComment)
+
+            dest_file_name = os.path.join(temp_dir,
+                                          'test_shp.shp')
+
+            exporter = QgsVectorLayerExporter(dest_file_name,
+                                              'ogr',
+                                              layer.fields(),
+                                              layer.wkbType(),
+                                              layer.crs())
+
+            self.assertFalse(
+                exporter.attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditAlias)
+            self.assertFalse(
+                exporter.attributeEditCapabilities() & Qgis.VectorDataProviderAttributeEditCapability.EditComment)
 
 
 if __name__ == '__main__':
