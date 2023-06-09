@@ -102,19 +102,9 @@ Constructor for QgsScopedProxyProgressTask, with the specified ``description``.
 Sets the ``progress`` (from 0 to 100) for the proxied operation.
 %End
 
-<<<<<<< HEAD
-    bool isCanceled() const;
-%Docstring
-Returns ``True`` if the task has been canceled.
-
-.. versionadded:: 3.30
-%End
-
-=======
   private:
     //! QgsScopedProxyProgressTask cannot be copied
     QgsScopedProxyProgressTask( const QgsScopedProxyProgressTask &other );
->>>>>>> upstream/master
 };
 
 /************************************************************************

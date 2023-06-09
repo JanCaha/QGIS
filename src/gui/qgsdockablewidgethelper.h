@@ -85,9 +85,6 @@ class GUI_EXPORT QgsDockableWidgetHelper : public QObject
     //! Returns the displayed title of the dialog and the dock widget
     QString windowTitle() const { return mWindowTitle; }
 
-<<<<<<< HEAD:src/app/qgsdockablewidgethelper.h
-    void setDockObjectName( const QString &name );
-=======
     //! Sets the object name of the dock widget
     void setDockObjectName( const QString &name );
     //! Returns the object name of the dock widget
@@ -98,7 +95,6 @@ class GUI_EXPORT QgsDockableWidgetHelper : public QObject
      * dock widget.
      */
     bool isUserVisible() const;
->>>>>>> upstream/master:src/gui/qgsdockablewidgethelper.h
 
     /**
      * Create a tool button for docking/undocking the widget

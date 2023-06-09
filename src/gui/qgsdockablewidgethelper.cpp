@@ -364,11 +364,6 @@ void QgsDockableWidgetHelper::setWindowTitle( const QString &title )
 
 void QgsDockableWidgetHelper::setDockObjectName( const QString &name )
 {
-<<<<<<< HEAD:src/app/qgsdockablewidgethelper.cpp
-  mDockObjectName = name;
-  if ( mDock )
-    mDock->setObjectName( mDockObjectName );
-=======
   mObjectName = name;
   if ( mDialog )
   {
@@ -393,7 +388,6 @@ bool QgsDockableWidgetHelper::isUserVisible() const
     return mDock->isUserVisible();
   }
   return false;
->>>>>>> upstream/master:src/gui/qgsdockablewidgethelper.cpp
 }
 
 void QgsDockableWidgetHelper::setupDockWidget( const QStringList &tabSiblings )
