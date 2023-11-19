@@ -237,6 +237,7 @@
 #include "qgsbookmarkalgorithms.h"
 #include "qgsprojectstylealgorithms.h"
 #include "qgsstylealgorithms.h"
+#include "qgsalgorithmscenetopoints.h"
 
 ///@cond PRIVATE
 
@@ -546,6 +547,7 @@ void QgsNativeAlgorithms::loadAlgorithms()
   addAlgorithm( new QgsPolygonsToLinesAlgorithm() );
   addAlgorithm( new QgsDensifyGeometriesByIntervalAlgorithm() );
   addAlgorithm( new QgsDensifyGeometriesByCountAlgorithm() );
+  addAlgorithm( new QgsSceneToPointsAlgorithm() );
 }
 
 ///@endcond
