@@ -57,6 +57,7 @@ from qgis.core import (
     QgsProcessingParameterMatrix,
     QgsProcessingParameterDistance,
     QgsProcessingParameterDuration,
+    QgsProcessingParameterTiledSceneLayer,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessingOutputRasterLayer,
     QgsProcessingOutputVectorLayer,
@@ -1101,6 +1102,38 @@ class MeshWidgetWrapper(MapLayerWidgetWrapper):
             self.widgetValueHasChanged.emit(self)
 
 
+class TiledSceneWidgetWrapper(MapLayerWidgetWrapper):
+
+    def __init__(self, param, dialog, row=0, col=0, **kwargs):
+        """
+        .. deprecated:: 3.14
+        Do not use, will be removed in QGIS 4.0
+        """
+
+        from warnings import warn
+        warn("TiledSceneWidgetWrapper is deprecated and will be removed in QGIS 4.0", DeprecationWarning)
+
+        super().__init__(param, dialog, row, col, **kwargs)
+
+    def getAvailableLayers(self):
+        return self.dialog.getAvailableValuesOfType((QgsProcessingParameterTiledSceneLayer, QgsProcessingParameterString),
+                                                    ())
+
+    def selectFile(self):
+        filename, selected_filter = self.getFileName(self.combo.currentText())
+        if filename:
+            if isinstance(self.combo, QgsProcessingMapLayerComboBox):
+                self.combo.setValue(filename, self.context)
+            elif isinstance(self.combo, QgsMapLayerComboBox):
+                items = self.combo.additionalItems()
+                items.append(filename)
+                self.combo.setAdditionalItems(items)
+                self.combo.setCurrentIndex(self.combo.findText(filename))
+            else:
+                self.combo.setEditText(filename)
+            self.widgetValueHasChanged.emit(self)
+
+
 class EnumWidgetWrapper(WidgetWrapper):
     NOT_SELECTED = '[Not selected]'
 
@@ -1942,6 +1975,8 @@ class WidgetWrapperFactory:
         elif param.type() == 'mesh':
             # deprecated, moved to c++
             wrapper = MeshWidgetWrapper
+        elif param.type() == "tiledScene":
+            wrapper = TiledSceneWidgetWrapper
         else:
             assert False, param.type()
         return wrapper(param, dialog, row, col)

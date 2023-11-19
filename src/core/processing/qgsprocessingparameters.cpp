@@ -38,6 +38,7 @@
 #include "qgsfileutils.h"
 #include "qgsproviderregistry.h"
 #include "qgsvariantutils.h"
+#include "qgstiledscenelayer.h"
 #include <functional>
 #include <QRegularExpression>
 
@@ -924,6 +925,17 @@ QgsMeshLayer *QgsProcessingParameters::parameterAsMeshLayer( const QgsProcessing
 QgsMeshLayer *QgsProcessingParameters::parameterAsMeshLayer( const QgsProcessingParameterDefinition *definition, const QVariant &value, QgsProcessingContext &context )
 {
   return qobject_cast< QgsMeshLayer *>( parameterAsLayer( definition, value, context, QgsProcessingUtils::LayerHint::Mesh ) );
+}
+
+QgsTiledSceneLayer *QgsProcessingParameters::parameterAsTiledSceneLayer( const QgsProcessingParameterDefinition *definition, const QVariantMap &parameters, QgsProcessingContext &context )
+{
+  return qobject_cast< QgsTiledSceneLayer *>( parameterAsLayer( definition, parameters, context, QgsProcessingUtils::LayerHint::TiledScene ) );
+}
+
+
+QgsTiledSceneLayer *QgsProcessingParameters::parameterAsTiledSceneLayer( const QgsProcessingParameterDefinition *definition, const QVariant &value, QgsProcessingContext &context )
+{
+  return qobject_cast< QgsTiledSceneLayer *>( parameterAsLayer( definition, value, context, QgsProcessingUtils::LayerHint::TiledScene ) );
 }
 
 QString QgsProcessingParameters::parameterAsOutputLayer( const QgsProcessingParameterDefinition *definition, const QVariantMap &parameters, QgsProcessingContext &context )
@@ -4465,6 +4477,7 @@ QString QgsProcessingParameterMultipleLayers::createFileFilter() const
     case QgsProcessing::TypeMapLayer:
     case QgsProcessing::TypePlugin:
     case QgsProcessing::TypeAnnotation:
+    case QgsProcessing::TypeTiledScene:
     case QgsProcessing::TypeVectorTile:
       return createAllMapLayerFileFilter();
   }
@@ -6595,6 +6608,7 @@ bool QgsProcessingParameterFeatureSink::hasGeometry() const
     case QgsProcessing::TypeVectorTile:
       return true;
 
+    case QgsProcessing::TypeTiledScene:
     case QgsProcessing::TypeRaster:
     case QgsProcessing::TypeFile:
     case QgsProcessing::TypeVector:
@@ -7317,6 +7331,7 @@ bool QgsProcessingParameterVectorDestination::hasGeometry() const
     case QgsProcessing::TypeVectorTile:
       return true;
 
+    case QgsProcessing::TypeTiledScene:
     case QgsProcessing::TypeRaster:
     case QgsProcessing::TypeFile:
     case QgsProcessing::TypeVector:
@@ -9593,4 +9608,97 @@ QStringList QgsProcessingParameterVectorTileDestination::supportedOutputVectorTi
 QgsProcessingParameterVectorTileDestination *QgsProcessingParameterVectorTileDestination::fromScriptCode( const QString &name, const QString &description, bool isOptional, const QString &definition )
 {
   return new QgsProcessingParameterVectorTileDestination( name, description, definition.isEmpty() ? QVariant() : definition, isOptional );
+}
+
+// Tiled Scene Layer
+
+QgsProcessingParameterTiledSceneLayer::QgsProcessingParameterTiledSceneLayer( const QString &name, const QString &description,
+    const QVariant &defaultValue, bool optional )
+  : QgsProcessingParameterDefinition( name, description, defaultValue, optional )
+{
+
+}
+
+QgsProcessingParameterDefinition *QgsProcessingParameterTiledSceneLayer::clone() const
+{
+  return new QgsProcessingParameterTiledSceneLayer( *this );
+}
+
+bool QgsProcessingParameterTiledSceneLayer::checkValueIsAcceptable( const QVariant &v, QgsProcessingContext *context ) const
+{
+  QVariant var = v;
+
+  if ( !var.isValid() )
+  {
+    if ( !defaultValue().isValid() )
+      return mFlags & FlagOptional;
+
+    var = defaultValue();
+  }
+
+  if ( var.userType() == QMetaType::type( "QgsProperty" ) )
+  {
+    const QgsProperty p = var.value< QgsProperty >();
+    if ( p.propertyType() == QgsProperty::StaticProperty )
+    {
+      var = p.staticValue();
+    }
+    else
+    {
+      return true;
+    }
+  }
+
+  if ( qobject_cast< QgsTiledSceneLayer * >( qvariant_cast<QObject *>( var ) ) )
+    return true;
+
+  if ( var.type() != QVariant::String || var.toString().isEmpty() )
+    return mFlags & FlagOptional;
+
+  if ( !context )
+  {
+    // that's as far as we can get without a context
+    return true;
+  }
+
+  // try to load as layer
+  if ( QgsProcessingUtils::mapLayerFromString( var.toString(), *context, true, QgsProcessingUtils::LayerHint::TiledScene ) )
+    return true;
+
+  return false;
+}
+
+QString QgsProcessingParameterTiledSceneLayer::valueAsPythonString( const QVariant &val, QgsProcessingContext &context ) const
+{
+  if ( !val.isValid() )
+    return QStringLiteral( "None" );
+
+  if ( val.userType() == QMetaType::type( "QgsProperty" ) )
+    return QStringLiteral( "QgsProperty.fromExpression('%1')" ).arg( val.value< QgsProperty >().asExpression() );
+
+  QVariantMap p;
+  p.insert( name(), val );
+  QgsTiledSceneLayer *layer = QgsProcessingParameters::parameterAsTiledSceneLayer( this, p, context );
+  return layer ? QgsProcessingUtils::stringToPythonLiteral( QgsProcessingUtils::normalizeLayerSource( layer->source() ) )
+         : QgsProcessingUtils::stringToPythonLiteral( val.toString() );
+}
+
+QString QgsProcessingParameterTiledSceneLayer::valueAsString( const QVariant &value, QgsProcessingContext &context, bool &ok ) const
+{
+  return valueAsStringPrivate( value, context, ok, ValueAsStringFlag::AllowMapLayerValues );
+}
+
+QVariant QgsProcessingParameterTiledSceneLayer::valueAsJsonObject( const QVariant &value, QgsProcessingContext &context ) const
+{
+  return valueAsJsonObjectPrivate( value, context, ValueAsStringFlag::AllowMapLayerValues );
+}
+
+QString QgsProcessingParameterTiledSceneLayer::createFileFilter() const
+{
+  return QgsProviderRegistry::instance()->fileTiledSceneFilters() + QStringLiteral( ";;" ) + QObject::tr( "All files (*.*)" );
+}
+
+QgsProcessingParameterTiledSceneLayer *QgsProcessingParameterTiledSceneLayer::fromScriptCode( const QString &name, const QString &description, bool isOptional, const QString &definition )
+{
+  return new QgsProcessingParameterTiledSceneLayer( name, description,  definition.isEmpty() ? QVariant() : definition, isOptional );
 }

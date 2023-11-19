@@ -30,6 +30,7 @@
 #include "qgsmeshlayer.h"
 #include "qgspointcloudlayer.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgstiledscenelayer.h"
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 
@@ -755,6 +756,11 @@ QgsRasterLayer *QgsProcessingAlgorithm::parameterAsRasterLayer( const QVariantMa
 QgsMeshLayer *QgsProcessingAlgorithm::parameterAsMeshLayer( const QVariantMap &parameters, const QString &name, QgsProcessingContext &context ) const
 {
   return QgsProcessingParameters::parameterAsMeshLayer( parameterDefinition( name ), parameters, context );
+}
+
+QgsTiledSceneLayer *QgsProcessingAlgorithm::parameterAsTiledSceneLayer( const QVariantMap &parameters, const QString &name, QgsProcessingContext &context ) const
+{
+  return QgsProcessingParameters::parameterAsTiledSceneLayer( parameterDefinition( name ), parameters, context );
 }
 
 QString QgsProcessingAlgorithm::parameterAsOutputLayer( const QVariantMap &parameters, const QString &name, QgsProcessingContext &context ) const

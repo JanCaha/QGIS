@@ -151,6 +151,10 @@ QgsProcessingMapLayerComboBox::QgsProcessingMapLayerComboBox( const QgsProcessin
   {
     filters = Qgis::LayerFilter::PointCloudLayer;
   }
+  else if ( mParameter->type() == QgsProcessingParameterTiledSceneLayer::typeName() )
+  {
+    filters = Qgis::LayerFilter::TiledSceneLayer;
+  }
   else if ( mParameter->type() == QgsProcessingParameterMapLayer::typeName() )
   {
     QList<int> dataTypes;
@@ -170,6 +174,8 @@ QgsProcessingMapLayerComboBox::QgsProcessingMapLayerComboBox( const QgsProcessin
       filters |= Qgis::LayerFilter::MeshLayer;
     if ( dataTypes.contains( QgsProcessing::TypePointCloud ) )
       filters |= Qgis::LayerFilter::PointCloudLayer;
+    if ( dataTypes.contains( QgsProcessing::TypeTiledScene ) )
+      filters |= Qgis::LayerFilter::TiledSceneLayer;
     if ( !filters )
       filters = Qgis::LayerFilter::All;
   }

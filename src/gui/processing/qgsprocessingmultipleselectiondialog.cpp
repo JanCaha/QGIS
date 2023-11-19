@@ -640,6 +640,16 @@ void QgsProcessingMultipleInputPanelWidget::populateFromProject( QgsProject *pro
       }
       break;
     }
+    case QgsProcessing::TypeTiledScene:
+    {
+      const QList<QgsTiledSceneLayer *> tiledScenes = QgsProcessingUtils::compatibleTiledSceneLayers( project);
+      for ( const QgsTiledSceneLayer *layer : tiledScenes )
+      {
+        // TODO fix later
+        // addLayer( layer );
+      }
+      break;
+    }
   }
 }
 

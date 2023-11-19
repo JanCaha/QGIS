@@ -43,6 +43,7 @@ class QgsPrintLayout;
 class QgsLayoutItem;
 class QgsPointCloudLayer;
 class QgsAnnotationLayer;
+class QgsTiledSceneLayer;
 
 /**
  * \class QgsProcessingFeatureSourceDefinition
@@ -457,6 +458,8 @@ class CORE_EXPORT QgsProcessingParameterDefinition
       sipType = sipType_QgsProcessingParameterPointCloudAttribute;
     else if ( sipCpp->type() == QgsProcessingParameterVectorTileDestination::typeName() )
       sipType = sipType_QgsProcessingParameterVectorTileDestination;
+    else if ( sipCpp->type() == QgsProcessingParameterTiledSceneLayer::typeName() )
+      sipType = sipType_QgsProcessingParameterTiledSceneLayer;
     else
       sipType = nullptr;
     SIP_END
@@ -1377,6 +1380,9 @@ class CORE_EXPORT QgsProcessingParameters
      * \since QGIS 3.6
      */
     static QgsMeshLayer *parameterAsMeshLayer( const QgsProcessingParameterDefinition *definition, const QVariantMap &parameters, QgsProcessingContext &context );
+
+    static QgsTiledSceneLayer *parameterAsTiledSceneLayer( const QgsProcessingParameterDefinition *definition, const QVariantMap &parameters, QgsProcessingContext &context );
+    static QgsTiledSceneLayer *parameterAsTiledSceneLayer( const QgsProcessingParameterDefinition *definition, const QVariant &value, QgsProcessingContext &context );
 
     /**
      * Evaluates the parameter with matching \a definition and \a value to a mesh layer.
@@ -4639,6 +4645,36 @@ class CORE_EXPORT QgsProcessingParameterVectorTileDestination : public QgsProces
      * Creates a new parameter using the definition from a script code.
      */
     static QgsProcessingParameterVectorTileDestination *fromScriptCode( const QString &name, const QString &description, bool isOptional, const QString &definition ) SIP_FACTORY;
+};
+
+class CORE_EXPORT QgsProcessingParameterTiledSceneLayer: public QgsProcessingParameterDefinition, public QgsFileFilterGenerator
+{
+  public:
+
+    /**
+     * Constructor for QgsProcessingParameterTiledSceneLayer.
+     */
+    QgsProcessingParameterTiledSceneLayer( const QString &name,
+                                     const QString &description = QString(),
+                                     const QVariant &defaultValue = QVariant(),
+                                     bool optional = false );
+
+    /**
+     * Returns the type name for the parameter class.
+     */
+    static QString typeName() { return QStringLiteral( "tiledScene" ); }
+    QgsProcessingParameterDefinition *clone() const override SIP_FACTORY;
+    QString type() const override { return typeName(); }
+    bool checkValueIsAcceptable( const QVariant &input, QgsProcessingContext *context = nullptr ) const override;
+    QString valueAsPythonString( const QVariant &value, QgsProcessingContext &context ) const override;
+    QString valueAsString( const QVariant &value, QgsProcessingContext &context, bool &ok SIP_OUT ) const override;
+    QVariant valueAsJsonObject( const QVariant &value, QgsProcessingContext &context ) const override;
+    QString createFileFilter() const override;
+
+    /**
+     * Creates a new parameter using the definition from a script code.
+     */
+    static QgsProcessingParameterTiledSceneLayer *fromScriptCode( const QString &name, const QString &description, bool isOptional, const QString &definition ) SIP_FACTORY;
 };
 
 // clazy:excludeall=qstring-allocations

@@ -57,7 +57,8 @@ class CORE_EXPORT QgsProcessing
       TypePlugin = 7, //!< Plugin layers \since QGIS 3.22
       TypePointCloud = 8, //!< Point cloud layers \since QGIS 3.22
       TypeAnnotation = 9, //!< Annotation layers \since QGIS 3.22
-      TypeVectorTile = 10 //!< Vector tile layers \since QGIS 3.32
+      TypeVectorTile = 10, //!< Vector tile layers \since QGIS 3.32
+      TypeTiledScene = 11 //!< Vector tile layers \since QGIS 3.36
     };
 
     //! Available Python output types
@@ -112,6 +113,8 @@ class CORE_EXPORT QgsProcessing
           return QStringLiteral( "TypeAnnotation" );
         case QgsProcessing::TypeVectorTile:
           return QStringLiteral( "TypeVectorTile" );
+        case QgsProcessing::TypeTiledScene:
+          return QStringLiteral( "TypeTiledScene" );
       }
       return QString();
     }
