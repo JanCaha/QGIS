@@ -70,6 +70,14 @@ class QgsSceneToPointsAlgorithm : public QgsProcessingAlgorithm
             const QgsVector3D &tileTranslationEcef,
             const QMatrix4x4 *gltfLocalTransform);
 
+    QVector<QgsGeometry> getPolygons(
+            const tinygltf::Model &model,
+            const tinygltf::Primitive &primitive,
+            const QgsTiledSceneTile &tile,
+            const QgsCoordinateTransform &ecefTransform,
+            const QgsVector3D &tileTranslationEcef,
+            const QMatrix4x4 *gltfLocalTransform);
+
     enum class PrimitiveType
     {
       Line,

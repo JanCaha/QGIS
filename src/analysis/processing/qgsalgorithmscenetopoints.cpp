@@ -31,6 +31,7 @@
 #include "qgsmultipolygon.h"
 #include "qgslinestring.h"
 #include "qgsprocessingparameters.h"
+#include "qgspolygon.h"
 
 ///@cond PRIVATE
 
@@ -75,22 +76,19 @@ void QgsSceneToPointsAlgorithm::initAlgorithm( const QVariantMap & )
   addParameter( new QgsProcessingParameterTiledSceneLayer( QStringLiteral( "INPUT" ), QObject::tr( "Tiled Scene" )));
   addParameter( new QgsProcessingParameterExtent( QStringLiteral( "EXTENT" ), QStringLiteral( "Extent to Extract" ) ) );
   addParameter( new QgsProcessingParameterNumber( QStringLiteral( "MAX_ERROR" ), QStringLiteral( "Max Elev Error" ), QgsProcessingParameterNumber::Double, 50.0 ) );
-  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT" ), QObject::tr( "Points" ), QgsProcessing::TypeVectorPolygon ) );
+  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT" ), QObject::tr( "Points" ), QgsProcessing::TypeVectorPoint) );
+  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT_POLYGONS" ), QObject::tr( "Polygons" ), QgsProcessing::TypeVectorPolygon ) );
+
 }
 
 
 
 QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &parameters,
                               QgsProcessingContext &context, QgsProcessingFeedback * feedback){
-    //QString path = parameterAsString(parameters, QStringLiteral( "INPUT" ), context);
-
-    // /home/cahik/3d-tiles-samples/1.0/TilesetWithDiscreteLOD/tileset.json"
-    //QString uri = "/home/cahik/OneDrive/3DTiles/test2/tileset.json";
-    //QgsTiledSceneLayer *tiledSceneLayer = new QgsTiledSceneLayer(path, "tileset", "cesiumtiles");
 
     QgsTiledSceneLayer *tiledSceneLayer = parameterAsTiledSceneLayer(parameters, QStringLiteral( "INPUT" ), context);
 
-    QgsCoordinateReferenceSystem crs = tiledSceneLayer->dataProvider()->crs() ;//QgsCoordinateReferenceSystem("EPSG:3857");
+    QgsCoordinateReferenceSystem crs = tiledSceneLayer->dataProvider()->crs();
 
     double maxElevationError = parameterAsDouble(parameters, QStringLiteral( "MAX_ERROR" ), context);
 
@@ -108,6 +106,16 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
     if ( !sink )
       throw QgsProcessingException( invalidSinkError( parameters, QStringLiteral( "OUTPUT" ) ) );
 
+    QString destPolygons;
+    std::unique_ptr< QgsFeatureSink > sinkPolygons( parameterAsSink( parameters,
+                                                                     QStringLiteral( "OUTPUT_POLYGONS" ),
+                                                                     context,
+                                                                     destPolygons,
+                                                                     QgsFields(),
+                                                                     Qgis::WkbType::PolygonZ,
+                                                                     crs ) );
+
+
     QgsCoordinateTransform sceneToMapTransform = QgsCoordinateTransform( tiledSceneLayer->dataProvider()->sceneCrs(),
                                                                          crs,
                                                                          context.transformContext() );
@@ -116,8 +124,6 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
 
     QgsTiledSceneRequest req = QgsTiledSceneRequest();
-    QgsBox3D filterArea = boxFromExtent(extent, extentCrs, tiledSceneLayer);
-    //req.setFilterBox(filterArea);
     req.setRequiredGeometricError(maxElevationError);
     QgsTiledSceneIndex index = tiledSceneLayer->dataProvider()->index();
     QVector<long long> tileIds = index.getTiles(req);
@@ -185,33 +191,6 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
               for ( const tinygltf::Primitive &primitive : mesh.primitives )
               {
-//                  auto posIt = primitive.attributes.find( "POSITION" );
-
-//                  QVector< double > x;
-//                  QVector< double > y;
-//                  QVector< double > z;
-
-//                  QgsGltfUtils::accessorToMapCoordinates(
-//                    model,
-//                    posIt->second,
-//                    tile.transform() ? *tile.transform() : QgsMatrix4x4(),
-//                    &sceneToMapTransform,
-//                    tileTranslationEcef,
-//                    gltfLocalTransform.get(),
-//                    static_cast< Qgis::Axis >( tile.metadata().value( QStringLiteral( "gltfUpAxis" ), static_cast< int >( Qgis::Axis::Y ) ).toInt() ),
-//                    x, y, z
-//                  );
-
-//                  for (int i=0; i <x.size(); i++)
-//                  {
-//                    QgsFeature f;
-//                    f.setGeometry( QgsGeometry::fromPoint(QgsPoint(x[i], y[i], z[i])) );
-//                    QgsAttributes attr;
-//                    attr << x[i] << y[i] << z[i];
-//                    f.setAttributes(attr);
-//                    sink->addFeature( f, QgsFeatureSink::FastInsert );
-//                  }
-
                    switch ( primitive.mode )
                    {
                      case TINYGLTF_MODE_TRIANGLES:
@@ -232,6 +211,21 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
                            f.setAttributes(attr);
                            sink->addFeature( f, QgsFeatureSink::FastInsert );
                        }
+
+                       QVector<QgsGeometry> polygons = getPolygons(
+                                   model,
+                                   primitive,
+                                   tile,
+                                   sceneToMapTransform,
+                                   tileTranslationEcef,
+                                   gltfLocalTransform.get()
+                                   );
+
+                      for (QgsGeometry p:polygons){
+                                                  QgsFeature f;
+                                                  f.setGeometry( p);
+                                                  sinkPolygons->addFeature( f, QgsFeatureSink::FastInsert );
+                                              }
 
                        break;
                   }
@@ -516,5 +510,130 @@ QgsBox3D QgsSceneToPointsAlgorithm::boxFromExtent(QgsRectangle extent, QgsCoordi
 
     return QgsBox3D( *minMaxX.first, *minMaxY.first, *minMaxZ.first, *minMaxX.second, *minMaxY.second, *minMaxZ.second );
     //return QgsOrientedBox3D::fromBox3D( QgsBox3D( *minMaxX.first, *minMaxY.first, *minMaxZ.first, *minMaxX.second, *minMaxY.second, *minMaxZ.second ) );
+}
+
+QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
+        const tinygltf::Model &model,
+        const tinygltf::Primitive &primitive,
+        const QgsTiledSceneTile &tile,
+        const QgsCoordinateTransform &ecefTransform,
+        const QgsVector3D &tileTranslationEcef,
+        const QMatrix4x4 *gltfLocalTransform)
+{
+  QVector<QgsGeometry> polygons;
+  QVector< PrimitiveData > primitiveData;
+
+  auto posIt = primitive.attributes.find( "POSITION" );
+  if ( posIt == primitive.attributes.end() )
+  {
+    //mErrors << QObject::tr( "Could not find POSITION attribute for primitive" );
+    return polygons;
+  }
+  int positionAccessorIndex = posIt->second;
+
+  QVector< double > x;
+  QVector< double > y;
+  QVector< double > z;
+  QgsGltfUtils::accessorToMapCoordinates(
+    model, positionAccessorIndex, tile.transform() ? *tile.transform() : QgsMatrix4x4(),
+    &ecefTransform,
+    tileTranslationEcef,
+    gltfLocalTransform,
+    static_cast< Qgis::Axis >( tile.metadata().value( QStringLiteral( "gltfUpAxis" ), static_cast< int >( Qgis::Axis::Y ) ).toInt() ),
+    x, y, z
+  );
+
+
+
+  //QVector< PrimitiveData > thisTileTriangleData;
+
+  if ( primitive.indices == -1 )
+  {
+    Q_ASSERT( x.size() % 3 == 0 );
+
+    polygons.reserve(x.size());
+    //thisTileTriangleData.reserve( x.size() );
+    for ( int i = 0; i < x.size(); i += 3 )
+    {
+      PrimitiveData data;
+      data.type = PrimitiveType::Triangle;
+      data.coordinates = QVector<QPointF> { QPointF( x[i], y[i] ), QPointF( x[i + 1], y[i + 1] ), QPointF( x[i + 2], y[i + 2] ), QPointF( x[i], y[i] ) };
+      data.z = ( z[i] + z[i + 1] + z[i + 2] ) / 3;
+
+      polygons.push_back(QgsGeometry::fromQPolygonF(data.coordinates ));
+    }
+  }
+  else
+  {
+    const tinygltf::Accessor &primitiveAccessor = model.accessors[primitive.indices];
+    const tinygltf::BufferView &bvPrimitive = model.bufferViews[primitiveAccessor.bufferView];
+    const tinygltf::Buffer &bPrimitive = model.buffers[bvPrimitive.buffer];
+
+    Q_ASSERT( ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
+                || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT
+                || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE )
+              && primitiveAccessor.type == TINYGLTF_TYPE_SCALAR );
+
+    const char *primitivePtr = reinterpret_cast< const char * >( bPrimitive.data.data() ) + bvPrimitive.byteOffset + primitiveAccessor.byteOffset;
+
+    //thisTileTriangleData.reserve( primitiveAccessor.count / 3 );
+    polygons.reserve(primitiveAccessor.count);
+
+    for ( std::size_t i = 0; i < primitiveAccessor.count / 3; i++ )
+    {
+
+      unsigned int index1 = 0;
+      unsigned int index2 = 0;
+      unsigned int index3 = 0;
+
+      PrimitiveData data;
+      data.type = PrimitiveType::Triangle;
+
+      if ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT )
+      {
+        const unsigned short *usPtrPrimitive = reinterpret_cast< const unsigned short * >( primitivePtr );
+        if ( bvPrimitive.byteStride )
+          primitivePtr += bvPrimitive.byteStride;
+        else
+          primitivePtr += 3 * sizeof( unsigned short );
+
+        index1 = usPtrPrimitive[0];
+        index2 = usPtrPrimitive[1];
+        index3 = usPtrPrimitive[2];
+      }
+      else if ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE )
+      {
+        const unsigned char *usPtrPrimitive = reinterpret_cast< const unsigned char * >( primitivePtr );
+        if ( bvPrimitive.byteStride )
+          primitivePtr += bvPrimitive.byteStride;
+        else
+          primitivePtr += 3 * sizeof( unsigned char );
+
+        index1 = usPtrPrimitive[0];
+        index2 = usPtrPrimitive[1];
+        index3 = usPtrPrimitive[2];
+      }
+      else
+      {
+        const unsigned int *uintPtrPrimitive = reinterpret_cast< const unsigned int * >( primitivePtr );
+        if ( bvPrimitive.byteStride )
+          primitivePtr += bvPrimitive.byteStride;
+        else
+          primitivePtr += 3 * sizeof( unsigned int );
+
+        index1 = uintPtrPrimitive[0];
+        index2 = uintPtrPrimitive[1];
+        index3 = uintPtrPrimitive[2];
+      }
+
+      data.coordinates = { QVector<QPointF>{ QPointF( x[index1], y[index1] ), QPointF( x[index2], y[index2] ), QPointF( x[index3], y[index3] ), QPointF( x[index1], y[index1] ) } };
+      data.z = ( z[index1] + z[index2] + z[index3] ) / 3;
+
+      polygons.push_back(QgsGeometry::fromQPolygonF(data.coordinates) );
+
+    }
+  }
+
+  return polygons;
 }
 ///@endcond
