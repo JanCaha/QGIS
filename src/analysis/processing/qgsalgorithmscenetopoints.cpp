@@ -32,6 +32,7 @@
 #include "qgslinestring.h"
 #include "qgsprocessingparameters.h"
 #include "qgspolygon.h"
+#include "qgsspatialindex.h"
 
 ///@cond PRIVATE
 
@@ -521,7 +522,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
         const QMatrix4x4 *gltfLocalTransform)
 {
   QVector<QgsGeometry> polygons;
-  QVector< PrimitiveData > primitiveData;
+//  QVector< PrimitiveData > primitiveData;
 
   auto posIt = primitive.attributes.find( "POSITION" );
   if ( posIt == primitive.attributes.end() )
@@ -545,7 +546,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
 
 
 
-  //QVector< PrimitiveData > thisTileTriangleData;
+  QVector< PrimitiveData > thisTileTriangleData;
 
   if ( primitive.indices == -1 )
   {
@@ -560,7 +561,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
       data.coordinates = QVector<QPointF> { QPointF( x[i], y[i] ), QPointF( x[i + 1], y[i + 1] ), QPointF( x[i + 2], y[i + 2] ), QPointF( x[i], y[i] ) };
       data.z = ( z[i] + z[i + 1] + z[i + 2] ) / 3;
 
-      polygons.push_back(QgsGeometry::fromQPolygonF(data.coordinates ));
+      thisTileTriangleData.push_back(data);
     }
   }
   else
@@ -576,8 +577,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
 
     const char *primitivePtr = reinterpret_cast< const char * >( bPrimitive.data.data() ) + bvPrimitive.byteOffset + primitiveAccessor.byteOffset;
 
-    //thisTileTriangleData.reserve( primitiveAccessor.count / 3 );
-    polygons.reserve(primitiveAccessor.count);
+    thisTileTriangleData.reserve( primitiveAccessor.count / 3 );
 
     for ( std::size_t i = 0; i < primitiveAccessor.count / 3; i++ )
     {
@@ -629,10 +629,40 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
       data.coordinates = { QVector<QPointF>{ QPointF( x[index1], y[index1] ), QPointF( x[index2], y[index2] ), QPointF( x[index3], y[index3] ), QPointF( x[index1], y[index1] ) } };
       data.z = ( z[index1] + z[index2] + z[index3] ) / 3;
 
-      polygons.push_back(QgsGeometry::fromQPolygonF(data.coordinates) );
-
+      thisTileTriangleData.push_back(data);
     }
   }
+    std::sort( thisTileTriangleData.begin(), thisTileTriangleData.end(), []( const PrimitiveData & a, const PrimitiveData & b )
+    {
+      return a.z < b.z;
+    } );
+
+    QgsSpatialIndex spatialIndex = QgsSpatialIndex( QgsSpatialIndex::FlagStoreFeatureGeometries );
+    size_t i = 0;
+
+    for (PrimitiveData triangle: thisTileTriangleData)
+    {
+        QgsGeometry geom = QgsGeometry::fromQPolygonF(triangle.coordinates);
+
+        bool intersectsPrevious = false;
+        for (QgsFeatureId id: spatialIndex.intersects(geom.boundingBox()))
+        {
+            if (spatialIndex.geometry(id).intersects(geom))
+            {
+                intersectsPrevious = true;
+            }
+        }
+
+        if (!intersectsPrevious)
+        {
+            polygons.push_back(geom);
+
+            QgsFeature f = QgsFeature(i);
+            f.setGeometry(QgsGeometry(geom));
+            spatialIndex.addFeature(f);
+            i++;
+        }
+    }
 
   return polygons;
 }
