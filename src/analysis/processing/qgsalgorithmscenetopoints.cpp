@@ -647,7 +647,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
         bool intersectsPrevious = false;
         for (QgsFeatureId id: spatialIndex.intersects(geom.boundingBox()))
         {
-            if (spatialIndex.geometry(id).intersects(geom))
+            if (spatialIndex.geometry(id).crosses(geom))
             {
                 intersectsPrevious = true;
             }
