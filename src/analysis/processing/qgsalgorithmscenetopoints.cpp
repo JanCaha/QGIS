@@ -34,6 +34,7 @@
 #include "qgspolygon.h"
 #include "qgsspatialindex.h"
 
+
 ///@cond PRIVATE
 
 QString QgsSceneToPointsAlgorithm::name() const
@@ -546,7 +547,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
 
 
 
-  QVector< PrimitiveData > thisTileTriangleData;
+  QVector< PolygonWithZ > thisTileTriangleData;
 
   if ( primitive.indices == -1 )
   {
@@ -556,12 +557,11 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
     //thisTileTriangleData.reserve( x.size() );
     for ( int i = 0; i < x.size(); i += 3 )
     {
-      PrimitiveData data;
-      data.type = PrimitiveType::Triangle;
-      data.coordinates = QVector<QPointF> { QPointF( x[i], y[i] ), QPointF( x[i + 1], y[i + 1] ), QPointF( x[i + 2], y[i + 2] ), QPointF( x[i], y[i] ) };
-      data.z = ( z[i] + z[i + 1] + z[i + 2] ) / 3;
+        PolygonWithZ triangle;
+        triangle.z = ( z[i] + z[i+1] + z[i+2] ) / 3;
+        triangle.polygon = QgsPolygon(new QgsLineString( QVector<QgsPoint> {QgsPoint(x[i], y[i], z[i]),QgsPoint(x[i+1], y[i+1], z[i+1]),QgsPoint(x[i+2], y[i+2], z[i+2]), QgsPoint(x[i], y[i], z[i])} ));
 
-      thisTileTriangleData.push_back(data);
+        thisTileTriangleData.push_back(triangle);
     }
   }
   else
@@ -586,8 +586,7 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
       unsigned int index2 = 0;
       unsigned int index3 = 0;
 
-      PrimitiveData data;
-      data.type = PrimitiveType::Triangle;
+      PolygonWithZ triangle;
 
       if ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT )
       {
@@ -626,28 +625,27 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
         index3 = uintPtrPrimitive[2];
       }
 
-      data.coordinates = { QVector<QPointF>{ QPointF( x[index1], y[index1] ), QPointF( x[index2], y[index2] ), QPointF( x[index3], y[index3] ), QPointF( x[index1], y[index1] ) } };
-      data.z = ( z[index1] + z[index2] + z[index3] ) / 3;
-
-      thisTileTriangleData.push_back(data);
+      triangle.z = ( z[index1] + z[index2] + z[index3] ) / 3;
+      triangle.polygon = QgsPolygon(new QgsLineString( QVector<QgsPoint> {QgsPoint(x[index1], y[index1], z[index1]),QgsPoint(x[index2], y[index2], z[index2]),QgsPoint(x[index3], y[index3], z[index3]), QgsPoint(x[index1], y[index1], z[index1])} ));
+      thisTileTriangleData.push_back(triangle);
     }
   }
-    std::sort( thisTileTriangleData.begin(), thisTileTriangleData.end(), []( const PrimitiveData & a, const PrimitiveData & b )
+    std::sort( thisTileTriangleData.begin(), thisTileTriangleData.end(), []( const PolygonWithZ & a, const PolygonWithZ & b )
     {
-      return a.z < b.z;
+      return a.z > b.z;
     } );
 
     QgsSpatialIndex spatialIndex = QgsSpatialIndex( QgsSpatialIndex::FlagStoreFeatureGeometries );
     size_t i = 0;
 
-    for (PrimitiveData triangle: thisTileTriangleData)
+    for (PolygonWithZ triangle: thisTileTriangleData)
     {
-        QgsGeometry geom = QgsGeometry::fromQPolygonF(triangle.coordinates);
+        QgsGeometry geom = QgsGeometry(triangle.polygon.clone());
 
         bool intersectsPrevious = false;
         for (QgsFeatureId id: spatialIndex.intersects(geom.boundingBox()))
         {
-            if (spatialIndex.geometry(id).crosses(geom))
+            if (spatialIndex.geometry(id).overlaps(geom))
             {
                 intersectsPrevious = true;
             }

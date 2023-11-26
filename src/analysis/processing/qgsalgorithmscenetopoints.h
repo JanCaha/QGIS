@@ -25,6 +25,7 @@
 #include "qgstiledscenelayer.h"
 #include "tiny_gltf.h"
 #include "qgstiledscenetile.h"
+#include "qgspolygon.h"
 
 ///@cond PRIVATE
 
@@ -91,6 +92,12 @@ class QgsSceneToPointsAlgorithm : public QgsProcessingAlgorithm
       float z;
       QPair< int, int > textureId { -1, -1 };
       float textureCoords[6];
+    };
+
+    struct PolygonWithZ
+    {
+        float z;
+        QgsPolygon polygon;
     };
 
     bool renderTiles();
