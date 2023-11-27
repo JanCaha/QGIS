@@ -137,6 +137,9 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
     while ( !tileIds.empty() )
     {
+        i++;
+        feedback->setProgress((i / static_cast< double > ( tileIds.size() ) ) * 100);
+
         if (feedback->isCanceled())
         {
             break;
@@ -147,10 +150,9 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
         QgsTiledSceneTile tile = index.getTile(tileId);
 
-        if ( !tile.boundingVolume().as2DGeometry(transformTileToExtent)->boundingBox().intersects(extent) )
+        if (!tile.boundingVolume().as2DGeometry(transformTileToExtent)->boundingBoxIntersects(extent))
         {
-            feedback->pushInfo( QString( "Skipping tile Id %1 because it does not intersects with Extent." ).arg(tileId) );
-            continue;;
+            continue;
         }
 
         if ( !tile.isValid() )
