@@ -9639,7 +9639,7 @@ bool QgsProcessingParameterTiledSceneLayer::checkValueIsAcceptable( const QVaria
   if ( var.userType() == QMetaType::type( "QgsProperty" ) )
   {
     const QgsProperty p = var.value< QgsProperty >();
-    if ( p.propertyType() == QgsProperty::StaticProperty )
+    if ( p.propertyType() ==  Qgis::PropertyType::Static )
     {
       var = p.staticValue();
     }
