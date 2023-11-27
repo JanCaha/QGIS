@@ -198,25 +198,8 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
                    switch ( primitive.mode )
                    {
                      case TINYGLTF_MODE_TRIANGLES:
-                       QVector<QgsPoint> points = renderTrianglePrimitive(
-                                   model,
-                                   primitive,
-                                   tile,
-                                   sceneToMapTransform,
-                                   tileTranslationEcef,
-                                   gltfLocalTransform.get());
 
-
-                       for (QgsPoint p:points){
-                           QgsFeature f;
-                           f.setGeometry( QgsGeometry::fromPoint(p));
-                           QgsAttributes attr;
-                           attr << p.x() << p.y() << p.z();
-                           f.setAttributes(attr);
-                           sink->addFeature( f, QgsFeatureSink::FastInsert );
-                       }
-
-                       QVector<QgsGeometry> polygons = getPolygons(
+                       QVector<QgsPoint> points = getPolygons(
                                    model,
                                    primitive,
                                    tile,
@@ -225,11 +208,21 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
                                    gltfLocalTransform.get()
                                    );
 
-                      for (QgsGeometry p:polygons){
-                                                  QgsFeature f;
-                                                  f.setGeometry( p);
-                                                  sinkPolygons->addFeature( f, QgsFeatureSink::FastInsert );
-                                              }
+                       QgsGeometry geom;
+
+                       for (QgsPoint p : points){
+                           geom = QgsGeometry::fromPoint( p );
+
+                           if (geom.intersects(extent))
+                           {
+                               QgsFeature f;
+                               f.setGeometry( geom );
+                               QgsAttributes attr;
+                               attr << p.x() << p.y() << p.z();
+                               f.setAttributes(attr);
+                               sink->addFeature( f, QgsFeatureSink::FastInsert );
+                           }
+                       }
 
                        break;
                   }
@@ -237,8 +230,6 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
             }
           }
         }
-        i++;
-        feedback->setProgress((i / static_cast< double > ( tileIds.size() ) ) * 100);
     }
 
     QVariantMap outputs;
