@@ -396,6 +396,7 @@ QVector<QgsPoint> QgsSceneToPointsAlgorithm::getPolygons(
     }
   return points;
 }
+
 QgsOrientedBox3D QgsSceneToPointsAlgorithm::fromExtent(const QgsRectangle &extent, const QgsCoordinateTransform &sceneToMapTransform)
 {
     const QVector< QgsVector3D > corners = QgsBox3D( extent, -10000, 10000 ).corners();
