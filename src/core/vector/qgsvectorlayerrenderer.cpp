@@ -45,6 +45,7 @@
 
 #include <QPicture>
 #include <QTimer>
+#include <QThread>
 
 QgsVectorLayerRenderer::QgsVectorLayerRenderer( QgsVectorLayer *layer, QgsRenderContext &context )
   : QgsMapLayerRenderer( layer->id(), &context )
@@ -244,7 +245,7 @@ bool QgsVectorLayerRenderer::render()
   std::unique_ptr< QgsScopedRuntimeProfile > profile;
   if ( mEnableProfile )
   {
-    profile = std::make_unique< QgsScopedRuntimeProfile >( mLayerName, QStringLiteral( "rendering" ) );
+    profile = std::make_unique< QgsScopedRuntimeProfile >( mLayerName, QStringLiteral( "rendering" ), layerId() );
     if ( mPreparationTime > 0 )
       QgsApplication::profiler()->record( QObject::tr( "Create renderer" ), mPreparationTime / 1000.0, QStringLiteral( "rendering" ) );
   }
@@ -261,6 +262,10 @@ bool QgsVectorLayerRenderer::render()
   int rendererIndex = 0;
   for ( const std::unique_ptr< QgsFeatureRenderer > &renderer : mRenderers )
   {
+    if ( mFeedback->isCanceled() || !res )
+    {
+      break;
+    }
     res = renderInternal( renderer.get(), rendererIndex++ ) && res;
   }
 

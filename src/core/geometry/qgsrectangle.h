@@ -100,22 +100,6 @@ class CORE_EXPORT QgsRectangle
     ~QgsRectangle() = default;
 
     /**
-    * Creates a null rectangle.
-    *
-    * This is a temporary method to use while the default
-    * constructor is still not constructing a null rectangle.
-    *
-    * \since QGIS 3.34
-    */
-    static QgsRectangle createNull() SIP_SKIP
-    {
-      // TODO: remove this method once the default constructor gives a null
-      QgsRectangle rectNull;
-      rectNull.setNull(); // TODO: have setNull() return *this ?
-      return rectNull;
-    }
-
-    /**
     * Creates a new rectangle from a \a wkt string.
     * The WKT must contain only 5 vertices, representing a rectangle aligned with X and Y axes.
     * \since QGIS 3.0
@@ -516,7 +500,7 @@ class CORE_EXPORT QgsRectangle
      */
     bool isEmpty() const
     {
-      return mXmax < mXmin || mYmax < mYmin || qgsDoubleNear( mXmax, mXmin ) || qgsDoubleNear( mYmax, mYmin );
+      return isNull() || mXmax <= mXmin || mYmax <= mYmin || qgsDoubleNear( mXmax, mXmin ) || qgsDoubleNear( mYmax, mYmin );
     }
 
     /**
@@ -533,7 +517,6 @@ class CORE_EXPORT QgsRectangle
       // rectangle created QgsRectangle() or with rect.setNull() or
       // otherwise having NaN ordinates
       return ( std::isnan( mXmin )  && std::isnan( mXmax ) && std::isnan( mYmin ) && std::isnan( mYmax ) ) ||
-             ( qgsDoubleNear( mXmin, 0.0 ) && qgsDoubleNear( mXmax, 0.0 ) && qgsDoubleNear( mYmin, 0.0 ) && qgsDoubleNear( mYmax, 0.0 ) ) ||
              ( qgsDoubleNear( mXmin, std::numeric_limits<double>::max() ) && qgsDoubleNear( mYmin, std::numeric_limits<double>::max() ) &&
                qgsDoubleNear( mXmax, -std::numeric_limits<double>::max() ) && qgsDoubleNear( mYmax, -std::numeric_limits<double>::max() ) );
     }
@@ -665,10 +648,10 @@ class CORE_EXPORT QgsRectangle
 
   private:
 
-    double mXmin = 0.0;
-    double mYmin = 0.0;
-    double mXmax = 0.0;
-    double mYmax = 0.0;
+    double mXmin = std::numeric_limits<double>::max();
+    double mYmin = std::numeric_limits<double>::max();
+    double mXmax = -std::numeric_limits<double>::max();
+    double mYmax = -std::numeric_limits<double>::max();
 
 };
 

@@ -114,7 +114,7 @@ jobs:
 
       - name: Build Docker Container with Build Environment
         id: docker-build
-        uses: whoan/docker-build-with-cache-action@v6
+        uses: whoan/docker-build-with-cache-action@v8
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -359,7 +359,7 @@ jobs:
 
       - name: Build Docker Container with Testing Environment
         id: docker-build
-        uses: whoan/docker-build-with-cache-action@v6
+        uses: whoan/docker-build-with-cache-action@v8
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -421,7 +421,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.number }}
         run: |
-          echo $PR_NUMBER > qgis_test_report/pr_number
+          echo $PR_NUMBER | sudo tee qgis_test_report/pr_number
 
       - name: Archive test results report
         if: ${{ failure() }}
@@ -457,7 +457,7 @@ jobs:
 
       - name: Build Docker Container with Testing Environment
         id: docker-build
-        uses: whoan/docker-build-with-cache-action@v6
+        uses: whoan/docker-build-with-cache-action@v8
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}

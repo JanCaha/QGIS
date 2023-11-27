@@ -582,6 +582,9 @@ void QgsVectorFileWriter::init( QString vectorFileName,
     case CreateOrOverwriteLayer:
     case AppendToLayerAddFields:
     {
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,6,0)
+      QSet< QString > usedAlternativeNames;
+#endif
       for ( int fldIdx = 0; fldIdx < fields.count(); ++fldIdx )
       {
         QgsField attrField = fields.at( fldIdx );
@@ -733,7 +736,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
           }
 
             //intentional fall-through
-          FALLTHROUGH
+          [[fallthrough]];
 
           case QVariant::List:
             // handle GPKG conversion to JSON
@@ -806,7 +809,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
               break;
             }
             //intentional fall-through
-            FALLTHROUGH
+            [[fallthrough]];
 
           default:
             //assert(0 && "invalid variant type!");
@@ -857,7 +860,18 @@ void QgsVectorFileWriter::init( QString vectorFileName,
           OGR_Fld_SetSubType( fld.get(), ogrSubType );
 
 #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,6,0)
-        OGR_Fld_SetAlternativeName( fld.get(), mCodec->fromUnicode( attrField.alias() ).constData() );
+        if ( !attrField.alias().isEmpty() )
+        {
+          QString alternativeName = attrField.alias();
+          int counter = 1;
+          while ( usedAlternativeNames.contains( alternativeName ) )
+          {
+            // field alternative names MUST be unique (at least for Geopackage, but let's apply the constraint universally)
+            alternativeName = attrField.alias() + QStringLiteral( " (%1)" ).arg( ++counter );
+          }
+          OGR_Fld_SetAlternativeName( fld.get(), mCodec->fromUnicode( alternativeName ).constData() );
+          usedAlternativeNames.insert( alternativeName );
+        }
 #endif
 #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,7,0)
         OGR_Fld_SetComment( fld.get(), mCodec->fromUnicode( attrField.comment() ).constData() );
@@ -2996,7 +3010,7 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
           break;
         }
         //intentional fall-through
-        FALLTHROUGH
+        [[fallthrough]];
 
       case QVariant::Map:
       {
@@ -3017,7 +3031,7 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
       }
 
         //intentional fall-through
-      FALLTHROUGH
+      [[fallthrough]];
 
 
       default:
@@ -3856,13 +3870,11 @@ QList< QgsVectorFileWriter::FilterFormatDetails > QgsVectorFileWriter::supported
       }
 
       GDALDriverH gdalDriver = GDALGetDriverByName( drvName.toLocal8Bit().constData() );
-      char **metadata = nullptr;
+      bool nonSpatialFormat = false;
       if ( gdalDriver )
       {
-        metadata = GDALGetMetadata( gdalDriver, nullptr );
+        nonSpatialFormat = GDALGetMetadataItem( gdalDriver, GDAL_DCAP_NONSPATIAL, nullptr ) != nullptr;
       }
-
-      bool nonSpatialFormat = CSLFetchBoolean( metadata, GDAL_DCAP_NONSPATIAL, false );
 
       if ( OGR_Dr_TestCapability( drv, "CreateDataSource" ) != 0 )
       {

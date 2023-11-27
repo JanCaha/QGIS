@@ -138,7 +138,7 @@ void QgsMapLayer::clone( QgsMapLayer *layer ) const
 
   layer->setName( name() );
   layer->setShortName( shortName() );
-  layer->setExtent( extent() );
+  layer->setExtent3D( extent3D() );
   layer->setMaximumScale( maximumScale() );
   layer->setMinimumScale( minimumScale() );
   layer->setScaleBasedVisibility( hasScaleBasedVisibility() );
@@ -360,6 +360,13 @@ QString QgsMapLayer::source() const
 }
 
 QgsRectangle QgsMapLayer::extent() const
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return mExtent.toRectangle();
+}
+
+QgsBox3D QgsMapLayer::extent3D() const
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
@@ -608,10 +615,18 @@ bool QgsMapLayer::readXml( const QDomNode &layer_node, QgsReadWriteContext &cont
   // read Extent
   if ( mReadFlags & QgsMapLayer::FlagReadExtentFromXml )
   {
-    const QDomNode extentNode = layer_node.namedItem( QStringLiteral( "extent" ) );
-    if ( !extentNode.isNull() )
+    const QDomNode extent3DNode = layer_node.namedItem( QStringLiteral( "extent3D" ) );
+    if ( extent3DNode.isNull() )
     {
-      mExtent = QgsXmlUtils::readRectangle( extentNode.toElement() );
+      const QDomNode extentNode = layer_node.namedItem( QStringLiteral( "extent" ) );
+      if ( !extentNode.isNull() )
+      {
+        mExtent = QgsXmlUtils::readRectangle( extentNode.toElement() );
+      }
+    }
+    else
+    {
+      mExtent = QgsXmlUtils::readBox3D( extent3DNode.toElement() );
     }
   }
 
@@ -625,7 +640,8 @@ bool QgsMapLayer::writeLayerXml( QDomElement &layerElement, QDomDocument &docume
 
   if ( !extent().isNull() )
   {
-    layerElement.appendChild( QgsXmlUtils::writeRectangle( mExtent, document ) );
+    layerElement.appendChild( QgsXmlUtils::writeBox3D( mExtent, document ) );
+    layerElement.appendChild( QgsXmlUtils::writeRectangle( mExtent.toRectangle(), document ) );
     layerElement.appendChild( QgsXmlUtils::writeRectangle( wgs84Extent( true ), document, QStringLiteral( "wgs84extent" ) ) );
   }
 
@@ -968,8 +984,16 @@ QgsDataProvider::ReadFlags QgsMapLayer::providerReadFlags( const QDomNode &layer
 
   if ( layerReadFlags & QgsMapLayer::FlagReadExtentFromXml )
   {
-    const QDomNode extentNode = layerNode.namedItem( QStringLiteral( "extent" ) );
-    if ( !extentNode.isNull() )
+    const QDomNode extent3DNode = layerNode.namedItem( QStringLiteral( "extent3D" ) );
+    if ( extent3DNode.isNull() )
+    {
+      const QDomNode extentNode = layerNode.namedItem( QStringLiteral( "extent" ) );
+      if ( !extentNode.isNull() )
+      {
+        flags |= QgsDataProvider::SkipGetExtent;
+      }
+    }
+    else
     {
       flags |= QgsDataProvider::SkipGetExtent;
     }
@@ -1365,7 +1389,7 @@ QString QgsMapLayer::loadNamedStyle( const QString &uri, bool &resultFlag, QgsMa
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
-  return loadNamedProperty( uri, PropertyType::Style, resultFlag, categories );
+  return loadNamedStyle( uri, resultFlag, false, categories );
 }
 
 QString QgsMapLayer::loadNamedProperty( const QString &uri, QgsMapLayer::PropertyType type, bool &resultFlag, StyleCategories categories )
@@ -2350,6 +2374,90 @@ void QgsMapLayer::removeCustomProperty( const QString &key )
   }
 }
 
+int QgsMapLayer::listStylesInDatabase( QStringList &ids, QStringList &names, QStringList &descriptions, QString &msgError )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return QgsProviderRegistry::instance()->listStyles( mProviderKey, mDataSource, ids, names, descriptions, msgError );
+}
+
+QString QgsMapLayer::getStyleFromDatabase( const QString &styleId, QString &msgError )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return QgsProviderRegistry::instance()->getStyleById( mProviderKey, mDataSource, styleId, msgError );
+}
+
+bool QgsMapLayer::deleteStyleFromDatabase( const QString &styleId, QString &msgError )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return QgsProviderRegistry::instance()->deleteStyleById( mProviderKey, mDataSource, styleId, msgError );
+}
+
+void QgsMapLayer::saveStyleToDatabase( const QString &name, const QString &description,
+                                       bool useAsDefault, const QString &uiFileContent, QString &msgError, QgsMapLayer::StyleCategories categories )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  QString sldStyle, qmlStyle;
+  QDomDocument qmlDocument, sldDocument;
+  QgsReadWriteContext context;
+  exportNamedStyle( qmlDocument, msgError, context, categories );
+  if ( !msgError.isNull() )
+  {
+    return;
+  }
+  qmlStyle = qmlDocument.toString();
+
+  this->exportSldStyle( sldDocument, msgError );
+  if ( !msgError.isNull() )
+  {
+    return;
+  }
+  sldStyle = sldDocument.toString();
+
+  QgsProviderRegistry::instance()->saveStyle( mProviderKey,
+      mDataSource, qmlStyle, sldStyle, name,
+      description, uiFileContent, useAsDefault, msgError );
+}
+
+QString QgsMapLayer::loadNamedStyle( const QString &theURI, bool &resultFlag, bool loadFromLocalDB, QgsMapLayer::StyleCategories categories )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  QString returnMessage;
+  QString qml, errorMsg;
+  QString styleName;
+  if ( !loadFromLocalDB && dataProvider() && dataProvider()->styleStorageCapabilities().testFlag( Qgis::ProviderStyleStorageCapability::LoadFromDatabase ) )
+  {
+    qml = QgsProviderRegistry::instance()->loadStoredStyle( mProviderKey, mDataSource, styleName, errorMsg );
+  }
+
+  // Style was successfully loaded from provider storage
+  if ( !qml.isEmpty() )
+  {
+    QDomDocument myDocument( QStringLiteral( "qgis" ) );
+    myDocument.setContent( qml );
+    resultFlag = importNamedStyle( myDocument, errorMsg );
+    returnMessage = QObject::tr( "Loaded from Provider" );
+  }
+  else
+  {
+    returnMessage = loadNamedProperty( theURI, PropertyType::Style, resultFlag, categories );
+  }
+
+  if ( ! styleName.isEmpty() )
+  {
+    styleManager()->renameStyle( styleManager()->currentStyle(), styleName );
+  }
+
+  if ( resultFlag )
+    emit styleLoaded( categories );
+
+  return returnMessage;
+}
+
 QgsError QgsMapLayer::error() const
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
@@ -2521,6 +2629,11 @@ void QgsMapLayer::emitStyleChanged()
 
 void QgsMapLayer::setExtent( const QgsRectangle &extent )
 {
+  updateExtent( QgsBox3D( extent ) );
+}
+
+void QgsMapLayer::setExtent3D( const QgsBox3D &extent )
+{
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
   updateExtent( extent );
@@ -2669,7 +2782,7 @@ QgsRectangle QgsMapLayer::wgs84Extent( bool forceRecalculate ) const
     transformer.setBallparkTransformsAreAppropriate( true );
     try
     {
-      wgs84Extent = transformer.transformBoundingBox( mExtent );
+      wgs84Extent = transformer.transformBoundingBox( mExtent.toRectangle() );
     }
     catch ( const QgsCsException &cse )
     {
@@ -2681,6 +2794,12 @@ QgsRectangle QgsMapLayer::wgs84Extent( bool forceRecalculate ) const
 }
 
 void QgsMapLayer::updateExtent( const QgsRectangle &extent ) const
+{
+  QgsBox3D box = extent;
+  updateExtent( box );
+}
+
+void QgsMapLayer::updateExtent( const QgsBox3D &extent ) const
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 

@@ -985,6 +985,14 @@ void QgsVectorLayer::setExtent( const QgsRectangle &r )
   mValidExtent = true;
 }
 
+void QgsVectorLayer::setExtent3D( const QgsBox3D &r )
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  QgsMapLayer::setExtent3D( r );
+  mValidExtent = true;
+}
+
 void QgsVectorLayer::updateDefaultValues( QgsFeatureId fid, QgsFeature feature )
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
@@ -1101,11 +1109,113 @@ QgsRectangle QgsVectorLayer::extent() const
   return rect;
 }
 
+QgsBox3D QgsVectorLayer:: extent3D() const
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  QgsBox3D extent;
+  extent.setNull();
+
+  if ( !isSpatial() )
+    return extent;
+
+  if ( !mValidExtent && mLazyExtent && mReadExtentFromXml && !mXmlExtent.isNull() )
+  {
+    updateExtent( mXmlExtent );
+    mValidExtent = true;
+    mLazyExtent = false;
+  }
+
+  if ( !mValidExtent && mLazyExtent && mDataProvider && mDataProvider->isValid() )
+  {
+    // store the extent
+    updateExtent( mDataProvider->extent3D() );
+    mValidExtent = true;
+    mLazyExtent = false;
+
+    // show the extent
+    QgsDebugMsgLevel( QStringLiteral( "Extent of layer: %1" ).arg( mExtent.toString() ), 3 );
+  }
+
+  if ( mValidExtent )
+    return QgsMapLayer::extent3D();
+
+  if ( !isValid() || !mDataProvider )
+  {
+    QgsDebugMsgLevel( QStringLiteral( "invoked with invalid layer or null mDataProvider" ), 3 );
+    return extent;
+  }
+
+  if ( !mEditBuffer ||
+       ( !mDataProvider->transaction() && ( mEditBuffer->deletedFeatureIds().isEmpty() && mEditBuffer->changedGeometries().isEmpty() ) ) ||
+       QgsDataSourceUri( mDataProvider->dataSourceUri() ).useEstimatedMetadata() )
+  {
+    mDataProvider->updateExtents();
+
+    // get the extent of the layer from the provider
+    // but only when there are some features already
+    if ( mDataProvider->featureCount() != 0 )
+    {
+      const QgsBox3D ext = mDataProvider->extent3D();
+      extent.combineWith( ext );
+    }
+
+    if ( mEditBuffer && !mDataProvider->transaction() )
+    {
+      const auto addedFeatures = mEditBuffer->addedFeatures();
+      for ( QgsFeatureMap::const_iterator it = addedFeatures.constBegin(); it != addedFeatures.constEnd(); ++it )
+      {
+        if ( it->hasGeometry() )
+        {
+          const QgsBox3D bbox = it->geometry().boundingBox3D();
+          extent.combineWith( bbox );
+        }
+      }
+    }
+  }
+  else
+  {
+    QgsFeatureIterator fit = getFeatures( QgsFeatureRequest()
+                                          .setNoAttributes() );
+
+    QgsFeature fet;
+    while ( fit.nextFeature( fet ) )
+    {
+      if ( fet.hasGeometry() && fet.geometry().type() != Qgis::GeometryType::Unknown )
+      {
+        const QgsBox3D bb = fet.geometry().boundingBox3D();
+        extent.combineWith( bb );
+      }
+    }
+  }
+
+  if ( extent.xMinimum() > extent.xMaximum() && extent.yMinimum() > extent.yMaximum() && extent.zMinimum() > extent.zMaximum() )
+  {
+    // special case when there are no features in provider nor any added
+    extent = QgsBox3D(); // use rectangle with zero coordinates
+  }
+
+  updateExtent( extent );
+  mValidExtent = true;
+
+  // Send this (hopefully) up the chain to the map canvas
+  emit recalculateExtents();
+
+  return extent;
+}
+
 QgsRectangle QgsVectorLayer::sourceExtent() const
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
   return extent();
+}
+
+QgsBox3D QgsVectorLayer::sourceExtent3D() const
+{
+  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
+
+  return extent3D();
 }
 
 QString QgsVectorLayer::subsetString() const
@@ -1957,7 +2067,7 @@ QString QgsVectorLayer::loadDefaultStyle( bool &resultFlag )
   if ( resultFlag )
   {
     // Try to load all stored styles from DB
-    if ( mLoadAllStoredStyle && mDataProvider && mDataProvider->isSaveAndLoadStyleToDatabaseSupported() )
+    if ( mLoadAllStoredStyle && mDataProvider && mDataProvider->styleStorageCapabilities().testFlag( Qgis::ProviderStyleStorageCapability::LoadFromDatabase ) )
     {
       QStringList ids, names, descriptions;
       QString errorMessage;
@@ -4556,7 +4666,7 @@ QSet<QVariant> QgsVectorLayer::uniqueValues( int index, int limit ) const
         uniqueValues = mDataProvider->uniqueValues( index, limit );
         return uniqueValues;
       }
-      FALLTHROUGH
+      [[fallthrough]];
     //we need to go through each feature
     case QgsFields::OriginJoin:
     case QgsFields::OriginExpression:
@@ -4655,7 +4765,7 @@ QStringList QgsVectorLayer::uniqueStringsMatching( int index, const QString &sub
       {
         return mDataProvider->uniqueStringsMatching( index, substring, limit, feedback );
       }
-      FALLTHROUGH
+      [[fallthrough]];
     //we need to go through each feature
     case QgsFields::OriginJoin:
     case QgsFields::OriginExpression:
@@ -4789,7 +4899,7 @@ void QgsVectorLayer::minimumOrMaximumValue( int index, QVariant *minimum, QVaria
         return;
       }
     }
-    FALLTHROUGH
+    [[fallthrough]];
     // no choice but to go through all features
     case QgsFields::OriginExpression:
     case QgsFields::OriginJoin:
@@ -5593,10 +5703,10 @@ QString QgsVectorLayer::htmlMetadata() const
   }
 
   // encoding
-  const QgsVectorDataProvider *provider = dataProvider();
-  if ( provider )
+  if ( const QgsVectorDataProvider *provider = dataProvider() )
   {
     myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Encoding" ) + QStringLiteral( "</td><td>" ) + provider->encoding() + QStringLiteral( "</td></tr>\n" );
+    myMetadata += provider->htmlMetadata();
   }
 
   if ( isSpatial() )
@@ -5793,61 +5903,6 @@ void QgsVectorLayer::setWeakRelations( const QList<QgsWeakRelation> &relations )
   mWeakRelations = relations;
 }
 
-int QgsVectorLayer::listStylesInDatabase( QStringList &ids, QStringList &names, QStringList &descriptions, QString &msgError )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  return QgsProviderRegistry::instance()->listStyles( mProviderKey, mDataSource, ids, names, descriptions, msgError );
-}
-
-QString QgsVectorLayer::getStyleFromDatabase( const QString &styleId, QString &msgError )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  return QgsProviderRegistry::instance()->getStyleById( mProviderKey, mDataSource, styleId, msgError );
-}
-
-bool QgsVectorLayer::deleteStyleFromDatabase( const QString &styleId, QString &msgError )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  return QgsProviderRegistry::instance()->deleteStyleById( mProviderKey, mDataSource, styleId, msgError );
-}
-
-void QgsVectorLayer::saveStyleToDatabase( const QString &name, const QString &description,
-    bool useAsDefault, const QString &uiFileContent, QString &msgError, QgsMapLayer::StyleCategories categories )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  QString sldStyle, qmlStyle;
-  QDomDocument qmlDocument, sldDocument;
-  QgsReadWriteContext context;
-  exportNamedStyle( qmlDocument, msgError, context, categories );
-  if ( !msgError.isNull() )
-  {
-    return;
-  }
-  qmlStyle = qmlDocument.toString();
-
-  this->exportSldStyle( sldDocument, msgError );
-  if ( !msgError.isNull() )
-  {
-    return;
-  }
-  sldStyle = sldDocument.toString();
-
-  QgsProviderRegistry::instance()->saveStyle( mProviderKey,
-      mDataSource, qmlStyle, sldStyle, name,
-      description, uiFileContent, useAsDefault, msgError );
-}
-
-QString QgsVectorLayer::loadNamedStyle( const QString &theURI, bool &resultFlag, QgsMapLayer::StyleCategories categories )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  return loadNamedStyle( theURI, resultFlag, false, categories );
-}
-
 bool QgsVectorLayer::loadAuxiliaryLayer( const QgsAuxiliaryStorage &storage, const QString &key )
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
@@ -5916,43 +5971,6 @@ QgsAuxiliaryLayer *QgsVectorLayer::auxiliaryLayer()
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
   return mAuxiliaryLayer.get();
-}
-
-QString QgsVectorLayer::loadNamedStyle( const QString &theURI, bool &resultFlag, bool loadFromLocalDB, QgsMapLayer::StyleCategories categories )
-{
-  QGIS_PROTECT_QOBJECT_THREAD_ACCESS
-
-  QgsDataSourceUri dsUri( theURI );
-  QString returnMessage;
-  QString qml, errorMsg;
-  QString styleName;
-  if ( !loadFromLocalDB && mDataProvider && mDataProvider->isSaveAndLoadStyleToDatabaseSupported() )
-  {
-    qml = QgsProviderRegistry::instance()->loadStoredStyle( mProviderKey, mDataSource, styleName, errorMsg );
-  }
-
-  // Style was successfully loaded from provider storage
-  if ( !qml.isEmpty() )
-  {
-    QDomDocument myDocument( QStringLiteral( "qgis" ) );
-    myDocument.setContent( qml );
-    resultFlag = importNamedStyle( myDocument, errorMsg );
-    returnMessage = QObject::tr( "Loaded from Provider" );
-  }
-  else
-  {
-    returnMessage = QgsMapLayer::loadNamedStyle( theURI, resultFlag, categories );
-  }
-
-  if ( ! styleName.isEmpty() )
-  {
-    styleManager()->renameStyle( styleManager()->currentStyle(), styleName );
-  }
-
-  if ( resultFlag )
-    emit styleLoaded( categories );
-
-  return returnMessage;
 }
 
 QSet<QgsMapLayerDependency> QgsVectorLayer::dependencies() const

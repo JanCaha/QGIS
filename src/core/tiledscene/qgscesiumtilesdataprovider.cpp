@@ -577,11 +577,12 @@ Qgis::TileChildrenAvailability QgsCesiumTiledSceneIndex::childAvailability( long
   // a tile has children or geometry content!
 
   // let's avoid this request if we can get away with it:
-  if ( contentUri.endsWith( QLatin1String( ".json" ), Qt::CaseInsensitive ) )
+  const thread_local QRegularExpression isJsonRx( QStringLiteral( ".*\\.json(?:\\?.*)?$" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+  if ( isJsonRx.match( contentUri ).hasMatch() )
     return Qgis::TileChildrenAvailability::NeedFetching;
 
   // things we know definitely CAN'T be a child tile map:
-  const thread_local QRegularExpression antiCandidateRx( QStringLiteral( ".*\\.(gltf|glb|b3dm|i3dm|pnts|cmpt|bin|glbin|glbuf|png|jpeg|jpg)$" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
+  const thread_local QRegularExpression antiCandidateRx( QStringLiteral( ".*\\.(gltf|glb|b3dm|i3dm|pnts|cmpt|bin|glbin|glbuf|png|jpeg|jpg)(?:\\?.*)?$" ), QRegularExpression::PatternOption::CaseInsensitiveOption );
   if ( antiCandidateRx.match( contentUri ).hasMatch() )
     return Qgis::TileChildrenAvailability::NoChildren;
 
@@ -1004,12 +1005,26 @@ bool QgsCesiumTilesDataProvider::init()
       const QgsNetworkReplyContent content = networkRequest.reply();
       const json tileAccessJson = json::parse( content.content().toStdString() );
 
-      tileSetUri = QString::fromStdString( tileAccessJson["url"].get<std::string>() );
+      if ( tileAccessJson.contains( "url" ) )
+      {
+        tileSetUri = QString::fromStdString( tileAccessJson["url"].get<std::string>() );
+      }
+      else if ( tileAccessJson.contains( "options" ) )
+      {
+        const auto &optionsJson = tileAccessJson["options"];
+        if ( optionsJson.contains( "url" ) )
+        {
+          tileSetUri = QString::fromStdString( optionsJson["url"].get<std::string>() );
+        }
+      }
 
-      // The tileset accessToken is NOT the same as the token we use to access the asset details -- ie we can't
-      // use the same authentication as we got from the providers auth cfg!
-      mHeaders.insert( QStringLiteral( "Authorization" ),
-                       QStringLiteral( "Bearer %1" ).arg( QString::fromStdString( tileAccessJson["accessToken"].get<std::string>() ) ) );
+      if ( tileAccessJson.contains( "accessToken" ) )
+      {
+        // The tileset accessToken is NOT the same as the token we use to access the asset details -- ie we can't
+        // use the same authentication as we got from the providers auth cfg!
+        mHeaders.insert( QStringLiteral( "Authorization" ),
+                         QStringLiteral( "Bearer %1" ).arg( QString::fromStdString( tileAccessJson["accessToken"].get<std::string>() ) ) );
+      }
       mAuthCfg.clear();
     }
   }

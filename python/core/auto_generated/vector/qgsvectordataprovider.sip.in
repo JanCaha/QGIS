@@ -175,6 +175,8 @@ Returns the fields associated with this data provider.
 
     virtual QgsRectangle sourceExtent() const;
 
+    virtual QgsBox3D sourceExtent3D() const;
+
     virtual QString sourceName() const;
 
     virtual QString dataComment() const;
@@ -543,18 +545,6 @@ Clear recorded errors
 Gets recorded errors
 %End
 
-    virtual bool isSaveAndLoadStyleToDatabaseSupported() const;
-%Docstring
-It returns ``False`` by default.
-Must be implemented by providers that support saving and loading styles to db returning ``True``
-%End
-
-    virtual bool isDeleteStyleFromDatabaseSupported() const;
-%Docstring
-It returns ``False`` by default.
-Must be implemented by providers that support delete styles from db returning ``True``
-%End
-
     virtual QgsFeatureRenderer *createRenderer( const QVariantMap &configuration = QVariantMap() ) const /Factory/;
 %Docstring
 Creates a new vector layer feature renderer, using provider backend specific information.
@@ -664,6 +654,9 @@ from the ``source`` provider.
 %End
 
     virtual QgsVectorDataProviderTemporalCapabilities *temporalCapabilities();
+
+
+    virtual QgsDataProviderElevationProperties *elevationProperties();
 
 
   signals:

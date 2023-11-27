@@ -37,6 +37,8 @@ email                : sherman at mrcc.com
 #include "qgsvectorlayer.h"
 #include "qgsproviderregistry.h"
 #include "qgsvariantutils.h"
+#include "qgsjsonutils.h"
+#include <nlohmann/json.hpp>
 
 #define CPL_SUPRESS_CPLUSPLUS  //#spellok
 #include <gdal.h>         // to collect version information
@@ -1090,7 +1092,7 @@ void QgsOgrProvider::setRelevantFields( bool fetchGeometry, const QgsAttributeLi
   QRecursiveMutex *mutex = nullptr;
   OGRLayerH ogrLayer = mOgrLayer->getHandleAndMutex( mutex );
   QMutexLocker locker( mutex );
-  QgsOgrProviderUtils::setRelevantFields( ogrLayer, mAttributeFields.count(), fetchGeometry, fetchAttributes, mFirstFieldIsFid, mSubsetString );
+  QgsOgrProviderUtils::setRelevantFields( ogrLayer, mAttributeFields.count(), fetchGeometry, fetchAttributes, mFirstFieldIsFid, QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) );
 }
 
 QgsFeatureIterator QgsOgrProvider::getFeatures( const QgsFeatureRequest &request ) const
@@ -1601,7 +1603,9 @@ bool QgsOgrProvider::addFeaturePrivate( QgsFeature &f, Flags flags, QgsFeatureId
           QString stringValue;
 
           if ( OGR_Fld_GetSubType( fldDef ) == OFSTJSON )
-            stringValue = jsonStringValue( attrVal );
+          {
+            stringValue = QString::fromStdString( QgsJsonUtils::jsonFromVariant( attrVal ).dump() );
+          }
           else
           {
             stringValue = attrVal.toString();
@@ -1797,7 +1801,7 @@ bool QgsOgrProvider::addFeatures( QgsFeatureList &flist, Flags flags )
       incrementalFeatureId = static_cast< QgsFeatureId >( OGR_L_GetFeatureCount( layer, false ) ) + 1;
 
       if ( !mSubsetString.isEmpty() )
-        OGR_L_SetAttributeFilter( layer, textEncoding()->fromUnicode( mSubsetString ).constData() );
+        OGR_L_SetAttributeFilter( layer, textEncoding()->fromUnicode( QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) ).constData() );
     }
   }
 
@@ -1914,7 +1918,7 @@ bool QgsOgrProvider::addAttributeOGRLevel( const QgsField &field, bool &ignoreEr
       // other lists are supported at this moment, fall through to default for other types
 
       //intentional fall-through
-      FALLTHROUGH
+      [[fallthrough]];
 
     default:
       pushError( tr( "type %1 for field %2 not found" ).arg( field.typeName(), field.name() ) );
@@ -2180,13 +2184,12 @@ bool QgsOgrProvider::_setSubsetString( const QString &theSQL, bool updateFeature
   if ( !mOgrOrigLayer )
     return false;
 
-  const QString cleanSql = QgsOgrProviderUtils::cleanSubsetString( theSQL );
-
-  if ( cleanSql == mSubsetString && mFeaturesCounted != static_cast< long long >( Qgis::FeatureCountState::Uncounted ) )
+  if ( theSQL == mSubsetString && mFeaturesCounted != static_cast< long long >( Qgis::FeatureCountState::Uncounted ) )
     return true;
 
-  const bool subsetStringHasChanged { cleanSql != mSubsetString };
+  const bool subsetStringHasChanged { theSQL != mSubsetString };
 
+  const QString cleanSql = QgsOgrProviderUtils::cleanSubsetString( theSQL );
   if ( !cleanSql.isEmpty() )
   {
     QRecursiveMutex *mutex = nullptr;
@@ -2225,7 +2228,7 @@ bool QgsOgrProvider::_setSubsetString( const QString &theSQL, bool updateFeature
       OGR_L_SetAttributeFilter( layer, nullptr );
     }
   }
-  mSubsetString = cleanSql;
+  mSubsetString = theSQL;
 
   QVariantMap parts;
   parts.insert( QStringLiteral( "path" ), mFilePath );
@@ -2542,9 +2545,13 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
             ok = true;
             QString stringValue;
             if ( OGR_Fld_GetSubType( fd ) == OFSTJSON )
-              stringValue = jsonStringValue( it2.value() );
+            {
+              stringValue = QString::fromStdString( QgsJsonUtils::jsonFromVariant( it2.value() ).dump() );
+            }
             else
-              stringValue = it2->toString();
+            {
+              stringValue = jsonStringValue( it2.value() );
+            }
             OGR_F_SetFieldString( of.get(), f, textEncoding()->fromUnicode( stringValue ).constData() );
             break;
           }
@@ -3261,7 +3268,7 @@ QSet<QVariant> QgsOgrProvider::uniqueValues( int index, int limit ) const
 
   if ( !mSubsetString.isEmpty() )
   {
-    sql += " WHERE " + textEncoding()->fromUnicode( mSubsetString );
+    sql += " WHERE " + textEncoding()->fromUnicode( QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) );
   }
 
   sql += " ORDER BY " + quotedIdentifier( textEncoding()->fromUnicode( fld.name() ) ) + " ASC";
@@ -3339,7 +3346,7 @@ QStringList QgsOgrProvider::uniqueStringsMatching( int index, const QString &sub
 
   if ( !mSubsetString.isEmpty() )
   {
-    sql += " AND (" + textEncoding()->fromUnicode( mSubsetString ) + ')';
+    sql += " AND (" + textEncoding()->fromUnicode( QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) ) + ')';
   }
 
   sql += " ORDER BY " + quotedIdentifier( textEncoding()->fromUnicode( fld.name() ) ) + " ASC";
@@ -3602,7 +3609,7 @@ QVariant QgsOgrProvider::minimumValue( int index ) const
 
   if ( !mSubsetString.isEmpty() )
   {
-    sql += " WHERE " + textEncoding()->fromUnicode( mSubsetString );
+    sql += " WHERE " + textEncoding()->fromUnicode( QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) );
   }
 
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
@@ -3662,7 +3669,7 @@ QVariant QgsOgrProvider::maximumValue( int index ) const
 
   if ( !mSubsetString.isEmpty() )
   {
-    sql += " WHERE " + textEncoding()->fromUnicode( mSubsetString );
+    sql += " WHERE " + textEncoding()->fromUnicode( QgsOgrProviderUtils::cleanSubsetString( mSubsetString ) );
   }
 
   QgsOgrLayerUniquePtr l = mOgrLayer->ExecuteSQL( sql );
@@ -4220,17 +4227,16 @@ bool QgsOgrProvider::leaveUpdateMode()
   return true;
 }
 
-bool QgsOgrProvider::isSaveAndLoadStyleToDatabaseSupported() const
+Qgis::ProviderStyleStorageCapabilities QgsOgrProvider::styleStorageCapabilities() const
 {
-  // We could potentially extend support for styling to other drivers
-  // with multiple layer support.
-  return mGDALDriverName == QLatin1String( "GPKG" ) ||
-         mGDALDriverName == QLatin1String( "SQLite" );
-}
-
-bool QgsOgrProvider::isDeleteStyleFromDatabaseSupported() const
-{
-  return isSaveAndLoadStyleToDatabaseSupported();
+  Qgis::ProviderStyleStorageCapabilities storageCapabilities;
+  if ( isValid() && ( mGDALDriverName == QLatin1String( "GPKG" ) || mGDALDriverName == QLatin1String( "SQLite" ) ) )
+  {
+    storageCapabilities |= Qgis::ProviderStyleStorageCapability::SaveToDatabase;
+    storageCapabilities |= Qgis::ProviderStyleStorageCapability::LoadFromDatabase;
+    storageCapabilities |= Qgis::ProviderStyleStorageCapability::DeleteFromDatabase;
+  }
+  return storageCapabilities;
 }
 
 QString QgsOgrProvider::fileVectorFilters() const

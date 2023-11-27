@@ -724,11 +724,25 @@ static QVariant fcnAggregate( const QVariantList &values, const QgsExpressionCon
     }
     else
     {
+
       const QSet<QString> refVars = filterExp.referencedVariables() + subExp.referencedVariables();
       for ( const QString &varName : refVars )
       {
         const QgsExpressionContextScope *scope = context->activeScopeForVariable( varName );
         if ( scope && !scope->isStatic( varName ) )
+        {
+          isStatic = false;
+          break;
+        }
+      }
+    }
+
+    if ( isStatic && ! parameters.orderBy.isEmpty() )
+    {
+      for ( const auto &orderByClause : std::as_const( parameters.orderBy ) )
+      {
+        const QgsExpression &orderByExpression { orderByClause.expression() };
+        if ( orderByExpression.referencedVariables().contains( QStringLiteral( "parent" ) ) ||              orderByExpression.referencedVariables().contains( QString() ) )
         {
           isStatic = false;
           break;
@@ -9353,9 +9367,11 @@ QVariant QgsArrayForeachExpressionFunction::run( QgsExpressionNode::NodeList *ar
   QgsExpressionContextScope *subScope = new QgsExpressionContextScope();
   subContext->appendScope( subScope );
 
-  for ( QVariantList::const_iterator it = array.constBegin(); it != array.constEnd(); ++it )
+  int i = 0;
+  for ( QVariantList::const_iterator it = array.constBegin(); it != array.constEnd(); ++it, ++i )
   {
     subScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "element" ), *it, true ) );
+    subScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "counter" ), i, true ) );
     result << args->at( 1 )->eval( parent, subContext );
   }
 
@@ -9393,6 +9409,7 @@ bool QgsArrayForeachExpressionFunction::prepare( const QgsExpressionNodeFunction
 
   QgsExpressionContextScope *subScope = new QgsExpressionContextScope();
   subScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "element" ), QVariant(), true ) );
+  subScope->addVariable( QgsExpressionContextScope::StaticVariable( QStringLiteral( "counter" ), QVariant(), true ) );
   subContext.appendScope( subScope );
 
   args->at( 1 )->prepare( parent, &subContext );
