@@ -118,8 +118,14 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
     QgsCoordinateTransform transformTileToExtent = QgsCoordinateTransform( tiledSceneLayer->dataProvider()->sceneCrs(), extentCrs, QgsCoordinateTransformContext() );
 
+    QgsOrientedBox3D boxExtent = fromExtent(extent, transformTileToExtent);
+    bool intersect =  tiledSceneLayer->dataProvider()->boundingVolume().intersects(boxExtent);
+
+    feedback->pushInfo(QString("Extent intersects with tile bounding volume: %1").arg(intersect));
+    feedback->pushInfo(QString("Max elevation error: %1").arg(maxElevationError));
 
     QgsTiledSceneRequest req = QgsTiledSceneRequest();
+    req.setFilterBox(boxExtent);
     req.setRequiredGeometricError(maxElevationError);
     QgsTiledSceneIndex index = tiledSceneLayer->dataProvider()->index();
     QVector<long long> tileIds = index.getTiles(req);
