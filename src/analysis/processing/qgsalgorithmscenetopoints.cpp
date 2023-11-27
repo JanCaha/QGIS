@@ -663,7 +663,34 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
             i++;
         }
     }
+QgsOrientedBox3D QgsSceneToPointsAlgorithm::fromExtent(const QgsRectangle &extent, const QgsCoordinateTransform &sceneToMapTransform)
+{
+    const QVector< QgsVector3D > corners = QgsBox3D( extent, -10000, 10000 ).corners();
+    QVector< double > x;
+    x.reserve( 8 );
+    QVector< double > y;
+    y.reserve( 8 );
+    QVector< double > z;
+    z.reserve( 8 );
 
-  return polygons;
+    for ( int i = 0; i < 8; ++i )
+    {
+      const QgsVector3D &corner = corners[i];
+      x.append( corner.x() );
+      y.append( corner.y() );
+      z.append( corner.z() );
+    }
+    sceneToMapTransform.transformInPlace( x, y, z, Qgis::TransformDirection::Reverse );
+
+    const auto minMaxX = std::minmax_element( x.constBegin(), x.constEnd() );
+    const auto minMaxY = std::minmax_element( y.constBegin(), y.constEnd() );
+    const auto minMaxZ = std::minmax_element( z.constBegin(), z.constEnd() );
+
+    return QgsOrientedBox3D::fromBox3D( QgsBox3D( *minMaxX.first,
+                                                  *minMaxY.first,
+                                                  *minMaxZ.first,
+                                                  *minMaxX.second,
+                                                  *minMaxY.second,
+                                                  *minMaxZ.second ) );
 }
 ///@endcond
