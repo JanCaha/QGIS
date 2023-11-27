@@ -76,11 +76,9 @@ QgsSceneToPointsAlgorithm *QgsSceneToPointsAlgorithm::createInstance() const
 void QgsSceneToPointsAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterTiledSceneLayer( QStringLiteral( "INPUT" ), QObject::tr( "Tiled Scene" )));
-  addParameter( new QgsProcessingParameterExtent( QStringLiteral( "EXTENT" ), QStringLiteral( "Extent to Extract" ) ) );
-  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "MAX_ERROR" ), QStringLiteral( "Max Elev Error" ), QgsProcessingParameterNumber::Double, 50.0 ) );
+  addParameter( new QgsProcessingParameterExtent( QStringLiteral( "EXTENT" ), QStringLiteral( "Extent to Extract (default value is extent of scene)" ), QVariant() ,true ) );
+  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "MAX_ERROR" ), QStringLiteral( "Max Elevatin Error (affects the detail of tiles)" ), QgsProcessingParameterNumber::Double, 0.0 ) );
   addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT" ), QObject::tr( "Points" ), QgsProcessing::TypeVectorPoint) );
-  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT_POLYGONS" ), QObject::tr( "Polygons" ), QgsProcessing::TypeVectorPolygon ) );
-
 }
 
 
@@ -97,6 +95,12 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
     QgsRectangle extent = parameterAsExtent( parameters, QStringLiteral ( "EXTENT" ), context );
     QgsCoordinateReferenceSystem extentCrs = parameterAsExtentCrs( parameters, QStringLiteral ( "EXTENT" ), context );
 
+    if (extent.isEmpty())
+    {
+        extent = tiledSceneLayer->extent();
+        extentCrs = tiledSceneLayer->crs();
+    }
+
     QgsFields fields;
     fields.append( QgsField( QStringLiteral( "X" ), QVariant::Double) );
     fields.append( QgsField( QStringLiteral( "Y" ), QVariant::Double ) );
@@ -107,16 +111,6 @@ QVariantMap QgsSceneToPointsAlgorithm::processAlgorithm( const QVariantMap &para
 
     if ( !sink )
       throw QgsProcessingException( invalidSinkError( parameters, QStringLiteral( "OUTPUT" ) ) );
-
-    QString destPolygons;
-    std::unique_ptr< QgsFeatureSink > sinkPolygons( parameterAsSink( parameters,
-                                                                     QStringLiteral( "OUTPUT_POLYGONS" ),
-                                                                     context,
-                                                                     destPolygons,
-                                                                     QgsFields(),
-                                                                     Qgis::WkbType::PolygonZ,
-                                                                     crs ) );
-
 
     QgsCoordinateTransform sceneToMapTransform = QgsCoordinateTransform( tiledSceneLayer->dataProvider()->sceneCrs(),
                                                                          crs,
