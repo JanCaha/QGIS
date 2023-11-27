@@ -53,17 +53,7 @@ class QgsSceneToPointsAlgorithm : public QgsProcessingAlgorithm
                                   QgsProcessingContext &context, QgsProcessingFeedback * ) override;
 
   private:
-    QgsBox3D boxFromExtent(QgsRectangle extent, QgsCoordinateReferenceSystem extentCrs, QgsTiledSceneLayer *layer);
-
-    std::unique_ptr< QgsAbstractGeometry > extractTriangles(
-            const tinygltf::Model &model,
-            const tinygltf::Primitive &primitive,
-            const QgsCoordinateTransform &ecefTransform,
-            const QgsVector3D &tileTranslationEcef,
-            const QMatrix4x4 *gltfLocalTransform,
-            QgsProcessingFeedback *feedback );
-
-    QVector<QgsPoint> renderTrianglePrimitive(
+    QVector<QgsPoint> getPolygons(
             const tinygltf::Model &model,
             const tinygltf::Primitive &primitive,
             const QgsTiledSceneTile &tile,
@@ -71,28 +61,7 @@ class QgsSceneToPointsAlgorithm : public QgsProcessingAlgorithm
             const QgsVector3D &tileTranslationEcef,
             const QMatrix4x4 *gltfLocalTransform);
 
-    QVector<QgsGeometry> getPolygons(
-            const tinygltf::Model &model,
-            const tinygltf::Primitive &primitive,
-            const QgsTiledSceneTile &tile,
-            const QgsCoordinateTransform &ecefTransform,
-            const QgsVector3D &tileTranslationEcef,
-            const QMatrix4x4 *gltfLocalTransform);
-
-    enum class PrimitiveType
-    {
-      Line,
-      Triangle
-    };
-
-    struct PrimitiveData
-    {
-      PrimitiveType type;
-      QPolygonF coordinates;
-      float z;
-      QPair< int, int > textureId { -1, -1 };
-      float textureCoords[6];
-    };
+    QgsOrientedBox3D fromExtent(const QgsRectangle &extent, const QgsCoordinateTransform &sceneToMapTransform);
 
     struct PolygonWithZ
     {
