@@ -632,22 +632,27 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
       thisTileTriangleData.push_back(triangle);
     }
   }
+
     std::sort( thisTileTriangleData.begin(), thisTileTriangleData.end(), []( const PolygonWithZ & a, const PolygonWithZ & b )
     {
       return a.z > b.z;
     } );
 
-    QgsSpatialIndex spatialIndex = QgsSpatialIndex( QgsSpatialIndex::FlagStoreFeatureGeometries );
-    size_t i = 0;
+    QgsSpatialIndex spatialIndexTriangles = QgsSpatialIndex( QgsSpatialIndex::FlagStoreFeatureGeometries );
+    QgsSpatialIndex spatialIndexPoints = QgsSpatialIndex( QgsSpatialIndex::FlagStoreFeatureGeometries );
+    size_t idPolygon = 0;
+    size_t idPoint = 0;
+
+    points.reserve(thisTileTriangleData.size() * 3);
 
     for (PolygonWithZ triangle: thisTileTriangleData)
     {
         QgsGeometry geom = QgsGeometry(triangle.polygon.clone());
 
         bool intersectsPrevious = false;
-        for (QgsFeatureId id: spatialIndex.intersects(geom.boundingBox()))
+        for (QgsFeatureId id: spatialIndexTriangles.intersects(geom.boundingBox()))
         {
-            if (spatialIndex.geometry(id).overlaps(geom))
+            if (spatialIndexTriangles.geometry(id).intersects(geom) && !spatialIndexTriangles.geometry(id).touches(geom))
             {
                 intersectsPrevious = true;
             }
@@ -655,14 +660,26 @@ QVector<QgsGeometry> QgsSceneToPointsAlgorithm::getPolygons(
 
         if (!intersectsPrevious)
         {
-            polygons.push_back(geom);
+            for (size_t j = 0; j < 3; j++ )
+            {
+                if (spatialIndexPoints.intersects(geom.vertexAt(j).boundingBox()).size() == 0)
+                {
+                    points.append(geom.vertexAt(j));
+                    QgsFeature featurePoint = QgsFeature(idPolygon);
+                    featurePoint.setGeometry(QgsGeometry::fromPoint(geom.vertexAt(j)));
+                    spatialIndexPoints.addFeature(featurePoint);
+                    idPoint++;
+                }
+            }
 
-            QgsFeature f = QgsFeature(i);
+            QgsFeature f = QgsFeature(idPolygon);
             f.setGeometry(QgsGeometry(geom));
-            spatialIndex.addFeature(f);
-            i++;
+            spatialIndexTriangles.addFeature(f);
+            idPolygon++;
         }
     }
+  return points;
+}
 QgsOrientedBox3D QgsSceneToPointsAlgorithm::fromExtent(const QgsRectangle &extent, const QgsCoordinateTransform &sceneToMapTransform)
 {
     const QVector< QgsVector3D > corners = QgsBox3D( extent, -10000, 10000 ).corners();
