@@ -276,7 +276,7 @@ QVector<QgsPoint> QgsSceneToPointsAlgorithm::getPolygons(
     for ( int i = 0; i < x.size(); i += 3 )
     {
         PolygonWithZ triangle;
-        triangle.z = ( z[i] + z[i+1] + z[i+2] ) / 3;
+        triangle.z = std::max(z[i], std::max(z[i+1], z[i+2])); // ( z[i] + z[i+1] + z[i+2] ) / 3;
         triangle.polygon = QgsPolygon(new QgsLineString( QVector<QgsPoint> {QgsPoint(x[i], y[i], z[i]),QgsPoint(x[i+1], y[i+1], z[i+1]),QgsPoint(x[i+2], y[i+2], z[i+2]), QgsPoint(x[i], y[i], z[i])} ));
 
         thisTileTriangleData.push_back(triangle);
@@ -343,7 +343,7 @@ QVector<QgsPoint> QgsSceneToPointsAlgorithm::getPolygons(
         index3 = uintPtrPrimitive[2];
       }
 
-      triangle.z = ( z[index1] + z[index2] + z[index3] ) / 3;
+      triangle.z = std::max(z[index1], std::max(z[index2], z[index3])); // ( z[index1] + z[index2] + z[index3] ) / 3;
       triangle.polygon = QgsPolygon(new QgsLineString( QVector<QgsPoint> {QgsPoint(x[index1], y[index1], z[index1]),QgsPoint(x[index2], y[index2], z[index2]),QgsPoint(x[index3], y[index3], z[index3]), QgsPoint(x[index1], y[index1], z[index1])} ));
       thisTileTriangleData.push_back(triangle);
     }
