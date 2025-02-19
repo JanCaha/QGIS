@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>QgsPostgresImportVectorLayerDialog</class>
+ <widget class="QDialog" name="QgsPostgresImportVectorLayerDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>480</width>
+    <height>627</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Import vector layer</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="mWdgInput" native="true">
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_5">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Input</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="4">
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QCheckBox" name="mChkSelectedFeatures">
+          <property name="text">
+           <string>Import only selected features</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="1" colspan="2">
+       <widget class="QComboBox" name="mCboInputLayer">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="editable">
+         <bool>true</bool>
+        </property>
+        <property name="insertPolicy">
+         <enum>QComboBox::NoInsert</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="4">
+       <widget class="Line" name="line">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QToolButton" name="mBtnChooseInputFile">
+        <property name="text">
+         <string>…</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="mGroupBoxOutput">
+     <property name="title">
+      <string>Output table</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>Table</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="mEditTable"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="mGroupBoxSettings">
+     <property name="title">
+      <string>Options</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="5" column="0" colspan="2">
+       <widget class="QCheckBox" name="mChkDropTable">
+        <property name="text">
+         <string>Replace destination table (if exists)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QCheckBox" name="mChkPrimaryKey">
+        <property name="text">
+         <string>Primary key</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="mEditPrimaryKey">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="mChkGeomColumn">
+        <property name="text">
+         <string>Geometry column</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="mEditGeomColumn">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QCheckBox" name="mChkEncoding">
+        <property name="toolTip">
+         <string>Input layer encoding</string>
+        </property>
+        <property name="text">
+         <string>Encoding</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="mCboEncoding">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="editable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0" colspan="2">
+       <widget class="QCheckBox" name="mChkSinglePart">
+        <property name="text">
+         <string>Do not promote to multi-part</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="0" colspan="2">
+       <widget class="QCheckBox" name="mChkSpatialIndex">
+        <property name="text">
+         <string>Create spatial index</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0" colspan="2">
+       <widget class="QCheckBox" name="mChkLowercaseFieldNames">
+        <property name="text">
+         <string>Convert field names to lowercase</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="mChkTargetSrid">
+        <property name="text">
+         <string>Target SRID</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="mChkSourceSrid">
+        <property name="text">
+         <string>Source SRID</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="0">
+       <widget class="QCheckBox" name="mChkComment">
+        <property name="text">
+         <string>Comment</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="1">
+       <widget class="QTextEdit" name="mEditComment">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QgsProjectionSelectionWidget" name="mWidgetSourceSrid" native="true"/>
+      </item>
+      <item row="3" column="1">
+       <widget class="QgsProjectionSelectionWidget" name="mWidgetTargetSrid" native="true"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="mButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+  <zorder>mGroupBoxSettings</zorder>
+  <zorder>mButtonBox</zorder>
+  <zorder>mGroupBoxOutput</zorder>
+  <zorder>mWdgInput</zorder>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsProjectionSelectionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsprojectionselectionwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>mCboInputLayer</tabstop>
+  <tabstop>mBtnChooseInputFile</tabstop>
+  <tabstop>mChkSelectedFeatures</tabstop>
+  <tabstop>mChkPrimaryKey</tabstop>
+  <tabstop>mEditPrimaryKey</tabstop>
+  <tabstop>mChkGeomColumn</tabstop>
+  <tabstop>mEditGeomColumn</tabstop>
+  <tabstop>mChkSourceSrid</tabstop>
+  <tabstop>mChkTargetSrid</tabstop>
+  <tabstop>mChkEncoding</tabstop>
+  <tabstop>mCboEncoding</tabstop>
+  <tabstop>mChkDropTable</tabstop>
+  <tabstop>mChkSinglePart</tabstop>
+  <tabstop>mChkLowercaseFieldNames</tabstop>
+  <tabstop>mChkSpatialIndex</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>mButtonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>QgsPostgresImportVectorLayerDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>343</x>
+     <y>617</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mChkPrimaryKey</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mEditPrimaryKey</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>150</x>
+     <y>212</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>458</x>
+     <y>213</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mChkGeomColumn</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mEditGeomColumn</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>150</x>
+     <y>240</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>458</x>
+     <y>241</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mChkEncoding</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mCboEncoding</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>150</x>
+     <y>323</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>458</x>
+     <y>324</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mButtonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>QgsPostgresImportVectorLayerDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>470</x>
+     <y>617</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>479</x>
+     <y>243</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mChkComment</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mEditComment</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>147</x>
+     <y>517</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>211</x>
+     <y>553</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

@@ -51,6 +51,7 @@ class QgsPostgresDataItemGuiProvider : public QObject, public QgsDataItemGuiProv
     static void refreshMaterializedView( QgsPGLayerItem *layerItem, QgsDataItemGuiContext context );
     static void saveConnections();
     static void loadConnections( QgsDataItem *item );
+    static void importVectorLayer( QgsPGSchemaItem *schemaItem, QgsDataItemGuiContext context );
 };
 
 #endif // QGSPOSTGRESDATAITEMGUIPROVIDER_H

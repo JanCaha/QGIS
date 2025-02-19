@@ -26,6 +26,7 @@
 #include "qgssettings.h"
 #include "qgspostgresconn.h"
 #include "qgspostgresutils.h"
+#include "qgspostgresimportvectorlayerdialog.h"
 
 #include <QFileDialog>
 #include <QInputDialog>
@@ -105,6 +106,10 @@ void QgsPostgresDataItemGuiProvider::populateContextMenu( QgsDataItem *item, QMe
     QAction *actionDelete = new QAction( tr( "Delete Schema…" ), menu );
     connect( actionDelete, &QAction::triggered, this, [schemaItem, context] { deleteSchema( schemaItem, context ); } );
     maintainMenu->addAction( actionDelete );
+
+    QAction *actionImportVectorLayer = new QAction( tr( "Import Vector Layer…" ), menu );
+    connect( actionImportVectorLayer, &QAction::triggered, this, [schemaItem, context] { importVectorLayer( schemaItem, context ); } );
+    maintainMenu->addAction( actionImportVectorLayer );
 
     menu->addMenu( maintainMenu );
   }
@@ -565,4 +570,14 @@ void QgsPostgresDataItemGuiProvider::loadConnections( QgsDataItem *item )
   QgsManageConnectionsDialog dlg( nullptr, QgsManageConnectionsDialog::Import, QgsManageConnectionsDialog::PostGIS, fileName );
   if ( dlg.exec() == QDialog::Accepted )
     item->refreshConnections();
+}
+
+void QgsPostgresDataItemGuiProvider::importVectorLayer( QgsPGSchemaItem *schemaItem, QgsDataItemGuiContext context )
+{
+  QgsPostgresImportVectorLayerDialog *dlg = new QgsPostgresImportVectorLayerDialog( schemaItem->connectionName(), schemaItem->name() );
+
+  if ( dlg->exec() == QDialog::Accepted )
+  {
+    schemaItem->refresh();
+  }
 }
