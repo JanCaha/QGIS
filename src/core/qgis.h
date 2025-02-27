@@ -3343,6 +3343,18 @@ class CORE_EXPORT Qgis
     Q_FLAG( HistoryProviderBackends )
 
     /**
+     * Stored query storage backends.
+     *
+     * \since QGIS 3.44
+     */
+    enum class QueryStorageBackend : int
+    {
+      LocalProfile, //!< Local user profile
+      CurrentProject, //!< Current QGIS project
+    };
+    Q_ENUM( QueryStorageBackend )
+
+    /**
      * Processing data source types.
      *
      * \note Prior to QGIS 3.36 this was available as QgsProcessing::SourceType
@@ -4331,6 +4343,24 @@ class CORE_EXPORT Qgis
     Q_DECLARE_FLAGS( LayerTreeFilterFlags, LayerTreeFilterFlag )
     Q_FLAG( LayerTreeFilterFlags )
 
+    /**
+     * Component of legends which can be styled.
+     *
+     * Prior to QGIS 3.42 this was available as QgsLegendStyle::Style
+     *
+     * \since QGIS 3.42
+     */
+    enum class LegendComponent SIP_MONKEYPATCH_SCOPEENUM_UNNEST( QgsLegendStyle, Style ) : int
+      {
+      Undefined, //!< Should not happen, only if corrupted project file
+      Hidden, //!< Special style, item is hidden including margins around
+      Title, //!< Legend title
+      Group, //!< Legend group title
+      Subgroup, //!< Legend subgroup title
+      Symbol, //!< Symbol icon (excluding label)
+      SymbolLabel, //!< Symbol label (excluding icon)
+    };
+    Q_ENUM( LegendComponent )
 
     /**
      * Legend JSON export flags.
@@ -4398,6 +4428,7 @@ class CORE_EXPORT Qgis
     enum class MapLayerActionFlag : int SIP_ENUM_BASETYPE( IntFlag )
     {
       EnabledOnlyWhenEditable = 1 << 1, //!< Action should be shown only for editable layers
+      EnableOnlyWhenHasGeometry = 1 << 2, //!< Action should be shown only for layers with geometry, \since QGIS 3.42
     };
     Q_ENUM( MapLayerActionFlag )
 

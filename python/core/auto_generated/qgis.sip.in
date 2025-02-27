@@ -1932,6 +1932,12 @@ The development version
     typedef QFlags<Qgis::HistoryProviderBackend> HistoryProviderBackends;
 
 
+    enum class QueryStorageBackend
+    {
+      LocalProfile,
+      CurrentProject,
+    };
+
     enum class ProcessingSourceType
       {
       MapLayer,
@@ -2432,6 +2438,16 @@ The development version
     typedef QFlags<Qgis::LayerTreeFilterFlag> LayerTreeFilterFlags;
 
 
+    enum class LegendComponent
+      {
+      Undefined,
+      Hidden,
+      Title,
+      Group,
+      Subgroup,
+      Symbol,
+      SymbolLabel,
+    };
 
     enum class LegendJsonRenderFlag
     {
@@ -2461,6 +2477,7 @@ The development version
     enum class MapLayerActionFlag
     {
       EnabledOnlyWhenEditable,
+      EnableOnlyWhenHasGeometry,
     };
 
     typedef QFlags<Qgis::MapLayerActionFlag> MapLayerActionFlags;
