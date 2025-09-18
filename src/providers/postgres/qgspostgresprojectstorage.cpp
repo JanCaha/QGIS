@@ -43,6 +43,14 @@ static bool _parseMetadataDocument( const QJsonDocument &doc, QgsProjectStorage:
       metadata.lastModified = lastModifiedUtc.toLocalTime();
     }
   }
+  if ( docObj.contains( "last_modified_user" ) )
+  {
+    QString lastModificationUser = docObj["last_modified_user"].toString();
+    if ( !lastModificationUser.isEmpty() )
+    {
+      metadata.lastModificationUser = lastModificationUser;
+    }
+  }
   return true;
 }
 

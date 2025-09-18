@@ -49,6 +49,8 @@ class CORE_EXPORT QgsProjectStorage
         QString name;
         //! Date and local time when the file was last modified.
         QDateTime lastModified;
+        //! Name of the user that did last modification.
+        QString lastModificationUser;
     };
 
     virtual ~QgsProjectStorage() = default;

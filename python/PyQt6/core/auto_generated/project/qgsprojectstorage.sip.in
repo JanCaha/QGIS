@@ -39,6 +39,7 @@ Metadata associated with a project.
       public:
         QString name;
         QDateTime lastModified;
+        QString lastModificationUser;
     };
 
     virtual ~QgsProjectStorage();
