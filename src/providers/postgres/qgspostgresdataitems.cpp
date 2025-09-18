@@ -29,6 +29,7 @@
 #include "qgsprovidermetadata.h"
 #include "qgsabstractdatabaseproviderconnection.h"
 #include "qgsproject.h"
+#include "qgspostgresutils.h"
 
 
 // ---------------------------------------------------------------------------
@@ -278,14 +279,43 @@ QVector<QgsDataItem *> QgsPGSchemaItem::createChildren()
     postUri.schemaName = mName;
     QString schemaUri = QgsPostgresProjectStorage::encodeUri( postUri );
     const QStringList projectNames = storage->listProjects( schemaUri );
+
+    QgsDataSourceUri uri = QgsPostgresConn::connUri( mConnectionName );
+    QgsPostgresConn *conn = QgsPostgresConn::connectDb( QgsPostgresConn::connectionInfo( uri, false ), true );
+
+    QMap<QString, QString> projectsComments;
+
+    if ( QgsPostgresUtils::columnExists( conn, mName, QStringLiteral( "qgis_projects" ), QStringLiteral( "comment" ) ) )
+    {
+      const QString sqlProjectComments = QStringLiteral( "SELECT name, comment FROM %1.qgis_projects" ).arg( mName );
+
+      QgsPostgresResult result( conn->LoggedPQexec( "QgsPostgresDataItem", sqlProjectComments ) );
+      if ( result.PQntuples() > 0 )
+      {
+        for ( int i = 0; i < result.PQntuples(); i++ )
+        {
+          projectsComments.insert( result.PQgetvalue( i, 0 ), result.PQgetvalue( i, 1 ) );
+        }
+      }
+    }
+
     for ( const QString &projectName : projectNames )
     {
       QgsPostgresProjectUri projectUri( postUri );
       projectUri.projectName = projectName;
-      items.append( new QgsPGProjectItem( this, projectName, projectUri, mName, mConnectionName ) );
-    }
-  }
 
+      QgsProjectStorage::Metadata metadata;
+      storage->readProjectStorageMetadata( QgsPostgresProjectStorage::encodeUri( projectUri ), metadata );
+
+      QgsPGProjectItem *projectItem = new QgsPGProjectItem( this, projectName, projectUri, mName, mConnectionName );
+      projectItem->setToolTip( tr( "Last change: %1\n"
+                                   "Last edit by: %2\n"
+                                   "Comment: %3" )
+                                 .arg( metadata.lastModified.toString( Qt::ISODate ), metadata.lastModificationUser, projectsComments.value( projectName, QString() ) ) );
+      items.append( projectItem );
+    }
+    conn->unref();
+  }
   return items;
 }
 
