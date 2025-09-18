@@ -163,6 +163,18 @@ bool QgsPostgresProjectStorage::writeProject( const QString &uri, QIODevice *dev
     }
   }
 
+  if ( !QgsPostgresUtils::columnExists( conn, projectUri.schemaName, QStringLiteral( "qgis_projects" ), QStringLiteral( "comment" ) ) )
+  {
+    QgsPostgresResult res( conn->PQexec( QStringLiteral( "ALTER TABLE %1.qgis_projects ADD comment TEXT;" ).arg( projectUri.schemaName ) ) );
+    if ( res.PQresultStatus() != PGRES_COMMAND_OK )
+    {
+      QString errCause = QObject::tr( "Unable to save project. It's not possible to create comment column in the destination table on the database. Maybe this is due to database permissions (user=%1). Please contact your database admin." ).arg( projectUri.connInfo.username() );
+      context.pushMessage( errCause, Qgis::MessageLevel::Critical );
+      QgsPostgresConnPool::instance()->releaseConnection( conn );
+      return false;
+    }
+  }
+
   // read from device and write to the table
   QByteArray content = device->readAll();
 
