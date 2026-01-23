@@ -1002,6 +1002,8 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
      */
     void makeMemoryLayerPermanent( QgsVectorLayer *layer );
 
+    //! load qml style for current layer
+    void loadStyleFromFile( QgsMapLayer *layer = nullptr );
     //! save qml style for the current layer
     void saveStyleFile( QgsMapLayer *layer = nullptr );
     //! save qrl definition for the current layer
