@@ -8344,7 +8344,7 @@ void QgisApp::saveAsLayerDefinition()
   settings.setValue( u"UI/lastQLRDir"_s, fi.path() );
 }
 
-void QgisApp::loadStyleFromFile( const QList<QgsMapLayer *> layers )
+void QgisApp::loadStyleFromFile( const QList<QgsMapLayer *> &layers )
 {
   if ( layers.empty() )
   {
