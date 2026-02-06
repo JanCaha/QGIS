@@ -26,6 +26,7 @@
 #include "qgsmeshlayerproperties.h"
 #include "qgsmeshlayertemporalproperties.h"
 #include "qgsmessagebar.h"
+#include "qgsmessageviewer.h"
 #include "qgspointcloudlayer.h"
 #include "qgspointcloudlayerproperties.h"
 #include "qgsproject.h"
@@ -1892,6 +1893,20 @@ void QgsAppLayerHandling::loadStyleFromFile( const QList<QgsMapLayer *> &layers 
 
   if ( !failedLayers.empty() )
   {
-    QgisApp::instance()->visibleMessageBar()->pushMessage( QObject::tr( "Load Style" ), QObject::tr( "Could not load style for layers:  %1." ).arg( failedLayers.join( ", " ) ), Qgis::MessageLevel::Warning );
+    QgsMessageBarItem *barItem = new QgsMessageBarItem( QObject::tr( "Load Style" ), QObject::tr( "Could not load style for layers." ), Qgis::MessageLevel::Warning, 0 );
+    QPushButton *button = new QPushButton( QObject::tr( "More Info" ), barItem );
+    barItem->setWidget( button );
+    QObject::connect( button, &QPushButton::clicked, barItem, [barItem, failedLayers]() {
+      const QString message = QObject::tr( "Could not load style for layers." )
+                              + u"\n\n"_s
+                              + QObject::tr( "Layers where style loading failed:  %1." ).arg( failedLayers.join( ", " ) );
+
+      QgsMessageViewer *dialog = new QgsMessageViewer( barItem );
+      dialog->setTitle( QObject::tr( "Load Style" ) );
+      dialog->setMessageAsPlainText( message );
+      dialog->showMessage();
+    } );
+
+    QgisApp::instance()->visibleMessageBar()->pushItem( barItem );
   }
 }
