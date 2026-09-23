@@ -42,6 +42,7 @@
 #include "qgsnewauxiliaryfielddialog.h"
 #include "qgsnewauxiliarylayerdialog.h"
 #include "qgsnumericformatselectorwidget.h"
+#include "qgsproject.h"
 #include "qgsproperty.h"
 #include "qgspropertyoverridebutton.h"
 #include "qgssnappingutils.h"
@@ -81,6 +82,7 @@ QgsExpressionContext QgsSymbolLayerWidget::createExpressionContext() const
     return *lExpressionContext;
 
   QgsExpressionContext expContext( mContext.globalProjectAtlasMapLayerScopes( vectorLayer() ) );
+  expContext.setProject( QgsProject::instance() );
 
   QgsExpressionContextScope *symbolScope = QgsExpressionContextUtils::updateSymbolScope( nullptr, new QgsExpressionContextScope() );
   if ( const QgsSymbolLayer *symbolLayer = const_cast<QgsSymbolLayerWidget *>( this )->symbolLayer() )

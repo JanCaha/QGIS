@@ -22,6 +22,7 @@
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
 #include "qgspanelwidget.h"
+#include "qgsproject.h"
 #include "qgsreadwritecontext.h"
 #include "qgsrulebasedrenderer.h"
 #include "qgssettings.h"
@@ -634,6 +635,7 @@ void QgsRuleBasedRendererWidget::countFeatures()
   renderContext.setRendererScale( 0 ); // ignore scale
 
   QgsExpressionContext context( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
+  context.setProject( QgsProject::instance() );
 
   // additional scopes
   const auto constAdditionalExpressionContextScopes = mContext.additionalExpressionContextScopes();
@@ -827,6 +829,7 @@ void QgsRendererRulePropsDialog::showHelp()
 void QgsRendererRulePropsWidget::buildExpression()
 {
   QgsExpressionContext context( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
+  context.setProject( QgsProject::instance() );
 
   // additional scopes
   const auto constAdditionalExpressionContextScopes = mContext.additionalExpressionContextScopes();
@@ -854,6 +857,7 @@ void QgsRendererRulePropsWidget::testFilter()
   }
 
   QgsExpressionContext context( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
+  context.setProject( QgsProject::instance() );
 
   // additional scopes
   const auto constAdditionalExpressionContextScopes = mContext.additionalExpressionContextScopes();

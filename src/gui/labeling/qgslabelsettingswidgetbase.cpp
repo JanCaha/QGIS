@@ -21,6 +21,7 @@
 #include "qgsgui.h"
 #include "qgsnewauxiliaryfielddialog.h"
 #include "qgsnewauxiliarylayerdialog.h"
+#include "qgsproject.h"
 #include "qgspropertyoverridebutton.h"
 
 #include <QString>
@@ -53,6 +54,7 @@ QgsExpressionContext QgsLabelSettingsWidgetBase::createExpressionContext() const
     return *lExpressionContext;
 
   QgsExpressionContext expContext( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
+  expContext.setProject( QgsProject::instance() );
   QgsExpressionContextScope *symbolScope = QgsExpressionContextUtils::updateSymbolScope( nullptr, new QgsExpressionContextScope() );
   symbolScope->addVariable( QgsExpressionContextScope::StaticVariable( QgsExpressionContext::EXPR_SYMBOL_COLOR, QColor(), true ) );
   expContext << symbolScope;
