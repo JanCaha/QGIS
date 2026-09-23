@@ -496,7 +496,6 @@ class CORE_EXPORT QgsExpressionContext
     /**
      * Initializes the context with given list of scopes.
      * Ownership of the scopes is transferred to the stack.
-     *
      */
     explicit QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes SIP_TRANSFER );
 
@@ -884,7 +883,10 @@ class CORE_EXPORT QgsExpressionContext
     void setProject( QgsProject *project );
 
     /**
-     * Returns the project associated with the context, if set.
+     * Returns the project associated with the context.
+     *
+     * If no project has been set (or the project was deleted), falls back to QgsProject.instance()
+     * and logs a warning. This fallback will be removed in QGIS 5.0.
      *
      * \see setProject()
      * \since QGIS 4.6

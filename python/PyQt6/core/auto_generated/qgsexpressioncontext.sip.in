@@ -963,7 +963,11 @@ Sets the ``project`` associated with the context.
 
     QgsProject *project() const;
 %Docstring
-Returns the project associated with the context, if set.
+Returns the project associated with the context.
+
+If no project has been set (or the project was deleted), falls back to
+:py:func:`QgsProject.instance()` and logs a warning. This fallback will
+be removed in QGIS 5.0.
 
 .. seealso:: :py:func:`setProject`
 
