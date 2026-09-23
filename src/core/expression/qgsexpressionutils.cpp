@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "qgscolorrampimpl.h"
+#include "qgsmessagelog.h"
 #include "qgsproject.h"
 #include "qgsproviderregistry.h"
 #include "qgssymbollayerutils.h"
@@ -82,6 +83,8 @@ static QgsProject *contextOrCurrentProject( const QgsExpressionContext *context 
   if ( context && context->project() )
     return context->project();
 
+  QgsMessageLog::
+    logMessage( "QgsExpressionUtils function called without context or with expression context without specified project. Defaulting to QgsProject.instance(). This fallback will be removed in QGIS 5.0.", "QgsExpressionUtils", Qgis::Warning );
   return QgsProject::instance(); // skip-keyword-check
 }
 
