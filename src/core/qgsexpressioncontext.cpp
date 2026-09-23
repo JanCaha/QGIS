@@ -341,18 +341,7 @@ QgsExpressionContext::QgsExpressionContext()
 
 // TODO QGIS 5.0 -- remove this constructor in favor of the one taking an explicit project
 QgsExpressionContext::QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes )
-  : QgsExpressionContext( nullptr, scopes )
-{}
-
-QgsExpressionContext::QgsExpressionContext( QgsProject *project )
-  : mProject( project )
-{
-  mLoadLayerFunction = std::make_unique< LoadLayerFunction >();
-}
-
-QgsExpressionContext::QgsExpressionContext( QgsProject *project, const QList<QgsExpressionContextScope *> &scopes )
   : mStack( scopes )
-  , mProject( project )
 {
   mLoadLayerFunction = std::make_unique< LoadLayerFunction >();
 }

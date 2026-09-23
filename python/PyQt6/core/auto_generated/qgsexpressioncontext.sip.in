@@ -503,34 +503,10 @@ with :py:class:`QgsExpressionContext` objects.
   public:
     QgsExpressionContext();
 
- explicit QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes /Transfer/ ) /Deprecated="Since 4.6. Use the constructor accepting a QgsProject instead."/;
+    explicit QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes /Transfer/ );
 %Docstring
 Initializes the context with given list of scopes. Ownership of the
 scopes is transferred to the stack.
-
-.. deprecated:: 4.6
-
-   Use the constructor accepting a :py:class:`QgsProject` instead.
-%End
-
-    explicit QgsExpressionContext( QgsProject *project );
-%Docstring
-Initializes the context with the given ``project``.
-
-.. versionadded:: 4.6
-%End
-
-    explicit QgsExpressionContext( QgsProject *project, const QList<QgsExpressionContextScope *> &scopes /Transfer/ );
-%Docstring
-Initializes the context with the given ``project`` and list of
-``scopes``.
-
-Ownership of the ``scopes`` is transferred to the stack.
-
-The ``project`` is not transferred, and the caller must ensure that it
-exists for the lifetime of the expression context.
-
-.. versionadded:: 4.6
 %End
 
     QgsExpressionContext( const QgsExpressionContext &other );

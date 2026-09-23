@@ -497,28 +497,8 @@ class CORE_EXPORT QgsExpressionContext
      * Initializes the context with given list of scopes.
      * Ownership of the scopes is transferred to the stack.
      *
-     * \deprecated QGIS 4.6. Use the constructor accepting a QgsProject instead.
      */
-    Q_DECL_DEPRECATED explicit QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes SIP_TRANSFER ) SIP_DEPRECATED;
-
-    /**
-     * Initializes the context with the given \a project.
-     *
-     * \since QGIS 4.6
-     */
-    explicit QgsExpressionContext( QgsProject *project );
-
-    /**
-     * Initializes the context with the given \a project and list of \a scopes.
-     *
-     * Ownership of the \a scopes is transferred to the stack.
-     *
-     * The \a project is not transferred, and the caller must ensure that it exists
-     * for the lifetime of the expression context.
-     *
-     * \since QGIS 4.6
-     */
-    explicit QgsExpressionContext( QgsProject *project, const QList<QgsExpressionContextScope *> &scopes SIP_TRANSFER );
+    explicit QgsExpressionContext( const QList<QgsExpressionContextScope *> &scopes SIP_TRANSFER );
 
     QgsExpressionContext( const QgsExpressionContext &other );
     SIP_SKIP QgsExpressionContext( QgsExpressionContext &&other );
