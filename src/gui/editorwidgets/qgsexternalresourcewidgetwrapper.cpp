@@ -85,7 +85,7 @@ void QgsExternalResourceWidgetWrapper::updateProperties( const QgsFeature &featu
 {
   if ( mQgsWidget && mPropertyCollection.hasActiveProperties() )
   {
-    QgsExpressionContext expressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( layer() ) );
+    QgsExpressionContext expressionContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer() ) );
     expressionContext.setFeature( feature );
     bool ok = false;
 

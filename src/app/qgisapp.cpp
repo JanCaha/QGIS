@@ -15163,7 +15163,7 @@ void QgisApp::selectionChanged( const QgsFeatureIds &, const QgsFeatureIds &, bo
         const int selectedCount = vlayer->selectedFeatureCount();
         if ( selectedCount == 1 )
         {
-          QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vlayer ) );
+          QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vlayer ) );
           QgsExpression exp = vlayer->displayExpression();
           exp.prepare( &context );
 

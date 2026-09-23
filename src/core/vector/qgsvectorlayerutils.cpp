@@ -572,7 +572,7 @@ QgsFeatureList QgsVectorLayerUtils::createFeatures( const QgsVectorLayer *layer,
   if ( !evalContext )
   {
     // no context passed, so we create a default one
-    tempContext = std::make_unique<QgsExpressionContext>( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+    tempContext = std::make_unique<QgsExpressionContext>( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
     evalContext = tempContext.get();
   }
 
@@ -1294,7 +1294,7 @@ QgsMaskedLayers QgsVectorLayerUtils::collectObjectsMaskedBySymbolLayersFromLayer
 
 QString QgsVectorLayerUtils::getFeatureDisplayString( const QgsVectorLayer *layer, const QgsFeature &feature )
 {
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
 
   QgsExpression exp( layer->displayExpression() );
   context.setFeature( feature );

@@ -536,7 +536,7 @@ void QgsVectorLayer::selectByExpression( const QString &expression, Qgis::Select
   std::optional< QgsExpressionContext > defaultContext;
   if ( !context )
   {
-    defaultContext.emplace( QgsExpressionContextUtils::globalProjectLayerScopes( this ) );
+    defaultContext.emplace( QgsExpressionContextUtils::globalProjectLayerScopeContext( this ) );
     context = &defaultContext.value();
   }
   else
@@ -4920,7 +4920,7 @@ QVariant QgsVectorLayer::defaultValue( int index, const QgsFeature &feature, Qgs
   if ( !evalContext )
   {
     // no context passed, so we create a default one
-    tempContext = std::make_unique<QgsExpressionContext>( QgsExpressionContextUtils::globalProjectLayerScopes( this ) );
+    tempContext = std::make_unique<QgsExpressionContext>( QgsExpressionContextUtils::globalProjectLayerScopeContext( this ) );
     evalContext = tempContext.get();
   }
 
@@ -6099,7 +6099,7 @@ QgsExpressionContext QgsVectorLayer::createExpressionContext() const
   // called in a non-thread-safe way in some cases when calculating aggregates in a different thread
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS_NON_FATAL
 
-  return QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( this ) );
+  return QgsExpressionContextUtils::globalProjectLayerScopeContext( this );
 }
 
 QgsExpressionContextScope *QgsVectorLayer::createExpressionContextScope() const

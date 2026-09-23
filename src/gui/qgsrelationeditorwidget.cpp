@@ -993,7 +993,7 @@ void QgsRelationEditorConfigWidget::mEditExpression_clicked()
   }
 
   // Show expression builder
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vl ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vl ) );
   QgsExpressionBuilderDialog dlg( vl, mFilterExpression->toPlainText(), this, u"generic"_s, context );
   dlg.setWindowTitle( tr( "Edit Filter Expression of Target Layer" ) );
 

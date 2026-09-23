@@ -166,7 +166,7 @@ void QgsValueRelationConfigDlg::editExpression()
   if ( !vl )
     return;
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vl ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vl ) );
   context << QgsExpressionContextUtils::formScope();
   context << QgsExpressionContextUtils::parentFormScope();
 
