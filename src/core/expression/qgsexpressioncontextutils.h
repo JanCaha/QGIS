@@ -156,7 +156,7 @@ class CORE_EXPORT QgsExpressionContextUtils
 
     /**
      * Creates a new expression context containing global, layer's project and layer scopes for \a layer,
-     * with the associated project (see projectForLayer()) already set on the context.
+     * with the layer's project (or QgsProject.instance() as a fallback) already set on the context.
      *
      * \since QGIS 4.6
      */

@@ -165,9 +165,9 @@ Creates a list of three scopes: global, layer's project and layer.
     static QgsExpressionContext globalProjectLayerScopeContext( const QgsMapLayer *layer );
 %Docstring
 Creates a new expression context containing global, layer's project and
-layer scopes for ``layer``, with the associated project (see
-:py:func:`~QgsExpressionContextUtils.projectForLayer`) already set on
-the context.
+layer scopes for ``layer``, with the layer's project (or
+:py:func:`QgsProject.instance()` as a fallback) already set on the
+context.
 
 .. versionadded:: 4.6
 %End
