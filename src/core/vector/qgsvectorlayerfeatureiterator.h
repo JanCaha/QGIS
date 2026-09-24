@@ -37,6 +37,7 @@ class QgsVectorLayerEditBuffer;
 class QgsVectorLayerJoinBuffer;
 class QgsVectorLayerJoinInfo;
 class QgsExpressionContext;
+class QgsProject;
 
 class QgsVectorLayerFeatureIterator;
 
@@ -125,6 +126,7 @@ class QgsVectorLayerFeatureIterator;
 
     QString mId;
 
+    QPointer< QgsProject > mProject;
     QgsExpressionContextScope mLayerScope;
 
     bool mHasEditBuffer;
