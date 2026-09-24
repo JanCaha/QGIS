@@ -286,7 +286,7 @@ void QgsGeometryGapCheck::fixError( const QMap<QString, QgsFeaturePool *> &featu
         if ( layer )
         {
           const QgsGeometry geometry = error->geometry();
-          QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+          QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
           QgsFeature feature = QgsVectorLayerUtils::createFeature( layer, geometry, QgsAttributeMap(), &context );
           if ( !layer->addFeature( feature ) )
           {

@@ -918,7 +918,7 @@ QgsIdentifyResultsFeatureItem *QgsIdentifyResultsDialog::createFeatureItem( QgsV
   if ( !featureLabeled )
   {
     featItem->setText( 0, tr( "Title" ) );
-    QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vlayer ) );
+    QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vlayer ) );
     context.setFeature( f );
 
     const QString value = QgsExpression( vlayer->displayExpression() ).evaluate( &context ).toString();

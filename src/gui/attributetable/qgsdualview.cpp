@@ -403,7 +403,7 @@ void QgsDualView::setFilterMode( QgsAttributeTableFilterModel::FilterMode filter
     case QgsAttributeTableFilterModel::ShowInvalid:
     {
       mMasterModel->setShowValidityState( true );
-      const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+      const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
       filterFeatures( u"is_feature_valid() = false"_s, context );
       connect( mFilterModel, &QgsAttributeTableFilterModel::featuresFiltered, this, &QgsDualView::filterChanged );
       connect( mFilterModel, &QgsAttributeTableFilterModel::filterError, this, &QgsDualView::filterError );
@@ -780,7 +780,7 @@ void QgsDualView::toggleSearchMode( bool enabled )
 void QgsDualView::previewExpressionBuilder()
 {
   // Show expression builder
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 
   QgsExpressionBuilderDialog dlg( mLayer, mFeatureListView->displayExpression(), this, u"generic"_s, context );
   dlg.setWindowTitle( tr( "Expression Based Preview" ) );
@@ -1223,7 +1223,7 @@ bool QgsDualView::modifySort()
   sortingGroupBox->setLayout( new QGridLayout() );
 
   QgsExpressionBuilderWidget *expressionBuilder = new QgsExpressionBuilderWidget();
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 
   expressionBuilder->initWithLayer( mLayer, context, u"generic"_s );
   expressionBuilder->setExpressionText( sortExpression().isEmpty() ? mLayer->displayExpression() : sortExpression() );

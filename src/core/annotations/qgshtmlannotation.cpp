@@ -176,7 +176,7 @@ void QgsHtmlAnnotation::setAssociatedFeature( const QgsFeature &feature )
   QgsVectorLayer *vectorLayer = qobject_cast< QgsVectorLayer * >( mapLayer() );
   if ( feature.isValid() && vectorLayer )
   {
-    QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vectorLayer ) );
+    QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vectorLayer ) );
     context.setFeature( feature );
     newText = QgsExpression::replaceExpressionText( mHtmlSource, &context );
   }

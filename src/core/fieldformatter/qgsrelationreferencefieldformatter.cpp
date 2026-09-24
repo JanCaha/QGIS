@@ -108,7 +108,7 @@ QString QgsRelationReferenceFieldFormatter::representValue( QgsVectorLayer *laye
     return value.toString();
 
   QgsExpression expr( referencedLayer->displayExpression() );
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( referencedLayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( referencedLayer ) );
   context.setFeature( feature );
   QString title = expr.evaluate( &context ).toString();
   if ( expr.hasEvalError() )
@@ -181,7 +181,7 @@ QVariant QgsRelationReferenceFieldFormatter::createCache( QgsVectorLayer *layer,
   QgsFeature feature;
   auto iterator = referencedLayer->getFeatures( request );
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( referencedLayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( referencedLayer ) );
 
   expr.prepare( &context );
 

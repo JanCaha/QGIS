@@ -52,7 +52,7 @@ class QgsFeatureExpressionValuesGatherer : public QThread
     )
       : mSource( new QgsVectorLayerFeatureSource( layer ) )
       , mDisplayExpression( displayExpression.isEmpty() ? layer->displayExpression() : displayExpression )
-      , mExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) )
+      , mExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) )
       , mRequest( request )
       , mIdentifierFields( identifierFields )
     {}
@@ -67,7 +67,7 @@ class QgsFeatureExpressionValuesGatherer : public QThread
       : mSource( new QgsVectorLayerFeatureSource( layer ) )
       , mDisplayExpression( displayExpression.isEmpty() ? layer->displayExpression() : displayExpression )
       , mOrderExpression( orderExpression.isEmpty() ? displayExpression.isEmpty() ? layer->displayExpression() : displayExpression : orderExpression )
-      , mExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) )
+      , mExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) )
       , mRequest( request )
       , mIdentifierFields( identifierFields )
     {}

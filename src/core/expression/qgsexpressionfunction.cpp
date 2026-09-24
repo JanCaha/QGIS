@@ -8678,7 +8678,7 @@ static QVariant executeGeomOverlay(
     if ( !context->hasCachedValue( expCacheKey ) || !context->hasCachedValue( ctxCacheKey ) )
     {
       subExpression = QgsExpression( subExpString );
-      subContext = QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( targetLayer ) );
+      subContext = QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( targetLayer ) );
       subExpression.prepare( &subContext );
     }
     else

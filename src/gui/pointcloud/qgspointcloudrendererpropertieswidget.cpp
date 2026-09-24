@@ -472,6 +472,7 @@ QgsExpressionContext QgsPointCloudRendererPropertiesWidget::createExpressionCont
     return *lExpressionContext;
 
   QgsExpressionContext context( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
+  context.setProject( QgsProject::instance() );
 
   auto pointCloudScope = std::make_unique<QgsExpressionContextScope>( tr( "Point Cloud" ) );
   context.appendScope( pointCloudScope.release() );

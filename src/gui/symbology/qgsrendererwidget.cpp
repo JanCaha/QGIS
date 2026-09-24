@@ -407,6 +407,7 @@ QgsExpressionContext QgsRendererWidget::createExpressionContext() const
     return *lExpressionContext;
 
   QgsExpressionContext expContext( mContext.globalProjectAtlasMapLayerScopes( vectorLayer() ) );
+  expContext.setProject( QgsProject::instance() );
 
   // additional scopes
   const auto constAdditionalExpressionContextScopes = mContext.additionalExpressionContextScopes();

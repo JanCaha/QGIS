@@ -337,7 +337,7 @@ QgsConditionalStyle QgsEditConditionalFormatRuleWidget::currentStyle() const
 
 void QgsEditConditionalFormatRuleWidget::setExpression()
 {
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
   context.lastScope()->addVariable( QgsExpressionContextScope::StaticVariable( u"value"_s, 0, true ) );
   context.setHighlightedVariables( QStringList() << u"value"_s );
 

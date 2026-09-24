@@ -433,7 +433,8 @@ const QgsLayoutGuideCollection &QgsLayout::guides() const
 
 QgsExpressionContext QgsLayout::createExpressionContext() const
 {
-  QgsExpressionContext context = QgsExpressionContext();
+  QgsExpressionContext context;
+  context.setProject( mProject );
   context.appendScope( QgsExpressionContextUtils::globalScope() );
   context.appendScope( QgsExpressionContextUtils::projectScope( mProject ) );
   if ( mReportContext->layer() )

@@ -284,7 +284,7 @@ QString QgsMapTip::fetchFeature( QgsMapLayer *layer, QgsPointXY &mapPosition, Qg
 
   r = mapCanvas->mapSettings().mapToLayerCoordinates( layer, r );
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vlayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vlayer ) );
   context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mapCanvas->mapSettings() ) );
   context.appendScope( QgsExpressionContextUtils::mapLayerPositionScope( r.center() ) );
 
@@ -394,7 +394,7 @@ QString QgsMapTip::fetchRaster( QgsMapLayer *layer, QgsPointXY &mapPosition, Qgs
     return QString();
   }
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
   context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mapCanvas->mapSettings() ) );
   context.appendScope( QgsExpressionContextUtils::mapLayerPositionScope( mappedPosition ) );
   return QgsExpression::replaceExpressionText( rlayer->mapTipTemplate(), &context );
@@ -431,7 +431,7 @@ QString QgsMapTip::vectorMapTipPreviewText( QgsMapLayer *layer, QgsMapCanvas *ma
     return QString();
 
   // Create an expression context
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vlayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vlayer ) );
   context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mapCanvas->mapSettings() ) );
 
   // Get the first feature if any, and add it to the expression context
@@ -473,7 +473,7 @@ QString QgsMapTip::rasterMapTipPreviewText( QgsMapLayer *layer, QgsMapCanvas *ma
   }
 
   // Create an expression context
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
   context.appendScope( QgsExpressionContextUtils::mapSettingsScope( mapCanvas->mapSettings() ) );
 
   // Get the position of the center of the layer, and add it to the expression context

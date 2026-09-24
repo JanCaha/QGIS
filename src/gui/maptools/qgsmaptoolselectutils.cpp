@@ -750,7 +750,7 @@ void QgsMapToolSelectUtils::QgsMapToolSelectMenuActions::populateChooseOneMenu( 
   while ( displayedFeatureIds.count() <= 20 && it != ids.constEnd() ) //for now hardcoded, but maybe define a settings for this
     displayedFeatureIds.insert( *( it++ ) );
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mVectorLayer ) );
   QgsExpression exp = mVectorLayer->displayExpression();
   exp.prepare( &context );
 

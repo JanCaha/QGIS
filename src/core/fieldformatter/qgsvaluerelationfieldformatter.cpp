@@ -150,7 +150,7 @@ QgsValueRelationFieldFormatter::ValueRelationCache QgsValueRelationFieldFormatte
 
   const QString descriptionExpressionString = config.value( "Description" ).toString();
   QgsExpression descriptionExpression( descriptionExpressionString );
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
   descriptionExpression.prepare( &context );
   subsetOfAttributes += descriptionExpression.referencedAttributeIndexes( layer->fields() );
   request.setSubsetOfAttributes( qgis::setToList( subsetOfAttributes ) );

@@ -20,6 +20,7 @@
 #include "qgslinesymbol.h"
 #include "qgsmarkersymbol.h"
 #include "qgsnewauxiliarylayerdialog.h"
+#include "qgsproject.h"
 #include "qgsprojectstylesettings.h"
 #include "qgsstyleitemslistwidget.h"
 #include "qgsstylesavedialog.h"
@@ -579,6 +580,7 @@ QgsExpressionContext QgsSymbolsListWidget::createExpressionContext() const
 
   //otherwise create a default symbol context
   QgsExpressionContext expContext( mContext.globalProjectAtlasMapLayerScopes( layer() ) );
+  expContext.setProject( QgsProject::instance() );
 
   // additional scopes
   const auto constAdditionalExpressionContextScopes = mContext.additionalExpressionContextScopes();

@@ -74,7 +74,7 @@ QgsFieldCalculator::QgsFieldCalculator( QgsVectorLayer *vl, QWidget *parent, con
   mCanAddAttribute = !layerIsReadOnly && ( caps & Qgis::VectorProviderCapability::AddAttributes );
   mCanChangeAttributeValue = !layerIsReadOnly && ( caps & Qgis::VectorProviderCapability::ChangeAttributeValues );
 
-  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
+  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( mVectorLayer ) );
 
   expContext.lastScope()->addVariable( QgsExpressionContextScope::StaticVariable( u"row_number"_s, 1, true ) );
   expContext.setHighlightedVariables( QStringList() << u"row_number"_s );
@@ -202,7 +202,7 @@ void QgsFieldCalculator::calculate()
   exp.setDistanceUnits( QgsProject::instance()->distanceUnits() );
   exp.setAreaUnits( QgsProject::instance()->areaUnits() );
 
-  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
+  QgsExpressionContext expContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( mVectorLayer ) );
 
   if ( !exp.prepare( &expContext ) )
   {

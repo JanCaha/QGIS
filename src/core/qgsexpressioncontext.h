@@ -29,6 +29,7 @@
 
 class QgsReadWriteContext;
 class QgsMapLayerStore;
+class QgsProject;
 class LoadLayerFunction;
 
 /**
@@ -874,6 +875,25 @@ class CORE_EXPORT QgsExpressionContext
     QgsMapLayerStore *loadedLayerStore() const;
 
     /**
+     * Sets the \a project associated with the context.
+     *
+     * \see project()
+     * \since QGIS 4.6
+     */
+    void setProject( QgsProject *project );
+
+    /**
+     * Returns the project associated with the context.
+     *
+     * If no project has been set (or the project was deleted), falls back to QgsProject.instance()
+     * and logs a warning. This fallback will be removed in QGIS 5.0.
+     *
+     * \see setProject()
+     * \since QGIS 4.6
+     */
+    QgsProject *project() const;
+
+    /**
      * Attach a \a feedback object that can be queried regularly by the expression engine to check
      * if expression evaluation should be canceled.
      *
@@ -944,6 +964,7 @@ class CORE_EXPORT QgsExpressionContext
 
     std::unique_ptr< LoadLayerFunction > mLoadLayerFunction;
     QPointer< QgsMapLayerStore > mDestinationStore;
+    QPointer< QgsProject > mProject;
 
     // Cache is mutable because we want to be able to add cached values to const contexts
     mutable QMap< QString, QVariant > mCachedValues;

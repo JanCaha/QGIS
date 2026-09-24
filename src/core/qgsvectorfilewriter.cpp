@@ -3662,7 +3662,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::prepareWriteAsVectorFormat
     details.geometryTypeScanIterator = layer->getFeatures( req );
   }
 
-  details.expressionContext = QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  details.expressionContext = QgsExpressionContextUtils::globalProjectLayerScopeContext( layer );
   details.renderContext.setExpressionContext( details.expressionContext );
   details.renderContext.setRendererScale( options.symbologyScale );
 

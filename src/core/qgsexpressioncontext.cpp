@@ -18,6 +18,7 @@
 #include "qgsexpression.h"
 #include "qgsexpressioncontextutils.h"
 #include "qgsmaplayerstore.h"
+#include "qgsproject.h"
 #include "qgsxmlutils.h"
 
 #include <QString>
@@ -357,6 +358,7 @@ QgsExpressionContext::QgsExpressionContext( const QgsExpressionContext &other )
   mCachedValues = other.mCachedValues;
   mFeedback = other.mFeedback;
   mDestinationStore = other.mDestinationStore;
+  mProject = other.mProject;
   mLoadLayerFunction = std::make_unique< LoadLayerFunction >();
   //****** IMPORTANT! editing this? make sure you update the move constructor too! *****
 }
@@ -368,6 +370,7 @@ QgsExpressionContext::QgsExpressionContext( QgsExpressionContext &&other )
   , mFeedback( other.mFeedback )
   , mLoadLayerFunction( std::move( other.mLoadLayerFunction ) )
   , mDestinationStore( std::move( other.mDestinationStore ) )
+  , mProject( std::move( other.mProject ) )
   , mCachedValues( std::move( other.mCachedValues ) )
 {}
 
@@ -385,6 +388,7 @@ QgsExpressionContext &QgsExpressionContext::operator=( QgsExpressionContext &&ot
     mCachedValues = std::move( other.mCachedValues );
     mFeedback = other.mFeedback;
     mDestinationStore = std::move( other.mDestinationStore );
+    mProject = std::move( other.mProject );
   }
   return *this;
 }
@@ -407,6 +411,7 @@ QgsExpressionContext &QgsExpressionContext::operator=( const QgsExpressionContex
   mCachedValues = other.mCachedValues;
   mFeedback = other.mFeedback;
   mDestinationStore = other.mDestinationStore;
+  mProject = other.mProject;
   //****** IMPORTANT! editing this? make sure you update the move assignment operator too! *****
   return *this;
 }
@@ -803,6 +808,16 @@ void QgsExpressionContext::setLoadedLayerStore( QgsMapLayerStore *store )
 QgsMapLayerStore *QgsExpressionContext::loadedLayerStore() const
 {
   return mDestinationStore;
+}
+
+void QgsExpressionContext::setProject( QgsProject *project )
+{
+  mProject = project;
+}
+
+QgsProject *QgsExpressionContext::project() const
+{
+  return mProject;
 }
 
 void QgsExpressionContext::setFeedback( QgsFeedback *feedback )

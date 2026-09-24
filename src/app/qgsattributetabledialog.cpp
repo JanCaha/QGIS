@@ -579,7 +579,7 @@ void QgsAttributeTableDialog::runFieldCalculation( QgsVectorLayer *layer, const 
 
   int rownum = 1;
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
   if ( !exp.prepare( &context ) )
   {
     calculationSuccess = false;

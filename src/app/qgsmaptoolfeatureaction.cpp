@@ -140,7 +140,7 @@ bool QgsMapToolFeatureAction::doAction( QgsVectorLayer *layer, int x, int y )
     }
     else
     {
-      QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+      QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
       QgsExpression exp( layer->displayExpression() );
       exp.prepare( &context );
 

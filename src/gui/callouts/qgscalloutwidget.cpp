@@ -23,6 +23,7 @@
 #include "qgsmarkersymbol.h"
 #include "qgsnewauxiliaryfielddialog.h"
 #include "qgsnewauxiliarylayerdialog.h"
+#include "qgsproject.h"
 #include "qgsunitselectionwidget.h"
 #include "qgsvectorlayer.h"
 
@@ -34,6 +35,7 @@ QgsExpressionContext QgsCalloutWidget::createExpressionContext() const
     return *lExpressionContext;
 
   QgsExpressionContext expContext( mContext.globalProjectAtlasMapLayerScopes( layer() ) );
+  expContext.setProject( QgsProject::instance() );
   QgsExpressionContextScope *symbolScope = QgsExpressionContextUtils::updateSymbolScope( nullptr, new QgsExpressionContextScope() );
   symbolScope->addVariable( QgsExpressionContextScope::StaticVariable( QgsExpressionContext::EXPR_SYMBOL_COLOR, QColor(), true ) );
   expContext << symbolScope;

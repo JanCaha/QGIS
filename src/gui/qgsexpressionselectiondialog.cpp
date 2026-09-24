@@ -61,7 +61,7 @@ QgsExpressionSelectionDialog::QgsExpressionSelectionDialog( QgsVectorLayer *laye
   mButtonSelect->addAction( mActionSelectIntersect );
   mButtonSelect->setDefaultAction( mActionSelect );
 
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
   mExpressionBuilder->initWithLayer( layer, context, u"selection"_s );
   mExpressionBuilder->setExpressionText( startText );
 
@@ -152,7 +152,7 @@ void QgsExpressionSelectionDialog::mButtonZoomToFeatures_clicked()
   if ( mExpressionBuilder->expressionText().isEmpty() || !mMapCanvas )
     return;
 
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 
   const QgsFeatureRequest request = QgsFeatureRequest().setFilterExpression( mExpressionBuilder->expressionText() ).setExpressionContext( context ).setNoAttributes();
 

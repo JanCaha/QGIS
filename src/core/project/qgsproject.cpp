@@ -2943,6 +2943,7 @@ QgsExpressionContext QgsProject::createExpressionContext() const
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
   QgsExpressionContext context;
+  context.setProject( const_cast<QgsProject *>( this ) );
 
   context << QgsExpressionContextUtils::globalScope() << QgsExpressionContextUtils::projectScope( this );
 

@@ -345,7 +345,7 @@ void QgsIdentifyMenu::addVectorLayer( QgsVectorLayer *layer, const QList<QgsMapT
     }
   }
 
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
   QgsExpression exp( layer->displayExpression() );
   exp.prepare( &context );
   context.setFeature( results[0].mFeature );

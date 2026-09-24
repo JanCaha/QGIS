@@ -120,7 +120,7 @@ void QgsLayoutAtlasWidget::changeCoverageLayer( QgsMapLayer *layer )
 
   // if page name expression is still valid, retain it. Otherwise switch to a nice default.
   QgsExpression exp( prevPageNameExpression );
-  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vl ) );
+  QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( vl ) );
   if ( exp.prepare( &context ) && !exp.hasParserError() )
   {
     mAtlas->setPageNameExpression( prevPageNameExpression );

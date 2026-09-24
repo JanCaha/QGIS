@@ -39,7 +39,7 @@ QgsVectorLayer *QgsEditorConfigWidget::layer()
 
 QgsExpressionContext QgsEditorConfigWidget::createExpressionContext() const
 {
-  return QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  return QgsExpressionContext( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 }
 
 void QgsEditorConfigWidget::initializeDataDefinedButton( QgsPropertyOverrideButton *button, QgsWidgetWrapper::Property key )

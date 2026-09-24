@@ -148,7 +148,7 @@ void QgsFeatureFilterWidget::filterInvalid()
   mFilterQuery->setVisible( false );
   mApplyFilterButton->setVisible( false );
   mStoreFilterExpressionButton->setVisible( false );
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
   mMainView->filterFeatures( u"is_feature_valid() = false"_s, context );
   mMainView->setFilterMode( QgsAttributeTableFilterModel::ShowInvalid );
 }
@@ -327,7 +327,7 @@ void QgsFeatureFilterWidget::filterColumnChanged( QAction *filterAction )
 void QgsFeatureFilterWidget::filterExpressionBuilder()
 {
   // Show expression builder
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 
   QgsExpressionBuilderDialog dlg( mLayer, mFilterQuery->text(), this, u"generic"_s, context );
   dlg.setWindowTitle( tr( "Expression Based Filter" ) );
@@ -464,7 +464,7 @@ void QgsFeatureFilterWidget::setFilterExpression( const QString &filterString, Q
     return;
   }
 
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( mLayer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer ) );
 
   if ( !filterExpression.prepare( &context ) )
   {

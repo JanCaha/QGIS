@@ -952,6 +952,28 @@ expression evaluation.
 .. versionadded:: 3.30
 %End
 
+    void setProject( QgsProject *project );
+%Docstring
+Sets the ``project`` associated with the context.
+
+.. seealso:: :py:func:`project`
+
+.. versionadded:: 4.6
+%End
+
+    QgsProject *project() const;
+%Docstring
+Returns the project associated with the context.
+
+If no project has been set (or the project was deleted), falls back to
+:py:func:`QgsProject.instance()` and logs a warning. This fallback will
+be removed in QGIS 5.0.
+
+.. seealso:: :py:func:`setProject`
+
+.. versionadded:: 4.6
+%End
+
     void setFeedback( QgsFeedback *feedback );
 %Docstring
 Attach a ``feedback`` object that can be queried regularly by the

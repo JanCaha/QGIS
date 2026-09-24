@@ -26,7 +26,7 @@ using namespace Qt::StringLiterals;
 
 long QgsMapCanvasUtils::zoomToMatchingFeatures( QgsMapCanvas *canvas, QgsVectorLayer *layer, const QString &filter )
 {
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
 
   const QgsFeatureRequest request = QgsFeatureRequest().setFilterExpression( filter ).setExpressionContext( context ).setNoAttributes();
 
@@ -57,7 +57,7 @@ long QgsMapCanvasUtils::zoomToMatchingFeatures( QgsMapCanvas *canvas, QgsVectorL
 
 long QgsMapCanvasUtils::flashMatchingFeatures( QgsMapCanvas *canvas, QgsVectorLayer *layer, const QString &filter )
 {
-  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+  const QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopeContext( layer ) );
 
   const QgsFeatureRequest request = QgsFeatureRequest().setFilterExpression( filter ).setExpressionContext( context ).setNoAttributes();
 

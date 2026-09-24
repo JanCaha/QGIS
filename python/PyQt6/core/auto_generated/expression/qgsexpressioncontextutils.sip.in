@@ -162,6 +162,16 @@ Creates a new scope which contains variables and functions relating to a
 Creates a list of three scopes: global, layer's project and layer.
 %End
 
+    static QgsExpressionContext globalProjectLayerScopeContext( const QgsMapLayer *layer );
+%Docstring
+Creates a new expression context containing global, layer's project and
+layer scopes for ``layer``, with the layer's project (or
+:py:func:`QgsProject.instance()` as a fallback) already set on the
+context.
+
+.. versionadded:: 4.6
+%End
+
     static void setLayerVariable( QgsMapLayer *layer, const QString &name, const QVariant &value );
 %Docstring
 Sets a layer context variable. This variable will be contained within

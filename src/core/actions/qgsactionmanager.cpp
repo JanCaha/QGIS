@@ -212,7 +212,7 @@ void QgsActionManager::runAction( const QgsAction &action )
     case Qgis::AttributeActionType::SubmitUrlEncoded:
     case Qgis::AttributeActionType::SubmitUrlMultipart:
     {
-      action.run( QgsExpressionContext() );
+      action.run( createExpressionContext() );
       break;
     }
     case Qgis::AttributeActionType::Generic:
@@ -230,12 +230,7 @@ void QgsActionManager::runAction( const QgsAction &action )
 
 QgsExpressionContext QgsActionManager::createExpressionContext() const
 {
-  QgsExpressionContext context;
-  context << QgsExpressionContextUtils::globalScope() << QgsExpressionContextUtils::projectScope( QgsProject::instance() ); // skip-keyword-check
-  if ( mLayer )
-    context << QgsExpressionContextUtils::layerScope( mLayer );
-
-  return context;
+  return QgsExpressionContextUtils::globalProjectLayerScopeContext( mLayer );
 }
 
 bool QgsActionManager::writeXml( QDomNode &layer_node ) const

@@ -111,6 +111,18 @@ QgsVectorLayerFeatureSource::QgsVectorLayerFeatureSource( const QgsVectorLayer *
 #endif
   }
 
+  if ( layer->project() )
+  {
+    mProject = layer->project();
+  }
+  else
+  {
+    // TODO QGIS 5.0 -- remove the fallback to the current project, once layers are strictly required to be associated with project
+    QgsMessageLog::
+      logMessage( "QgsVectorLayerFeatureSource constructed for layer without specified project. Fallback to QgsProject.instance(). This will be removed in QGIS 5.0.", "QgsVectorLayerFeatureSource", Qgis::Warning );
+    mProject = QgsProject::instance(); // skip-keyword-check
+  }
+
   const std::unique_ptr< QgsExpressionContextScope > layerScope( QgsExpressionContextUtils::layerScope( layer ) );
   mLayerScope = *layerScope;
 }
@@ -855,11 +867,15 @@ void QgsVectorLayerFeatureIterator::prepareExpression( int fieldIdx )
   auto exp = std::make_unique<QgsExpression>( exps[oi].cachedExpression );
 
   QgsDistanceArea da;
-  da.setSourceCrs( mSource->mCrs, QgsProject::instance()->transformContext() ); // skip-keyword-check
-  da.setEllipsoid( QgsProject::instance()->ellipsoid() );                       // skip-keyword-check
+  // make sure the project exists before using information from it
+  if ( const QgsProject *project = mSource->mProject )
+  {
+    da.setSourceCrs( mSource->mCrs, project->transformContext() );
+    da.setEllipsoid( project->ellipsoid() );
+    exp->setDistanceUnits( project->distanceUnits() );
+    exp->setAreaUnits( project->areaUnits() );
+  }
   exp->setGeomCalculator( &da );
-  exp->setDistanceUnits( QgsProject::instance()->distanceUnits() ); // skip-keyword-check
-  exp->setAreaUnits( QgsProject::instance()->areaUnits() );         // skip-keyword-check
 
   if ( !mExpressionContext )
     createExpressionContext();
@@ -1337,9 +1353,10 @@ void QgsVectorLayerFeatureIterator::createExpressionContext()
 {
   mExpressionContext = std::make_unique< QgsExpressionContext >();
   mExpressionContext->appendScope( QgsExpressionContextUtils::globalScope() );
-  mExpressionContext->appendScope( QgsExpressionContextUtils::projectScope( QgsProject::instance() ) ); // skip-keyword-check
+  mExpressionContext->appendScope( QgsExpressionContextUtils::projectScope( mSource->mProject ) );
   mExpressionContext->appendScope( new QgsExpressionContextScope( mSource->mLayerScope ) );
   mExpressionContext->setFeedback( mRequest.feedback() );
+  mExpressionContext->setProject( mSource->mProject );
 }
 
 bool QgsVectorLayerFeatureIterator::prepareOrderBy( const QList<QgsFeatureRequest::OrderByClause> &orderBys )

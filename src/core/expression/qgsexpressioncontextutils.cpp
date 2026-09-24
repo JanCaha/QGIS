@@ -32,6 +32,7 @@
 #include "qgsmapsettings.h"
 #include "qgsmarkersymbol.h"
 #include "qgsmeshlayer.h"
+#include "qgsmessagelog.h"
 #include "qgspointcloudattribute.h"
 #include "qgspointcloudlayer.h"
 #include "qgsprocessingalgorithm.h"
@@ -421,13 +422,46 @@ QList<QgsExpressionContextScope *> QgsExpressionContextUtils::globalProjectLayer
   QList<QgsExpressionContextScope *> scopes;
   scopes << globalScope();
 
-  QgsProject *project = layer && layer->project() ? layer->project() : QgsProject::instance(); // skip-keyword-check
+  QgsProject *project = nullptr;
+  if ( layer && layer->project() )
+  {
+    project = layer->project();
+  }
+  else
+  {
+    // TODO QGIS 5.0 -- remove the fallback to the current project, once layers are strictly required to be associated with project
+    QgsMessageLog::logMessage( "QgsExpressionContextUtils::globalProjectLayerScopes() for layer constructed without specified project. This will be removed in QGIS 5.0.", "QgsExpressionContextUtils", Qgis::Warning );
+    project = QgsProject::instance(); // skip-keyword-check
+  }
+
   if ( project )
     scopes << projectScope( project );
 
   if ( layer )
     scopes << layerScope( layer );
   return scopes;
+}
+
+QgsExpressionContext QgsExpressionContextUtils::globalProjectLayerScopeContext( const QgsMapLayer *layer )
+{
+  QgsProject *project = nullptr;
+
+  if ( layer && layer->project() )
+  {
+    project = layer->project();
+  }
+  else
+  {
+    // TODO QGIS 5.0 -- remove the fallback to the current project, once layers are strictly required to be associated with project
+    QgsMessageLog::
+      logMessage( "QgsExpressionContextUtils::globalProjectLayerScopeContext() for layer constructed without specified project. This will be removed in QGIS 5.0.", "QgsExpressionContextUtils", Qgis::Warning );
+    project = QgsProject::instance(); // skip-keyword-check
+  }
+
+  QgsExpressionContext context( globalProjectLayerScopes( layer ) );
+  context.setProject( project );
+
+  return context;
 }
 
 

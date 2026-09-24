@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "qgscolorrampimpl.h"
+#include "qgsmessagelog.h"
 #include "qgsproject.h"
 #include "qgsproviderregistry.h"
 #include "qgssymbollayerutils.h"
@@ -68,6 +69,23 @@ QgsGradientColorRamp QgsExpressionUtils::getRamp( const QVariant &value, QgsExpr
     parent->setEvalErrorString( QObject::tr( "Cannot convert '%1' to gradient ramp" ).arg( value.toString() ) );
 
   return QgsGradientColorRamp();
+}
+
+/**
+ * Returns the project associated with \a context, if set, otherwise falls back to
+ * QgsProject.instance().
+ *
+ * TODO QGIS 5.0 -- remove the fallback once expression contexts used to resolve map
+ * layers consistently carry an explicit project (see QgsExpressionContext::setProject()).
+ */
+static QgsProject *contextOrCurrentProject( const QgsExpressionContext *context )
+{
+  if ( context && context->project() )
+    return context->project();
+
+  QgsMessageLog::
+    logMessage( "QgsExpressionUtils function called without context or with expression context without specified project. Defaulting to QgsProject.instance(). This fallback will be removed in QGIS 5.0.", "QgsExpressionUtils", Qgis::Warning );
+  return QgsProject::instance(); // skip-keyword-check
 }
 
 QgsMapLayer *QgsExpressionUtils::getMapLayer( const QVariant &value, const QgsExpressionContext *context, QgsExpression *parent )
@@ -131,9 +149,9 @@ QgsMapLayer *QgsExpressionUtils::getMapLayerPrivate( const QVariant &value, cons
     }
   }
 
-  // last resort - QgsProject instance. This is bad, we need to remove this!
-  auto getMapLayerFromProjectInstance = [&ml, identifier] {
-    QgsProject *project = QgsProject::instance(); // skip-keyword-check
+  // last resort - the context's project, or the current QgsProject instance as a fallback
+  auto getMapLayerFromProjectInstance = [&ml, identifier, context] {
+    QgsProject *project = contextOrCurrentProject( context );
 
     // No pointer yet, maybe it's a layer id?
     ml = project->mapLayer( identifier );
@@ -255,10 +273,11 @@ void QgsExpressionUtils::executeLambdaForMapLayer( const QVariant &value, const 
 
     // Make sure we only deal with the project on the thread where it lives.
     // Anything else risks a crash.
-    if ( QThread::currentThread() == QgsProject::instance()->thread() ) // skip-keyword-check
+    QgsProject *project = contextOrCurrentProject( context );
+    if ( QThread::currentThread() == project->thread() )
       runFunction();
     else
-      QMetaObject::invokeMethod( QgsProject::instance(), runFunction, Qt::BlockingQueuedConnection ); // skip-keyword-check
+      QMetaObject::invokeMethod( project, runFunction, Qt::BlockingQueuedConnection );
   }
   else
   {
@@ -304,9 +323,9 @@ void QgsExpressionUtils::executeLambdaForMapLayer( const QVariant &value, const 
         return;
     }
 
-    // last resort - QgsProject instance. This is bad, we need to remove this!
-    auto getMapLayerFromProjectInstance = [value, identifier, &function, &foundLayer] {
-      QgsProject *project = QgsProject::instance(); // skip-keyword-check
+    // last resort - the context's project, or the current QgsProject instance as a fallback
+    auto getMapLayerFromProjectInstance = [value, identifier, &function, &foundLayer, context] {
+      QgsProject *project = contextOrCurrentProject( context );
 
       // maybe it's a layer id?
       QgsMapLayer *ml = project->mapLayer( identifier );
@@ -324,10 +343,11 @@ void QgsExpressionUtils::executeLambdaForMapLayer( const QVariant &value, const 
       }
     };
 
-    if ( QThread::currentThread() == QgsProject::instance()->thread() ) // skip-keyword-check
+    QgsProject *project = contextOrCurrentProject( context );
+    if ( QThread::currentThread() == project->thread() )
       getMapLayerFromProjectInstance();
     else
-      QMetaObject::invokeMethod( QgsProject::instance(), getMapLayerFromProjectInstance, Qt::BlockingQueuedConnection ); // skip-keyword-check
+      QMetaObject::invokeMethod( project, getMapLayerFromProjectInstance, Qt::BlockingQueuedConnection );
   }
 #endif
 }
